@@ -1,0 +1,15 @@
+# Keep config.js out of git if it contains real API keys
+# Uncomment the line below once you've filled in your keys:
+# js/config.js
+
+# Node (if you ever add a build step)
+node_modules/
+.env
+.env.local
+
+# Supabase local dev
+.supabase/
+
+# OS
+.DS_Store
+Thumbs.db

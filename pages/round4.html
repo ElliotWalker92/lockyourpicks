@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <title>WC2026 — Knockout Predictions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="../css/style.css?v=50">
+  <style>
+    .ko-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .ko-match-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--grey-400); }
+    .ko-teams-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .ko-team {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .ko-team.away { flex-direction: row-reverse; text-align: right; }
+    .ko-team > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ko-team-flag { font-size: 1.3rem; }
+    .ko-score-inputs {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .score-num {
+      width: 46px;
+      text-align: center;
+      font-family: var(--font-serif);
+      font-size: 1.4rem;
+      padding: 0.3rem;
+      border: 1.5px solid var(--grey-300);
+      border-radius: var(--radius-md);
+      background: var(--white);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .score-num:focus { border-color: var(--ink); }
+    .score-num:disabled { background: var(--grey-100); color: var(--grey-400); }
+    .score-sep { font-size: 1.2rem; color: var(--grey-400); }
+    .ko-result {
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--grey-500);
+      margin-top: 0.4rem;
+      font-weight: 500;
+    }
+    .tbd-notice {
+      text-align: center;
+      padding: 0.875rem 0.5rem;
+      font-size: 0.82rem;
+      color: var(--grey-400);
+    }
+    /* Per-match lock pills */
+    @keyframes lockPulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(200,241,53,0.55); }
+      50%       { opacity: 0.82; box-shadow: 0 0 0 5px rgba(200,241,53,0); }
+    }
+    .lock-pill { display: inline-flex; align-items: center; gap: 0.55rem; border-radius: 9999px; font-weight: 600; line-height: 1.3; }
+    .lock-pill--sm { padding: 0.18rem 0.5rem 0.18rem 0.35rem; font-size: 0.68rem; gap: 0.28rem; flex-shrink: 0; }
+    .lock-pill--sm > i { font-size: 0.8rem; }
+    .lock-pill--open   { background: rgba(200,241,53,0.18); color: #5c7000; border: 1px solid rgba(200,241,53,0.45); }
+    .lock-pill--locked { background: var(--grey-100); color: var(--grey-500); border: 1px solid var(--grey-200); }
+    .lock-pill--open.urgent { animation: lockPulse 1.8s ease-in-out infinite; }
+
+    /* ---- View picks button ---- */
+    .view-picks-btn {
+      display: flex; align-items: center; justify-content: center; gap: 0.35rem;
+      width: 100%; margin-top: 0.5rem; padding: 0.35rem;
+      background: none; border: 1px solid var(--grey-200);
+      border-radius: var(--radius-md);
+      font-size: 0.72rem; font-weight: 600; color: var(--grey-500);
+      cursor: pointer; transition: background 0.12s, color 0.12s;
+    }
+    .view-picks-btn:hover { background: var(--grey-100); color: var(--ink); }
+    /* ---- Pick comparison modal ---- */
+    .pred-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 1000; display: flex; align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+    @media (min-width: 560px) { .pred-modal-overlay { align-items: center; padding: 1.5rem; } }
+    .pred-modal-panel {
+      background: var(--white); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      width: 100%; max-height: 85vh; overflow: hidden;
+      display: flex; flex-direction: column; box-shadow: 0 -4px 32px rgba(0,0,0,0.18);
+    }
+    @media (min-width: 560px) { .pred-modal-panel { border-radius: var(--radius-lg); max-width: 460px; max-height: 80vh; } }
+    .pred-modal-header {
+      position: relative; padding: 1rem 3rem 0.875rem 1.25rem;
+      border-bottom: 1px solid var(--grey-200); flex-shrink: 0;
+    }
+    .pred-modal-teams {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.92rem; font-weight: 700; margin-bottom: 0.25rem;
+    }
+    .pred-modal-meta { font-size: 0.72rem; color: var(--grey-500); margin-top: 0.15rem; }
+    .pred-modal-close {
+      position: absolute; top: 0.875rem; right: 1rem;
+      background: none; border: none; cursor: pointer; color: var(--grey-500);
+      padding: 0.25rem; border-radius: var(--radius-sm); font-size: 1.1rem; line-height: 1;
+    }
+    .pred-modal-close:hover { background: var(--grey-100); }
+    .pred-modal-league-bar {
+      padding: 0.5rem 1.25rem; border-bottom: 1px solid var(--grey-100);
+      flex-shrink: 0; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .pred-modal-body { overflow-y: auto; flex: 1; }
+    .player-pred-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.625rem 1.25rem; border-bottom: 1px solid var(--grey-100);
+    }
+    .player-pred-row:last-child { border-bottom: none; }
+    .player-pred-row.is-you { background: rgba(200,241,53,0.08); }
+    .player-pred-name {
+      flex: 1; font-size: 0.875rem; font-weight: 600;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .player-pred-score { font-family: var(--font-serif); font-size: 1.05rem; color: var(--ink); flex-shrink: 0; min-width: 44px; text-align: center; }
+    .player-pred-score.no-pred { font-family: var(--font-sans); font-size: 0.75rem; color: var(--grey-400); font-weight: 400; }
+    .pred-chip { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em; padding: 0.12rem 0.42rem; border-radius: 9999px; flex-shrink: 0; }
+    .pred-chip.exact  { background: rgba(34,197,94,0.15); color: #15803d; }
+    .pred-chip.result { background: rgba(200,241,53,0.3); color: #5c7000; }
+    .pred-chip.wrong  { background: rgba(239,68,68,0.12); color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <style>
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: #f9f9f8;
+      color: #0d0d0d;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      margin: 0;
+    }
+    .placeholder-card {
+      max-width: 460px;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 20px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+      padding: 2.75rem 2.25rem;
+      text-align: center;
+    }
+    .placeholder-icon { font-size: 2.5rem; color: #e8b923; margin-bottom: 1rem; }
+    .placeholder-card h1 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.5rem;
+      margin: 0 0 0.75rem;
+    }
+    .placeholder-card p { color: #6b7280; font-size: 0.92rem; line-height: 1.6; margin: 0 0 1.5rem; }
+    .placeholder-card a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #0d0d0d;
+      color: #c8f135;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+    }
+  </style>
+  <div class="placeholder-card">
+    <div class="placeholder-icon"><i class="ti ti-trophy"></i></div>
+    <h1>Tournament complete</h1>
+    <p>The WC2026 Prediction Game has finished and this page is no longer active. Final results are on the home page.</p>
+    <a href="../index.html"><i class="ti ti-arrow-left"></i> Back to results</a>
+  </div>
+</body>
+</html>

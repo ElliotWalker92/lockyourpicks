@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <title>WC2026 Predictor — Tournament Complete</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+  <style>
+    :root {
+      --ink:        #0d0d0d;
+      --lime:       #c8f135;
+      --bg:         #f9f9f8;
+      --white:      #ffffff;
+      --grey-700:   #374151;
+      --grey-500:   #6b7280;
+      --grey-300:   #d1d5db;
+      --font-serif: 'DM Serif Display', Georgia, serif;
+      --font-sans:  'Space Grotesk', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      max-width: 560px;
+      width: 100%;
+      background: var(--white);
+      border: 1px solid var(--grey-300);
+      border-radius: 20px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+      padding: 3rem 2.5rem;
+      text-align: center;
+    }
+    .trophy {
+      font-size: 3rem;
+      color: #e8b923;
+      margin-bottom: 1.25rem;
+    }
+    .logo {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 1.1rem;
+      color: var(--grey-500);
+      margin-bottom: 1.5rem;
+    }
+    .logo .lime { color: #5a6e00; }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.9rem, 6vw, 2.5rem);
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+    .lede {
+      font-size: 1rem;
+      color: var(--grey-700);
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+    .podium {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-bottom: 2rem;
+      text-align: left;
+    }
+    .podium-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 1rem;
+      border-radius: 12px;
+      background: var(--bg);
+      border: 1px solid var(--grey-300);
+    }
+    .podium-row.first {
+      background: linear-gradient(135deg, rgba(232,185,35,0.08), rgba(200,241,53,0.08));
+      border-color: rgba(232,185,35,0.35);
+    }
+    .medal { font-size: 1.3rem; flex-shrink: 0; width: 28px; text-align: center; }
+    .podium-name { font-weight: 600; flex: 1; }
+    .podium-pts { font-family: var(--font-serif); color: var(--grey-500); }
+    .podium-row.first .podium-pts { color: var(--ink); }
+    .sign-off {
+      font-size: 0.9rem;
+      color: var(--grey-500);
+      line-height: 1.6;
+    }
+    .divider {
+      height: 1px;
+      background: var(--grey-300);
+      margin: 1.75rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="trophy"><i class="ti ti-trophy"></i></div>
+    <div class="logo"><span class="lime">WC</span> 2026 Predictor</div>
+    <h1>That's a wrap!</h1>
+    <p class="lede">
+      Thanks for playing the WC2026 Prediction Game. The tournament has finished,
+      every match has been scored, and the final standings are locked in for good.
+    </p>
+
+    <div class="podium">
+      <div class="podium-row first">
+        <span class="medal"><i class="ti ti-trophy" style="color:#e8b923"></i></span>
+        <span class="podium-name">David Mazz</span>
+        <span class="podium-pts">603 pts</span>
+      </div>
+      <div class="podium-row">
+        <span class="medal"><i class="ti ti-medal" style="color:#b0b0b0"></i></span>
+        <span class="podium-name">Hugh Birley</span>
+        <span class="podium-pts">550 pts</span>
+      </div>
+      <div class="podium-row">
+        <span class="medal"><i class="ti ti-medal" style="color:#cd7f32"></i></span>
+        <span class="podium-name">Tim Mazzucchi</span>
+        <span class="podium-pts">537 pts</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="sign-off">
+      Congratulations to David Mazz on the win, and thank you to everyone who
+      predicted, argued about the group tables, and kept the leaderboard
+      interesting all the way to the Final. See you at the next tournament.
+    </p>
+  </div>
+</body>
+</html>

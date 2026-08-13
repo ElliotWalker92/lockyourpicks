@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <title>WC2026 — My Predictions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="../css/style.css?v=50">
+  <style>
+    .round-tabs {
+      display: flex;
+      gap: 0.25rem;
+      border-bottom: 1.5px solid var(--grey-300);
+      margin-bottom: 1.75rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+      scroll-snap-type: x mandatory;
+      scroll-padding: 0;
+    }
+
+    .round-tab-btn {
+      position: relative;
+      padding: 0.55rem 0.875rem;
+      background: transparent;
+      border: none;
+      border-bottom: 2.5px solid transparent;
+      color: var(--grey-500);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      margin-bottom: -1.5px;
+      transition: color 0.15s;
+      scroll-snap-align: start;
+    }
+
+    .round-tab-btn:hover { color: var(--ink); }
+    .round-tab-btn.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+    .tab-pts {
+      position: absolute;
+      top: 3px;
+      right: 2px;
+      background: var(--lime);
+      color: var(--ink);
+      border-radius: 10px;
+      font-size: 0.5rem;
+      padding: 0 4px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .round-panel { display: none; }
+    .round-panel.active { display: block; }
+
+    .pred-item {
+      background: var(--white);
+      border: 1px solid var(--grey-300);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.625rem;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pred-question {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--grey-500);
+      margin-bottom: 0.3rem;
+    }
+
+    .pred-answer { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+
+    .pred-pts { text-align: right; }
+    .pts-number { font-family: var(--font-serif); font-size: 1.5rem; line-height: 1; }
+    .pts-number.positive { color: var(--green); }
+    .pts-number.zero { color: var(--grey-300); }
+    .pts-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--grey-400); margin-top: 0.15rem; }
+
+    .round-total-bar {
+      background: var(--grey-100);
+      border: 1px solid var(--grey-300);
+      border-radius: var(--radius-md);
+      padding: 0.875rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+
+    .round-total-label { font-size: 0.8rem; font-weight: 600; color: var(--grey-500); }
+    .round-total-pts { font-family: var(--font-serif); font-size: 1.6rem; color: var(--ink); }
+
+    .match-pred-row {
+      background: var(--white);
+      border: 1px solid var(--grey-300);
+      border-radius: var(--radius-lg);
+      padding: 0.875rem 1.25rem;
+      margin-bottom: 0.5rem;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .match-pred-row.exact { border-color: var(--green); }
+    .match-pred-row.result { border-color: var(--lime-dark); }
+    .match-pred-row.wrong { border-color: var(--red); }
+    .match-pred-row.auto-default { border-style: dashed; border-color: var(--grey-300); background: var(--grey-50); }
+    .auto-tag { display: inline-block; font-size: 0.62em; background: var(--grey-200); color: var(--grey-500); border-radius: 3px; padding: 0 3px; margin-left: 3px; vertical-align: middle; font-weight: 700; letter-spacing: 0; }
+
+    .match-pred-teams { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; flex-wrap: wrap; }
+
+    .match-pred-score { font-family: var(--font-serif); font-size: 1.1rem; text-align: center; color: var(--grey-500); }
+    .match-pred-score.exact { color: var(--green); }
+    .match-pred-score.result { color: var(--lime-dark); }
+    .match-pred-score.wrong { color: var(--red); }
+
+    .empty-round {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--grey-400);
+    }
+
+    .empty-round a { color: var(--ink); font-weight: 600; }
+
+    /* ---- Predicted group tables ---- */
+    .pred-tables-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (min-width: 600px)  { .pred-tables-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) { .pred-tables-grid { grid-template-columns: 1fr 1fr 1fr; } }
+
+    /* Dark header override for standings-style cards */
+    .pred-tables-grid .group-card-header { background: var(--ink); color: var(--white); }
+    .pred-tables-grid .group-card-header .group-label { color: var(--white); }
+    .group-played-chip {
+      font-size: 0.68rem; font-weight: 600;
+      background: rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 0.15rem 0.6rem;
+      color: rgba(255,255,255,0.65);
+      letter-spacing: 0.03em;
+    }
+
+    .standings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      table-layout: fixed;
+    }
+    .standings-table th {
+      padding: 0.35rem 0.5rem;
+      text-align: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      color: var(--grey-500);
+      text-transform: uppercase;
+      background: var(--grey-100);
+      border-bottom: 1px solid var(--grey-300);
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .standings-table th.team-col { text-align: left; padding-left: 0.75rem; }
+    .standings-table th:not(.team-col) { width: 26px; }
+    .standings-table th:last-child,
+    .standings-table td:last-child { width: 32px; padding-right: 0.75rem; }
+    .standings-table th:last-child { overflow: visible; }
+    .standings-table td {
+      padding: 0.45rem 0.5rem;
+      text-align: center;
+      border-bottom: 1px solid var(--grey-100);
+      color: var(--grey-700);
+    }
+    .standings-table td.team-col { text-align: left; padding-left: 0; overflow: hidden; }
+    .standings-table tr:last-child td { border-bottom: none; }
+    .standings-table tr.qual-1 td.team-col { border-left: 3px solid var(--lime-dark); }
+    .standings-table tr.qual-2 td.team-col { border-left: 3px solid var(--lime-dark); }
+    .standings-table tr.qual-3 td.team-col { border-left: 3px solid #a3e635; }
+
+    .team-cell { display: flex; align-items: center; gap: 0.4rem; padding-left: 0.5rem; overflow: hidden; }
+    .team-rank { color: var(--grey-400); font-size: 0.7rem; width: 12px; flex-shrink: 0; text-align: right; }
+    .team-cell .team-name-full,
+    .team-cell .team-name-abbr { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .team-name-abbr { display: none; }
+
+    /* Multi-col (600px+): hide GF/GA/GD at both 2-col and 3-col layouts. */
+    @media (min-width: 600px) {
+      .standings-table .col-gf,
+      .standings-table .col-ga,
+      .standings-table .col-gd { display: none; }
+    }
+    @media (min-width: 600px) and (max-width: 799px) {
+      .team-name-full { display: none; }
+      .team-name-abbr { display: inline; }
+    }
+
+    .pts-cell { font-weight: 700; color: var(--ink); }
+    .gd-pos { color: #16a34a; font-weight: 600; }
+    .gd-neg { color: var(--red); font-weight: 600; }
+
+    .r2-pred-row { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .r2-actual-row {
+      display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+      font-size: 0.8rem; color: var(--grey-500); margin-top: 0.3rem;
+    }
+    .r2-actual-lbl {
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--grey-400);
+    }
+    .r2-pred-sep { color: var(--grey-300); margin: 0 0.1rem; }
+    .r2-bonus-summary {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      background: var(--grey-50, #f9f9f9); border: 1px solid var(--grey-200);
+      border-radius: var(--radius-md); font-size: 0.82rem;
+      margin-bottom: 0.625rem; color: var(--grey-600); box-shadow: var(--shadow-sm);
+    }
+    .r2-bonus-pts { margin-left: auto; font-family: var(--font-serif); font-size: 1.05rem; font-weight: 700; color: var(--green); }
+    .r2-bonus-pts.zero { color: var(--grey-300); }
+
+    .legend { display: flex; gap: 1.25rem; flex-wrap: wrap; font-size: 0.72rem; color: var(--grey-500); align-items: center; }
+    .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+    .legend-stripe { width: 10px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <style>
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: #f9f9f8;
+      color: #0d0d0d;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      margin: 0;
+    }
+    .placeholder-card {
+      max-width: 460px;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 20px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+      padding: 2.75rem 2.25rem;
+      text-align: center;
+    }
+    .placeholder-icon { font-size: 2.5rem; color: #e8b923; margin-bottom: 1rem; }
+    .placeholder-card h1 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.5rem;
+      margin: 0 0 0.75rem;
+    }
+    .placeholder-card p { color: #6b7280; font-size: 0.92rem; line-height: 1.6; margin: 0 0 1.5rem; }
+    .placeholder-card a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #0d0d0d;
+      color: #c8f135;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+    }
+  </style>
+  <div class="placeholder-card">
+    <div class="placeholder-icon"><i class="ti ti-trophy"></i></div>
+    <h1>Tournament complete</h1>
+    <p>The WC2026 Prediction Game has finished and this page is no longer active. Final results are on the home page.</p>
+    <a href="../index.html"><i class="ti ti-arrow-left"></i> Back to results</a>
+  </div>
+</body>
+</html>

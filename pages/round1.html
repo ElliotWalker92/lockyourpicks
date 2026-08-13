@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <title>WC2026 — Round 1: Pre-Tournament</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="../css/style.css?v=50">
+  <style>
+    .answers-panel {
+      margin-top: 1rem;
+      border-top: 1px solid var(--grey-300);
+      padding-top: 0.75rem;
+    }
+    .answers-panel-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--grey-400);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .answers-list { display: flex; flex-direction: column; gap: 0.2rem; }
+    .answer-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.83rem;
+    }
+    .answer-row.you { background: rgba(200,241,53,0.1); }
+    .answer-name {
+      flex: 1;
+      font-weight: 500;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .answer-val {
+      font-weight: 600;
+      color: var(--grey-700);
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .r2-result-strip {
+      margin-top: 0.75rem;
+      border-top: 1px solid var(--grey-200);
+      padding: 0.65rem 1rem 0.75rem;
+    }
+    .r2-result-row {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.82rem; padding: 0.1rem 0;
+    }
+    .r2-result-lbl {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--grey-400); width: 44px; flex-shrink: 0;
+    }
+    .r2-result-val {
+      display: flex; align-items: center; gap: 0.5rem;
+      flex: 1; min-width: 0; font-weight: 600; color: var(--grey-700); flex-wrap: wrap;
+    }
+    .r2-result-team {
+      display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0;
+    }
+    .r2-result-sep { color: var(--grey-300); flex-shrink: 0; }
+    .r2-result-pts { font-family: var(--font-serif); font-size: 1.1rem; font-weight: 700; color: var(--green); white-space: nowrap; flex-shrink: 0; }
+    .r2-result-pts.zero { color: var(--grey-300); }
+    .r2-result-pending { font-size: 0.78rem; color: var(--grey-400); font-style: italic; }
+  </style>
+</head>
+<body>
+  <style>
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: #f9f9f8;
+      color: #0d0d0d;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      margin: 0;
+    }
+    .placeholder-card {
+      max-width: 460px;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 20px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+      padding: 2.75rem 2.25rem;
+      text-align: center;
+    }
+    .placeholder-icon { font-size: 2.5rem; color: #e8b923; margin-bottom: 1rem; }
+    .placeholder-card h1 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.5rem;
+      margin: 0 0 0.75rem;
+    }
+    .placeholder-card p { color: #6b7280; font-size: 0.92rem; line-height: 1.6; margin: 0 0 1.5rem; }
+    .placeholder-card a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #0d0d0d;
+      color: #c8f135;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+    }
+  </style>
+  <div class="placeholder-card">
+    <div class="placeholder-icon"><i class="ti ti-trophy"></i></div>
+    <h1>Tournament complete</h1>
+    <p>The WC2026 Prediction Game has finished and this page is no longer active. Final results are on the home page.</p>
+    <a href="../index.html"><i class="ti ti-arrow-left"></i> Back to results</a>
+  </div>
+</body>
+</html>

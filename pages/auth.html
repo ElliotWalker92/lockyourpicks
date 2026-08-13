@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <title>WC2026 — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="../css/style.css?v=50">
+  <style>
+    body { background: var(--bg); }
+
+    .auth-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+    }
+
+    .auth-container {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .auth-logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .auth-logo a {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 2rem;
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    .auth-logo a .lime { color: #5a6e00; }
+
+    .auth-logo p {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--grey-400);
+      margin-top: 0.25rem;
+    }
+
+    .auth-card {
+      background: var(--white);
+      border: 1px solid var(--grey-300);
+      border-radius: var(--radius-xl);
+      padding: 2rem;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .auth-tabs {
+      display: flex;
+      border-bottom: 1.5px solid var(--grey-300);
+      margin-bottom: 1.75rem;
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 0.6rem;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--grey-400);
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: -1.5px;
+    }
+
+    .auth-tab.active {
+      color: var(--ink);
+      border-bottom-color: var(--ink);
+    }
+
+    .auth-panel { display: none; }
+    .auth-panel.active { display: block; }
+
+    .form-footer {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--grey-400);
+    }
+
+    .invite-notice {
+      background: rgba(200,241,53,0.1);
+      border: 1px solid rgba(200,241,53,0.35);
+      border-radius: var(--radius-md);
+      padding: 0.875rem;
+      font-size: 0.82rem;
+      color: var(--grey-700);
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .invite-notice i { flex-shrink: 0; margin-top: 0.1rem; color: #5a6e00; }
+
+    .color-picker-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--grey-700);
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .color-swatches {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2.5px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .color-swatch.selected {
+      border-color: var(--ink);
+      transform: scale(1.15);
+    }
+
+    .auth-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--grey-500);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      margin-bottom: 1.25rem;
+    }
+    .auth-back:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <style>
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: #f9f9f8;
+      color: #0d0d0d;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      margin: 0;
+    }
+    .placeholder-card {
+      max-width: 460px;
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 20px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+      padding: 2.75rem 2.25rem;
+      text-align: center;
+    }
+    .placeholder-icon { font-size: 2.5rem; color: #e8b923; margin-bottom: 1rem; }
+    .placeholder-card h1 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 1.5rem;
+      margin: 0 0 0.75rem;
+    }
+    .placeholder-card p { color: #6b7280; font-size: 0.92rem; line-height: 1.6; margin: 0 0 1.5rem; }
+    .placeholder-card a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #0d0d0d;
+      color: #c8f135;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+    }
+  </style>
+  <div class="placeholder-card">
+    <div class="placeholder-icon"><i class="ti ti-trophy"></i></div>
+    <h1>Tournament complete</h1>
+    <p>The WC2026 Prediction Game has finished and this page is no longer active. Final results are on the home page.</p>
+    <a href="../index.html"><i class="ti ti-arrow-left"></i> Back to results</a>
+  </div>
+</body>
+</html>
