@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
+import { FixtureModel } from '@/components/FixtureModel';
 import { createClient } from '@/lib/supabase/client';
 import type { Outcome } from '@/lib/types';
 
@@ -13,6 +14,7 @@ export type BoardTeam = {
   name: string;
   short_name: string | null;
   crest_url: string | null;
+  elo_rating: number;
 };
 
 export type BoardFixture = {
@@ -85,16 +87,20 @@ export function DraftBoard({
   picks,
   players,
   currentUserId,
+  elsewhere,
 }: {
   draft: BoardDraft;
   fixtures: BoardFixture[];
   picks: BoardPick[];
   players: BoardPlayer[];
   currentUserId: string;
+  /** Same fixture taken by another division — shown as context, not a signal. */
+  elsewhere: Record<string, { division: string; called: string }[]>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [openModel, setOpenModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const remaining = useCountdown(draft.turn_expires_at);
@@ -447,16 +453,25 @@ export function DraftBoard({
                   return (
                     <li
                       key={f.id}
-                      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-grey-300 bg-card px-3 py-2.5 text-sm"
+                      className="overflow-hidden rounded-lg border border-grey-300 bg-card text-sm"
                     >
+                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
                       <span className="w-12 shrink-0 font-mono text-xs text-grey-500">
                         {time(f.kickoff_at)}
                       </span>
 
-                      <span className="min-w-40 flex-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenModel(openModel === f.id ? null : f.id)
+                        }
+                        aria-expanded={openModel === f.id}
+                        className="min-w-40 flex-1 text-left transition hover:text-lime-dark"
+                        title="Show the model's read on this fixture"
+                      >
                         {f.home.name} <span className="text-grey-400">v</span>{' '}
                         {f.away.name}
-                      </span>
+                      </button>
 
                       {f.competition && (
                         <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
@@ -492,6 +507,15 @@ export function DraftBoard({
                           </button>
                         ))}
                       </span>
+                     </div>
+
+                      {openModel === f.id && (
+                        <FixtureModel
+                          home={{ name: f.home.name, elo: f.home.elo_rating }}
+                          away={{ name: f.away.name, elo: f.away.elo_rating }}
+                          otherPicks={elsewhere[f.id] ?? []}
+                        />
+                      )}
                     </li>
                   );
                 })}

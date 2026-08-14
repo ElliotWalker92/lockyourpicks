@@ -73,12 +73,29 @@ function unwrap<T>(body: ApiFootballResponse<T>, context: string): T[] {
   return body.response ?? [];
 }
 
+/**
+ * The plan has a per-minute request ceiling as well as a daily one, and a
+ * handful of competition fetches back to back is enough to trip it. When it
+ * does, the API answers HTTP 200 with a rateLimit error — so without this the
+ * competition simply vanishes from the results and nothing looks wrong.
+ */
+let lastRequestAt = 0;
+const MIN_GAP_MS = 1500;
+
+async function throttle() {
+  const wait = lastRequestAt + MIN_GAP_MS - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastRequestAt = Date.now();
+}
+
 async function request<T>(
   path: string,
   params: Record<string, string | number>,
 ): Promise<T[]> {
   const key = process.env.API_FOOTBALL_KEY;
   if (!key) throw new ApiFootballError('API_FOOTBALL_KEY is not set');
+
+  await throttle();
 
   const url = new URL(`${BASE}${path}`);
   for (const [k, v] of Object.entries(params)) {

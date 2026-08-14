@@ -164,8 +164,8 @@ export default async function DraftPage() {
         .from('fixtures')
         .select(
           `id, kickoff_at,
-           home:teams!fixtures_home_team_id_fkey(id, name, short_name, crest_url),
-           away:teams!fixtures_away_team_id_fkey(id, name, short_name, crest_url),
+           home:teams!fixtures_home_team_id_fkey(id, name, short_name, crest_url, elo_rating),
+           away:teams!fixtures_away_team_id_fkey(id, name, short_name, crest_url, elo_rating),
            competition:competitions(code, name, tier)`,
         )
         .eq('gameweek_id', gameweek.id)
@@ -232,6 +232,49 @@ export default async function DraftPage() {
       return a.home.name.localeCompare(b.home.name);
     });
 
+  // What other divisions in this league did with the same fixtures. Shown as
+  // context, not folded into the model — see FixtureModel for why.
+  const { data: siblingDivisions } = await supabase
+    .from('divisions')
+    .select('id, name')
+    .eq('league_id', membership.league_id)
+    .neq('id', membership.division_id);
+
+  const siblingIds = (siblingDivisions ?? []).map((d) => d.id);
+  const { data: siblingDrafts } = siblingIds.length
+    ? await supabase
+        .from('drafts')
+        .select('id, division_id')
+        .eq('gameweek_id', gameweek.id)
+        .in('division_id', siblingIds)
+    : { data: [] };
+
+  const { data: siblingPicks } = siblingDrafts?.length
+    ? await supabase
+        .from('picks')
+        .select('draft_id, fixture_id, predicted_outcome')
+        .in(
+          'draft_id',
+          siblingDrafts.map((d) => d.id),
+        )
+    : { data: [] };
+
+  const elsewhere: Record<string, { division: string; called: string }[]> = {};
+  for (const pick of siblingPicks ?? []) {
+    const divisionId = siblingDrafts?.find((d) => d.id === pick.draft_id)
+      ?.division_id;
+    const name = siblingDivisions?.find((d) => d.id === divisionId)?.name;
+    const fixture = fixtures.find((f) => f.id === pick.fixture_id);
+    if (!name || !fixture) continue;
+    const called =
+      pick.predicted_outcome === 'HOME'
+        ? fixture.home.name
+        : pick.predicted_outcome === 'AWAY'
+          ? fixture.away.name
+          : 'a draw';
+    (elsewhere[pick.fixture_id] ??= []).push({ division: name, called });
+  }
+
   return (
     <div className="flex flex-col gap-8">
       {heading}
@@ -242,6 +285,7 @@ export default async function DraftPage() {
         picks={picks ?? []}
         players={players ?? []}
         currentUserId={user!.id}
+        elsewhere={elsewhere}
       />
     </div>
   );

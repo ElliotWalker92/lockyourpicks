@@ -26,8 +26,9 @@
   //   results   — every 15 minutes; cheap, and idempotent if it overlaps
   //   drafts    — every 10 minutes; opens due drafts and auto-picks
   //               expired turns, so a quiet player never blocks the rest
+  //   elo       — Tuesdays 05:00, after fixtures land
   "triggers": {
-    "crons": ["0 4 * * 2", "*/15 * * * *", "*/10 * * * *"]
+    "crons": ["0 4 * * 2", "*/15 * * * *", "*/10 * * * *", "0 5 * * 2"]
   },
 
   "vars": {

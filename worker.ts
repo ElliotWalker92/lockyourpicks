@@ -22,6 +22,8 @@ const ROUTES: Record<string, string> = {
   '*/15 * * * *': '/api/cron/results',
   // Open due drafts, and auto-pick turns whose clock has run out.
   '*/10 * * * *': '/api/cron/drafts',
+  // Recompute team Elo ratings from full history.
+  '0 5 * * 2': '/api/cron/elo',
 };
 
 const handler = {
