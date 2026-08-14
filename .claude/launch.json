@@ -9,6 +9,15 @@
         "export PATH=/opt/homebrew/bin:$PATH && npm run dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "workers",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=/opt/homebrew/bin:$PATH && npx opennextjs-cloudflare preview -- --port 8787"
+      ],
+      "port": 8787
     }
   ]
 }

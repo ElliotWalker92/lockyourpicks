@@ -16,7 +16,7 @@ The rules, the data model and the open questions live in
 | Styling | Tailwind CSS 4 |
 | Backend | Supabase (Postgres, Auth, Realtime) |
 | Fixtures/results | API-Football (api-sports.io) |
-| Hosting | Vercel |
+| Hosting | Cloudflare Workers, via `@opennextjs/cloudflare` |
 
 ## Getting started
 
@@ -25,6 +25,38 @@ npm install
 cp .env.local.example .env.local   # then fill it in
 npm run dev
 ```
+
+## Deploying
+
+```bash
+npm run cf:preview   # build + run the real Worker locally on :8787
+npm run cf:deploy    # build + deploy
+```
+
+`npm run dev` is Next's own dev server and is fine for day-to-day work, but it
+is *not* the Workers runtime. Anything runtime-sensitive — middleware, the cron
+handler, Node API usage — should be checked with `cf:preview` before deploying.
+
+Secrets are **not** in `wrangler.jsonc`. Set them once per environment:
+
+```bash
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put API_FOOTBALL_KEY
+npx wrangler secret put CRON_SECRET
+npx wrangler secret put NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+Locally they come from `.dev.vars` (gitignored). After changing
+`wrangler.jsonc`, re-run `npm run cf:typegen`.
+
+### Why `middleware.ts` and not `proxy.ts`
+
+Next 16 deprecates `middleware` in favour of `proxy`, and the build says so on
+every run. We deliberately stay on `middleware.ts`: **`proxy.ts` runs on the
+Node.js runtime, that isn't configurable, and OpenNext cannot run Node.js
+middleware on Workers** — a `proxy.ts` build fails with "Node.js middleware is
+not currently supported". Middleware still runs on the edge runtime, which
+Workers supports. Revisit when OpenNext adds Node middleware support.
 
 ## Layout
 

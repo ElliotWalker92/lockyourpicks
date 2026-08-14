@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lockyourpicks",
+
+  // Custom entrypoint rather than OpenNext's generated worker — the generated
+  // one exports only a fetch handler, and cron triggers need `scheduled`.
+  // See worker.ts, which re-exports the generated fetch handler unchanged.
+  "main": "worker.ts",
+
+  "compatibility_date": "2026-08-14",
+  // nodejs_compat is required by OpenNext; the flag below lets Node built-ins
+  // resolve the way the Next.js server expects.
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // Times are UTC.
+  //   fixtures  — Tuesdays 04:00, just after a gameweek rolls over
+  //   results   — every 15 minutes; cheap, and idempotent if it overlaps
+  "triggers": {
+    "crons": ["0 4 * * 2", "*/15 * * * *"]
+  },
+
+  "vars": {
+    // Non-secret. Secrets are set with `wrangler secret put` and never live here:
+    //   SUPABASE_SERVICE_ROLE_KEY, API_FOOTBALL_KEY, CRON_SECRET
+    "NEXT_PUBLIC_SUPABASE_URL": "https://itxdvbfjpyszcwnwbbyt.supabase.co"
+  }
+}
