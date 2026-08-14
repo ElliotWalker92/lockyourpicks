@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { callRpc } from '@/lib/supabase/rpc';
 import { createClient } from '@/lib/supabase/server';
 import type { DraftPick, Outcome } from '@/lib/types';
 
@@ -51,4 +52,42 @@ export async function makePick(
 
   revalidatePath('/draft');
   return { ok: true, pick: data as DraftPick };
+}
+
+/**
+ * Take a pick back before locking in.
+ *
+ * The database enforces that it is yours, that it is your turn, and that the
+ * draft is still open. Once your turn has passed, the next player has drafted
+ * around your choices and unpicking would rewrite their options after the fact.
+ */
+export async function removePick(
+  pickId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { error } = await callRpc<null>(supabase, 'remove_pick', {
+    p_pick_id: pickId,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath('/draft');
+  return { ok: true };
+}
+
+/**
+ * Commit your picks and pass the turn on. Irreversible by design — the next
+ * player drafts against what you left.
+ */
+export async function lockInPicks(
+  draftId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { error } = await callRpc<number>(supabase, 'lock_in_picks', {
+    p_draft_id: draftId,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath('/draft');
+  revalidatePath('/dashboard');
+  return { ok: true };
 }

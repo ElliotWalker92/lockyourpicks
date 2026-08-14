@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { makePick } from '@/lib/actions/picks';
+import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { createClient } from '@/lib/supabase/client';
 import type { Outcome } from '@/lib/types';
@@ -180,7 +180,7 @@ export function DraftBoard({
 
   const onTurn = userAtTurn(draft.pick_order, draft.current_turn);
   const isMyTurn = draft.status === 'active' && onTurn === currentUserId;
-  const order = fullOrder(draft.pick_order, draft.picks_per_player);
+  const order = fullOrder(draft.pick_order);
   const myPicks = picks.filter((p) => p.user_id === currentUserId);
 
   const available = fixtures.filter((f) => !takenBy.has(f.id));
@@ -192,6 +192,24 @@ export function DraftBoard({
       const result = await makePick(draft.id, fixtureId, outcome);
       if (!result.ok) setError(result.error);
       setSubmitting(null);
+      router.refresh();
+    });
+  }
+
+  function drop(pickId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await removePick(pickId);
+      if (!result.ok) setError(result.error);
+      router.refresh();
+    });
+  }
+
+  function lockIn() {
+    setError(null);
+    startTransition(async () => {
+      const result = await lockInPicks(draft.id);
+      if (!result.ok) setError(result.error);
       router.refresh();
     });
   }
@@ -296,9 +314,18 @@ export function DraftBoard({
       <section>
         <h2 className="label mb-3">
           Your picks ({myPicks.length}/{draft.picks_per_player})
+          {isMyTurn && myPicks.length > 0 && (
+            <span className="ml-2 font-normal normal-case tracking-normal text-grey-400">
+              not locked in yet
+            </span>
+          )}
         </h2>
         {myPicks.length === 0 ? (
-          <p className="text-sm text-grey-500">Nothing drafted yet.</p>
+          <p className="text-sm text-grey-500">
+            {isMyTurn
+              ? `Pick ${draft.picks_per_player} fixtures below. You can change them until you lock in.`
+              : 'Nothing drafted yet.'}
+          </p>
         ) : (
           <ul className="flex flex-col gap-2">
             {myPicks
@@ -326,10 +353,38 @@ export function DraftBoard({
                         auto
                       </span>
                     )}
+                    {isMyTurn && (
+                      <button
+                        type="button"
+                        onClick={() => drop(pick.id)}
+                        disabled={pending}
+                        className="text-xs text-grey-500 underline underline-offset-2 transition hover:text-loss"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </li>
                 );
               })}
           </ul>
+        )}
+
+        {isMyTurn && (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={lockIn}
+              disabled={pending || myPicks.length < draft.picks_per_player}
+              className="btn btn-ink"
+            >
+              {pending ? 'Working…' : 'Lock in my picks'}
+            </button>
+            <p className="text-sm text-grey-500">
+              {myPicks.length < draft.picks_per_player
+                ? `${draft.picks_per_player - myPicks.length} more to pick.`
+                : 'Locking in passes the turn on — you can’t change them after.'}
+            </p>
+          </div>
         )}
       </section>
 
@@ -429,8 +484,8 @@ export function DraftBoard({
                                 ? 'Call it a draw'
                                 : `${label} to win`
                             }
-                            className={`btn btn-sm ${
-                              busy ? 'btn-lime' : 'btn-outline'
+                            className={`btn btn-lime btn-sm ${
+                              busy ? 'opacity-60' : ''
                             }`}
                           >
                             {label}
