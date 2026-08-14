@@ -1,15 +1,46 @@
-# Keep config.js out of git if it contains real API keys
-# Uncomment the line below once you've filled in your keys:
-# js/config.js
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Node (if you ever add a build step)
-node_modules/
-.env
-.env.local
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Supabase local dev
-.supabase/
+# testing
+/coverage
 
-# OS
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
 .DS_Store
-Thumbs.db
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+# ...but the template carries no secrets and should be committed.
+!.env.local.example
+
+# per-machine Claude Code settings
+.claude/settings.local.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
