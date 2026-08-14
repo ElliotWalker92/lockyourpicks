@@ -259,35 +259,46 @@ export default async function ResultsPage({
                     return (
                       <li
                         key={row.id}
-                        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-grey-100 px-5 py-2.5 text-sm last:border-0"
+                        className="flex items-start gap-3 border-b border-grey-100 px-5 py-2.5 text-sm last:border-0"
                       >
-                        <span className="min-w-44 flex-1">
-                          {home} <span className="text-grey-400">v</span> {away}
+                        {/* Fixture on top, everything about the pick beneath.
+                            The previous row asked for 424px of fixed widths,
+                            which can't fit a 375px screen, so it wrapped into
+                            an unreadable jumble. Widths only apply from sm up. */}
+                        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
+                          <span className="min-w-0 sm:flex-1">
+                            {home} <span className="text-grey-400">v</span>{' '}
+                            {away}
+                          </span>
+
+                          <span className="flex flex-wrap items-center gap-2">
+                            {comp && (
+                              <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
+                                {comp}
+                              </span>
+                            )}
+
+                            <span className="font-mono text-xs text-grey-500 sm:w-14">
+                              {finished
+                                ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
+                                : row.fixtures.status}
+                            </span>
+
+                            <span className="font-medium sm:w-32">{called}</span>
+
+                            {row.is_auto_pick && (
+                              <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
+                                auto
+                              </span>
+                            )}
+                          </span>
                         </span>
 
-                        {comp && (
-                          <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
-                            {comp}
-                          </span>
-                        )}
-
-                        <span className="w-24 font-mono text-xs text-grey-500">
-                          {finished
-                            ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
-                            : row.fixtures.status}
-                        </span>
-
-                        <span className="w-32 font-medium">{called}</span>
-
-                        {row.is_auto_pick && (
-                          <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
-                            auto
-                          </span>
-                        )}
-
+                        {/* Pinned right at a fixed width so the ticks form a
+                            column you can scan down. */}
                         {row.points_awarded !== null && (
                           <span
-                            className={`w-6 text-right font-medium ${
+                            className={`w-4 shrink-0 text-right font-medium ${
                               correct ? 'text-win' : 'text-loss'
                             }`}
                             title={correct ? 'Correct' : 'Wrong'}
