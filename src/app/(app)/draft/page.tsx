@@ -166,7 +166,7 @@ export default async function DraftPage() {
           `id, kickoff_at,
            home:teams!fixtures_home_team_id_fkey(id, name, short_name, crest_url),
            away:teams!fixtures_away_team_id_fkey(id, name, short_name, crest_url),
-           competition:competitions(code, name)`,
+           competition:competitions(code, name, tier)`,
         )
         .eq('gameweek_id', gameweek.id)
         .eq('status', 'scheduled')
@@ -194,7 +194,8 @@ export default async function DraftPage() {
 
   // PostgREST types embedded relations as arrays when it can't prove a single
   // row; these are all to-one, so normalise before handing to the board.
-  const fixtures: BoardFixture[] = (fixtureRows ?? []).map((f) => {
+  const fixtures: BoardFixture[] = (fixtureRows ?? [])
+    .map((f) => {
     const row = f as unknown as {
       id: string;
       kickoff_at: string;
@@ -205,14 +206,31 @@ export default async function DraftPage() {
         | NonNullable<BoardFixture['competition']>[];
     };
     const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
-    return {
-      id: row.id,
-      kickoff_at: row.kickoff_at,
-      home: one(row.home),
-      away: one(row.away),
-      competition: one(row.competition) ?? null,
-    };
-  });
+      return {
+        id: row.id,
+        kickoff_at: row.kickoff_at,
+        home: one(row.home),
+        away: one(row.away),
+        competition: one(row.competition) ?? null,
+      };
+    })
+    // Kickoff time first, then competition, then alphabetically.
+    //
+    // Competition order is by tier — Premier League, Championship, League One,
+    // League Two — with cups last, since they have no tier. Sorting on the
+    // competition *code* instead would put the EFL Cup between the Championship
+    // and League One, which reads as arbitrary.
+    .sort((a, b) => {
+      const byTime =
+        new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
+      if (byTime !== 0) return byTime;
+
+      const tierOf = (f: BoardFixture) => f.competition?.tier ?? 99;
+      const byTier = tierOf(a) - tierOf(b);
+      if (byTier !== 0) return byTier;
+
+      return a.home.name.localeCompare(b.home.name);
+    });
 
   return (
     <div className="flex flex-col gap-8">

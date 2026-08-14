@@ -20,7 +20,7 @@ export type BoardFixture = {
   kickoff_at: string;
   home: BoardTeam;
   away: BoardTeam;
-  competition: { code: string; name: string } | null;
+  competition: { code: string; name: string; tier: number | null } | null;
 };
 
 export type BoardPick = {
