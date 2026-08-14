@@ -348,23 +348,34 @@ export function DraftBoard({
                 return (
                   <li
                     key={pick.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 card px-3 py-2.5 text-sm "
+                    className="card flex items-start gap-3 px-3 py-2.5 text-sm"
                   >
-                    <span className="flex-1">
-                      {f.home.name} v {f.away.name}
-                    </span>
-                    <span className="font-medium">{called}</span>
-                    {pick.is_auto_pick && (
-                      <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-700">
-                        auto
+                    {/* Fixture and call stack on a phone so a long fixture
+                        wraps into its own space instead of squeezing the
+                        call and the tags against the right edge. */}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+                      <span className="min-w-0 flex-1 text-grey-700">
+                        {f.home.name} <span className="text-grey-400">v</span>{' '}
+                        {f.away.name}
                       </span>
-                    )}
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium">{called}</span>
+                        {pick.is_auto_pick && (
+                          <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
+                            auto
+                          </span>
+                        )}
+                      </span>
+                    </span>
+
+                    {/* Pinned right on its own so it never reflows into the
+                        middle of the row as names change length. */}
                     {isMyTurn && (
                       <button
                         type="button"
                         onClick={() => drop(pick.id)}
                         disabled={pending}
-                        className="text-xs text-grey-500 underline underline-offset-2 transition hover:text-loss"
+                        className="shrink-0 text-xs text-grey-500 underline underline-offset-2 transition hover:text-loss"
                       >
                         Remove
                       </button>
