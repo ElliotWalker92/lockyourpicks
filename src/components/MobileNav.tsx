@@ -35,6 +35,12 @@ const ICONS = {
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
     </>
   ),
+  results: (
+    <>
+      <path d="M4 6h16M4 12h16M4 18h10" />
+      <path d="M17.5 17.5 19 19l3-3" />
+    </>
+  ),
   leagues: (
     <>
       <circle cx="9" cy="8" r="3.2" />
@@ -48,6 +54,7 @@ const ICONS = {
 const TABS = [
   { href: '/dashboard', label: 'Home', icon: ICONS.dashboard },
   { href: '/draft', label: 'Draft', icon: ICONS.draft },
+  { href: '/results', label: 'Results', icon: ICONS.results },
   { href: '/table', label: 'Table', icon: ICONS.table },
   { href: '/leagues', label: 'Leagues', icon: ICONS.leagues },
 ];
@@ -76,7 +83,7 @@ export function MobileNav() {
                 }`}
               >
                 <span
-                  className={`flex h-7 w-12 items-center justify-center rounded-full transition ${
+                  className={`flex h-7 w-10 items-center justify-center rounded-full transition ${
                     active ? 'bg-lime' : ''
                   }`}
                 >
