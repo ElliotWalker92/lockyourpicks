@@ -4,6 +4,7 @@ import {
   EmailForm,
   PasswordForm,
 } from '@/components/ProfileForms';
+import { signOut } from '@/lib/actions/auth';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Profile' };
@@ -81,6 +82,16 @@ export default async function ProfilePage() {
         <Section title="Password">
           <PasswordForm />
         </Section>
+
+        {/* Phones don't get a Sign out in the header — the bottom tab bar
+            takes that space — so it lives here. */}
+        <section className="card p-5 sm:hidden">
+          <form action={signOut}>
+            <button type="submit" className="btn btn-outline w-full">
+              Sign out
+            </button>
+          </form>
+        </section>
       </div>
     </div>
   );
