@@ -16,10 +16,11 @@ import {
   EMPTY,
   type ProfileState,
 } from '@/lib/profile-options';
+import { formatBytes, prepareAvatar } from '@/lib/image';
 import { createClient } from '@/lib/supabase/client';
 
-const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+/** Anything the browser can decode. Big files are downscaled, not refused. */
+const ACCEPT = 'image/*';
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -74,29 +75,34 @@ export function AvatarUploader({
   const [preview, setPreview] = useState<string | null>(avatarUrl);
 
   async function onFile(file: File) {
-    // Checked here for a decent error message; the bucket enforces both again,
-    // so this is convenience rather than the actual limit.
-    if (!ALLOWED.includes(file.type)) {
-      setState({ error: 'Use a JPEG, PNG, WebP or GIF.', success: null });
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setState({ error: 'That image is over 2 MB.', success: null });
-      return;
-    }
-
     setBusy(true);
     setState(EMPTY);
 
+    // Downscaled in the browser rather than refused. A phone photo is 3–5 MB
+    // and thousands of pixels wide; an avatar renders at 72px.
+    let image;
+    try {
+      image = await prepareAvatar(file);
+    } catch (err) {
+      setBusy(false);
+      setState({
+        error: err instanceof Error ? err.message : 'Could not read that file.',
+        success: null,
+      });
+      return;
+    }
+
     const supabase = createClient();
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
     // Cache-busting filename: overwriting a fixed name leaves the old image
     // cached at the CDN and the change appears not to have worked.
-    const path = `${userId}/${Date.now()}.${ext}`;
+    const path = `${userId}/${Date.now()}.${image.extension}`;
 
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { upsert: true, contentType: file.type });
+      .upload(path, image.blob, {
+        upsert: true,
+        contentType: image.type,
+      });
 
     if (uploadError) {
       setBusy(false);
@@ -104,13 +110,20 @@ export function AvatarUploader({
       return;
     }
 
+    const shrunk =
+      image.originalBytes > image.finalBytes * 1.15
+        ? ` Resized from ${formatBytes(image.originalBytes)} to ${formatBytes(image.finalBytes)}.`
+        : '';
+
     const {
       data: { publicUrl },
     } = supabase.storage.from('avatars').getPublicUrl(path);
 
     const result = await saveAvatarUrl(publicUrl);
     setPreview(publicUrl);
-    setState(result);
+    setState(
+      result.error ? result : { error: null, success: `Picture updated.${shrunk}` },
+    );
     setBusy(false);
     router.refresh();
   }
@@ -170,7 +183,7 @@ export function AvatarUploader({
         <input
           ref={inputRef}
           type="file"
-          accept={ALLOWED.join(',')}
+          accept={ACCEPT}
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -181,7 +194,8 @@ export function AvatarUploader({
       </div>
 
       <p className="text-xs text-grey-500">
-        JPEG, PNG, WebP or GIF, up to 2 MB.
+        Any image. Large photos are resized automatically &mdash; no need to
+        shrink anything first.
       </p>
 
       <Feedback state={state} />
