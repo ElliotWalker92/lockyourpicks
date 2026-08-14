@@ -20,6 +20,8 @@ const ROUTES: Record<string, string> = {
   '0 4 * * 2': '/api/cron/ingest',
   // Results and settlement.
   '*/15 * * * *': '/api/cron/results',
+  // Open due drafts, and auto-pick turns whose clock has run out.
+  '*/10 * * * *': '/api/cron/drafts',
 };
 
 const handler = {

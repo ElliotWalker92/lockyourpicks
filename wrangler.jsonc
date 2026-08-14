@@ -21,11 +21,13 @@
     "enabled": true
   },
 
-  // Times are UTC.
+  // Times are UTC. Each expression maps to a route in worker.ts.
   //   fixtures  — Tuesdays 04:00, just after a gameweek rolls over
   //   results   — every 15 minutes; cheap, and idempotent if it overlaps
+  //   drafts    — every 10 minutes; opens due drafts and auto-picks
+  //               expired turns, so a quiet player never blocks the rest
   "triggers": {
-    "crons": ["0 4 * * 2", "*/15 * * * *"]
+    "crons": ["0 4 * * 2", "*/15 * * * *", "*/10 * * * *"]
   },
 
   "vars": {

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getFixturesByDate, mapStatus } from '@/lib/api-football';
+import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
 export type ResultsReport = {
@@ -112,21 +113,8 @@ export async function ingestResults(
 
   // Settlement is idempotent — it rescores what has finished and only declares
   // a gameweek settled once nothing is left to play.
-  //
-  // `settle_due_gameweeks` ships in migration 0005. Until that has been applied
-  // and `supabase gen types` re-run, it isn't in the generated Database type,
-  // hence the cast. If this call returns "function does not exist", the
-  // migration hasn't been applied.
-  //
-  // Cast the client, not the method: pulling `supabase.rpc` out into a local
-  // loses its `this` binding and it fails on the client's internals instead.
-  const untyped = supabase as unknown as {
-    rpc: (
-      fn: 'settle_due_gameweeks',
-    ) => Promise<{ data: number | null; error: { message: string } | null }>;
-  };
-
-  const { data: settled, error: settleError } = await untyped.rpc(
+  const { data: settled, error: settleError } = await callRpc<number>(
+    supabase,
     'settle_due_gameweeks',
   );
 
