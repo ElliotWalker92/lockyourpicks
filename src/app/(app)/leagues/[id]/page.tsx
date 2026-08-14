@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
+import { DivisionEditor } from '@/components/DivisionEditor';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'League' };
@@ -49,15 +50,16 @@ export default async function LeaguePage({
         .order('tier', { ascending: true }),
       supabase
         .from('division_members')
-        .select('division_id, user_id')
+        .select('division_id, user_id, seat')
         .eq('league_id', id)
-        .eq('season_id', seasonId),
+        .eq('season_id', seasonId)
+        .order('seat', { ascending: true }),
     ]);
 
   const userIds = (members ?? []).map((m) => m.user_id);
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, display_name, avatar_color')
+    .select('id, display_name, avatar_color, avatar_url')
     .in('id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000']);
 
   const nameOf = (userId: string) =>
@@ -145,15 +147,43 @@ export default async function LeaguePage({
           </p>
         ) : null}
 
-        {isOwner && (
+        {isOwner && !divisions?.length && (
           <div className="pt-2">
-            <ArrangeDivisions
-              leagueId={league.id}
-              hasDivisions={Boolean(divisions?.length)}
-            />
+            <ArrangeDivisions leagueId={league.id} hasDivisions={false} />
           </div>
         )}
       </section>
+
+      {isOwner && !!divisions?.length && (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h2 className="label">Arrange divisions</h2>
+            <p className="mt-1 text-sm text-grey-700">
+              Rename them, move players between them, and set who picks first.
+            </p>
+          </div>
+          <DivisionEditor
+            leagueId={league.id}
+            players={(members ?? []).map((m) => {
+              const p = profiles?.find((x) => x.id === m.user_id);
+              return {
+                id: m.user_id,
+                name: p?.display_name ?? 'Player',
+                colour: p?.avatar_color ?? '#c8f135',
+                avatarUrl: p?.avatar_url ?? null,
+              };
+            })}
+            initial={(divisions ?? []).map((d) => ({
+              id: d.id,
+              name: d.name,
+              tier: d.tier,
+              members: (divisionMembers ?? [])
+                .filter((dm) => dm.division_id === d.id)
+                .map((dm) => dm.user_id),
+            }))}
+          />
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2 className="label">

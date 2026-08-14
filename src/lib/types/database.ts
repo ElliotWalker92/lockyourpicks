@@ -49,18 +49,21 @@ export type Database = {
           division_id: string
           league_id: string
           season_id: string
+          seat: number
           user_id: string
         }
         Insert: {
           division_id: string
           league_id: string
           season_id: string
+          seat?: number
           user_id: string
         }
         Update: {
           division_id?: string
           league_id?: string
           season_id?: string
+          seat?: number
           user_id?: string
         }
         Relationships: [
@@ -579,31 +582,13 @@ export type Database = {
         }
         Returns: number
       }
-      auto_pick: {
-        Args: { p_draft_id: string }
-        Returns: {
-          created_at: string
-          draft_id: string
-          fixture_id: string
-          id: string
-          is_auto_pick: boolean
-          pick_number: number
-          points_awarded: number | null
-          predicted_outcome: Database["public"]["Enums"]["outcome"]
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "picks"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      auto_pick: { Args: { p_draft_id: string }; Returns: number }
       draft_user_at_turn: {
         Args: { p_order: string[]; p_turn: number }
         Returns: string
       }
       is_admin: { Args: never; Returns: boolean }
+      lock_in_picks: { Args: { p_draft_id: string }; Returns: number }
       make_pick: {
         Args: {
           p_draft_id: string
@@ -629,6 +614,7 @@ export type Database = {
         }
       }
       open_due_drafts: { Args: never; Returns: number }
+      remove_pick: { Args: { p_pick_id: string }; Returns: undefined }
       run_expired_turns: { Args: never; Returns: number }
       set_admin_by_email: { Args: { p_email: string }; Returns: undefined }
       settle_due_gameweeks: { Args: never; Returns: number }
