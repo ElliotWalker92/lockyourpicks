@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { FormGuide, FormGuideHeading } from '@/components/FormGuide';
+import { LockIcon } from '@/components/LockIcon';
 import { TurnCountdown } from '@/components/TurnCountdown';
 import { userAtTurn } from '@/lib/draft-order';
 import { rank } from '@/lib/standings';
@@ -142,7 +144,7 @@ export default async function DashboardPage() {
         .in('id', leagueIds.length ? leagueIds : [NOBODY]),
       supabase
         .from('gameweek_scores')
-        .select('user_id, points')
+        .select('user_id, points, gameweek_id')
         .in('user_id', leagueIds.length ? leagueIds : [NOBODY]),
       gameweek
         ? supabase
@@ -178,6 +180,36 @@ export default async function DashboardPage() {
 
   const meDiv = divisionTable.find((r) => r.userId === user!.id);
   const meLeague = leagueTable.find((r) => r.userId === user!.id);
+
+  // Recent gameweeks, oldest first, for the form guide.
+  const { data: scoredWeeks } = await supabase
+    .from('gameweeks')
+    .select('id, number')
+    .eq('status', 'settled')
+    .order('number', { ascending: false })
+    .limit(6);
+
+  const recent = [...(scoredWeeks ?? [])].reverse();
+  const formPlayers = divisionIds.map((id) => {
+    const p = profileOf(id);
+    const points = recent
+      .map((w) => {
+        const s = (scores ?? []).find(
+          (x) => x.user_id === id && x.gameweek_id === w.id,
+        );
+        return s ? { gameweek: w.number, points: s.points ?? 0 } : null;
+      })
+      .filter((x): x is { gameweek: number; points: number } => x !== null);
+    return {
+      userId: id,
+      name: nameOf(id),
+      colour: p?.avatar_color ?? '#c8f135',
+      avatarUrl: p?.avatar_url ?? null,
+      points,
+      total: points.reduce((sum, g) => sum + g.points, 0),
+    };
+  });
+  formPlayers.sort((a, b) => b.total - a.total);
 
   const onTurn = draft ? userAtTurn(draft.pick_order, draft.current_turn) : null;
   const isMyTurn = draft?.status === 'active' && onTurn === user!.id;
@@ -287,11 +319,22 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* ---- Form guide ---- */}
+      <section className="card p-5">
+        <FormGuideHeading count={recent.length} />
+        <FormGuide
+          players={formPlayers}
+          perfect={draft?.picks_per_player ?? 3}
+          highlightUserId={user!.id}
+        />
+      </section>
+
       {/* ---- Picks and division table ---- */}
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card p-5">
           <div className="mb-4 flex items-baseline justify-between gap-3">
-            <h2 className="label">
+            <h2 className="label flex items-center gap-1.5">
+              <LockIcon open={isMyTurn} className="h-3 w-3" />
               Your picks ({myPicks?.length ?? 0}/{draft?.picks_per_player ?? 3})
             </h2>
             {draft?.status === 'active' && (

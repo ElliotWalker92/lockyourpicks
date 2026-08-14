@@ -22,6 +22,10 @@
   --color-win: #22c55e;
   --color-loss: #ef4444;
 
+  /* The away side in a probability bar. Carried over from the WC2026 app,
+     where .prob-seg.away used exactly this. */
+  --color-away: #3b82f6;
+
   --font-serif: var(--font-dm-serif), Georgia, serif;
   --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { LockIcon } from '@/components/LockIcon';
 import { PitchBackdrop } from '@/components/PitchBackdrop';
 import { createClient } from '@/lib/supabase/server';
 
@@ -43,7 +44,10 @@ export default async function Home() {
         />
 
         <div className="relative mx-auto w-full max-w-5xl px-6 pt-20 pb-20 sm:pt-28 sm:pb-24">
-          <p className="label text-lime">Lock Your Picks</p>
+          <p className="label flex items-center gap-1.5 text-lime">
+            <LockIcon className="h-3.5 w-3.5" />
+            Lock Your Picks
+          </p>
 
           <h1 className="display-xl mt-5 max-w-3xl text-white">
             Three picks.
@@ -177,6 +181,7 @@ export default async function Home() {
           </h2>
           <div className="mt-7 flex justify-center">
             <Link href="/auth/sign-up" className="btn btn-lime">
+              <LockIcon className="h-4 w-4" />
               Create your account
             </Link>
           </div>

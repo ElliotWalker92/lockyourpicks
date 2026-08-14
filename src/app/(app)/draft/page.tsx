@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
+import { loadCrowdCounts, loadTeamForm } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Draft' };
@@ -192,6 +193,11 @@ export default async function DraftPage() {
       (members ?? []).map((m) => m.user_id),
     );
 
+  const [teamForm, crowd] = await Promise.all([
+    loadTeamForm(supabase),
+    loadCrowdCounts(supabase, gameweek.id),
+  ]);
+
   // PostgREST types embedded relations as arrays when it can't prove a single
   // row; these are all to-one, so normalise before handing to the board.
   const fixtures: BoardFixture[] = (fixtureRows ?? [])
@@ -206,11 +212,13 @@ export default async function DraftPage() {
         | NonNullable<BoardFixture['competition']>[];
     };
     const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
+      const homeTeam = one(row.home);
+      const awayTeam = one(row.away);
       return {
         id: row.id,
         kickoff_at: row.kickoff_at,
-        home: one(row.home),
-        away: one(row.away),
+        home: { ...homeTeam, form: teamForm[homeTeam.id] ?? [] },
+        away: { ...awayTeam, form: teamForm[awayTeam.id] ?? [] },
         competition: one(row.competition) ?? null,
       };
     })
@@ -286,6 +294,7 @@ export default async function DraftPage() {
         players={players ?? []}
         currentUserId={user!.id}
         elsewhere={elsewhere}
+        crowd={crowd}
       />
     </div>
   );

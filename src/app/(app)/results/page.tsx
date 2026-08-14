@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { LockIcon } from '@/components/LockIcon';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Results' };
@@ -240,7 +241,8 @@ export default async function ResultsPage({
                   )}
                 </h2>
                 {anyScored && (
-                  <span className="font-serif text-2xl">
+                  <span className="flex items-baseline gap-1.5 font-serif text-2xl">
+                    <LockIcon className="h-3.5 w-3.5 self-center text-grey-400" />
                     {player.points}
                     <span className="ml-1 text-sm text-grey-500">
                       {player.points === 1 ? 'pt' : 'pts'}

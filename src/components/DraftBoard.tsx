@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
+import { LockIcon } from '@/components/LockIcon';
 import { createClient } from '@/lib/supabase/client';
 import type { Outcome } from '@/lib/types';
 
@@ -15,6 +16,7 @@ export type BoardTeam = {
   short_name: string | null;
   crest_url: string | null;
   elo_rating: number;
+  form: ('W' | 'D' | 'L')[];
 };
 
 export type BoardFixture = {
@@ -88,6 +90,7 @@ export function DraftBoard({
   players,
   currentUserId,
   elsewhere,
+  crowd,
 }: {
   draft: BoardDraft;
   fixtures: BoardFixture[];
@@ -96,6 +99,8 @@ export function DraftBoard({
   currentUserId: string;
   /** Same fixture taken by another division — shown as context, not a signal. */
   elsewhere: Record<string, { division: string; called: string }[]>;
+  /** How every division called each fixture this gameweek. */
+  crowd: Record<string, { home: number; draw: number; away: number }>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -321,7 +326,8 @@ export function DraftBoard({
         <h2 className="label mb-3">
           Your picks ({myPicks.length}/{draft.picks_per_player})
           {isMyTurn && myPicks.length > 0 && (
-            <span className="ml-2 font-normal normal-case tracking-normal text-grey-400">
+            <span className="ml-2 inline-flex items-center gap-1 font-normal normal-case tracking-normal text-grey-400">
+              <LockIcon open className="h-3 w-3" />
               not locked in yet
             </span>
           )}
@@ -394,6 +400,7 @@ export function DraftBoard({
               disabled={pending || myPicks.length < draft.picks_per_player}
               className="btn btn-ink"
             >
+              <LockIcon className="h-4 w-4" />
               {pending ? 'Working…' : 'Lock in my picks'}
             </button>
             <p className="text-sm text-grey-500">
@@ -529,8 +536,19 @@ export function DraftBoard({
 
                       {openModel === f.id && (
                         <FixtureModel
-                          home={{ name: f.home.name, elo: f.home.elo_rating }}
-                          away={{ name: f.away.name, elo: f.away.elo_rating }}
+                          home={{
+                            name: f.home.name,
+                            elo: f.home.elo_rating,
+                            form: f.home.form,
+                          }}
+                          away={{
+                            name: f.away.name,
+                            elo: f.away.elo_rating,
+                            form: f.away.form,
+                          }}
+                          crowdCounts={
+                            crowd[f.id] ?? { home: 0, draw: 0, away: 0 }
+                          }
                           otherPicks={elsewhere[f.id] ?? []}
                         />
                       )}
