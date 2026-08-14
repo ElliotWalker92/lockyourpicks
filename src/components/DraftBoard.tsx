@@ -400,27 +400,34 @@ export function DraftBoard({
           <h2 className="label mb-3">
             Gone
           </h2>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col divide-y divide-grey-100">
             {picks
               .filter((p) => p.user_id !== currentUserId)
               .map((pick) => {
                 const f = fixtures.find((x) => x.id === pick.fixture_id);
                 if (!f) return null;
                 return (
-                  <li
-                    key={pick.id}
-                    className="flex items-center gap-2.5 text-sm text-grey-500"
-                  >
+                  <li key={pick.id} className="flex gap-2.5 py-2 text-sm">
+                    {/* Fixed-width avatar so every fixture starts on the same
+                        left edge, however long the previous name was. */}
                     <span
                       aria-hidden
-                      className="h-5 w-5 shrink-0 rounded-full"
+                      className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-ink"
                       style={{ background: colourOf(pick.user_id) }}
-                    />
-                    <span className="line-through">
-                      {f.home.name} v {f.away.name}
+                    >
+                      {initialsOf(pick.user_id)}
                     </span>
-                    <span className="text-xs">
-                      taken by {nameOf(pick.user_id)}
+
+                    {/* Stacks on a phone — attribution sits under the fixture
+                        rather than colliding with it — and sits inline once
+                        there's room. */}
+                    <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                      <span className="text-grey-500 line-through">
+                        {f.home.name} v {f.away.name}
+                      </span>
+                      <span className="text-xs text-grey-400">
+                        picked by {nameOf(pick.user_id)}
+                      </span>
                     </span>
                   </li>
                 );
