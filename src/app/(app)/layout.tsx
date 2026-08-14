@@ -48,7 +48,12 @@ export default async function AppLayout({
             >
               {initial}
             </span>
-            <span className="hidden text-sm font-medium sm:inline">{name}</span>
+            <Link
+              href="/profile"
+              className="hidden text-sm font-medium transition hover:text-lime-dark sm:inline"
+            >
+              {name}
+            </Link>
             <form action={signOut}>
               <button
                 type="submit"

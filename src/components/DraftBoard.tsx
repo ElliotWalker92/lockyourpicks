@@ -94,7 +94,7 @@ export function DraftBoard({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const remaining = useCountdown(draft.turn_expires_at);
@@ -187,10 +187,11 @@ export function DraftBoard({
 
   function submit(fixtureId: string, outcome: Outcome) {
     setError(null);
+    setSubmitting(fixtureId);
     startTransition(async () => {
       const result = await makePick(draft.id, fixtureId, outcome);
       if (!result.ok) setError(result.error);
-      else setSelected(null);
+      setSubmitting(null);
       router.refresh();
     });
   }
@@ -387,54 +388,55 @@ export function DraftBoard({
               </h3>
               <ul className="flex flex-col gap-1.5">
                 {dayFixtures.map((f) => {
-                  const open = selected === f.id;
+                  const busy = submitting === f.id;
                   return (
                     <li
                       key={f.id}
-                      className="rounded-lg border border-grey-300"
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-grey-300 bg-card px-3 py-2.5 text-sm"
                     >
-                      <button
-                        type="button"
-                        disabled={!isMyTurn || pending}
-                        onClick={() => setSelected(open ? null : f.id)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition enabled:hover:bg-grey-100 disabled:cursor-default"
-                      >
-                        <span className="w-12 shrink-0 font-mono text-xs text-grey-500">
-                          {time(f.kickoff_at)}
-                        </span>
-                        <span className="flex-1">
-                          {f.home.name}{' '}
-                          <span className="text-grey-400">v</span>{' '}
-                          {f.away.name}
-                        </span>
-                        {f.competition && (
-                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
-                            {f.competition.code}
-                          </span>
-                        )}
-                      </button>
+                      <span className="w-12 shrink-0 font-mono text-xs text-grey-500">
+                        {time(f.kickoff_at)}
+                      </span>
 
-                      {open && isMyTurn && (
-                        <div className="flex flex-wrap gap-2 border-t border-grey-300 px-3 py-2.5 ">
-                          {(
-                            [
-                              ['HOME', f.home.name],
-                              ['DRAW', 'Draw'],
-                              ['AWAY', f.away.name],
-                            ] as [Outcome, string][]
-                          ).map(([outcome, label]) => (
-                            <button
-                              key={outcome}
-                              type="button"
-                              disabled={pending}
-                              onClick={() => submit(f.id, outcome)}
-                              className="btn btn-lime btn-sm"
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
+                      <span className="min-w-40 flex-1">
+                        {f.home.name} <span className="text-grey-400">v</span>{' '}
+                        {f.away.name}
+                      </span>
+
+                      {f.competition && (
+                        <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
+                          {f.competition.code}
+                        </span>
                       )}
+
+                      {/* Outcome buttons sit inline: one tap to pick, rather
+                          than opening the row first and then choosing. */}
+                      <span className="flex shrink-0 gap-1.5">
+                        {(
+                          [
+                            ['HOME', f.home.short_name || f.home.name],
+                            ['DRAW', 'Draw'],
+                            ['AWAY', f.away.short_name || f.away.name],
+                          ] as [Outcome, string][]
+                        ).map(([outcome, label]) => (
+                          <button
+                            key={outcome}
+                            type="button"
+                            disabled={!isMyTurn || pending}
+                            onClick={() => submit(f.id, outcome)}
+                            title={
+                              outcome === 'DRAW'
+                                ? 'Call it a draw'
+                                : `${label} to win`
+                            }
+                            className={`btn btn-sm ${
+                              busy ? 'btn-lime' : 'btn-outline'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </span>
                     </li>
                   );
                 })}

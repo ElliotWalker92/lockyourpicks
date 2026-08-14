@@ -69,8 +69,17 @@ export function AuthForm({
           autoComplete={isSignUp ? 'new-password' : 'current-password'}
           className="field"
         />
-        {isSignUp && (
+        {isSignUp ? (
           <p className="text-xs text-grey-500">At least 8 characters.</p>
+        ) : (
+          <p className="text-xs">
+            <Link
+              href="/auth/forgot-password"
+              className="text-grey-500 underline underline-offset-4 hover:text-ink"
+            >
+              Forgot your password?
+            </Link>
+          </p>
         )}
       </div>
 
