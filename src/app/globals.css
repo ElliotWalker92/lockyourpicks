@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================
+   Lock Your Picks — design system
+   Ink + lime, editorial serif on a light surface.
+   Carried over from the WC2026 app (legacy/css/style.css).
+   ============================================================ */
+
+@theme {
+  --color-ink: #0d0d0d;
+  --color-lime: #c8f135;
+  --color-lime-dark: #b8e020;
+  --color-surface: #f9f9f8;
+  --color-card: #ffffff;
+
+  --color-grey-700: #374151;
+  --color-grey-500: #6b7280;
+  --color-grey-400: #9ca3af;
+  --color-grey-300: #d1d5db;
+  --color-grey-100: #f3f4f6;
+
+  --color-win: #22c55e;
+  --color-loss: #ef4444;
+
+  --font-serif: var(--font-dm-serif), Georgia, serif;
+  --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06);
+  --shadow-raised: 0 4px 12px rgb(0 0 0 / 0.08), 0 2px 4px rgb(0 0 0 / 0.05);
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* The game is a light-surface design. A half-derived dark mode looked worse
+   than none, so the palette is committed to rather than duplicated. */
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Editorial display type ---- */
+.display-xl {
+  font-family: var(--font-serif);
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.display-lg {
+  font-family: var(--font-serif);
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  line-height: 1.1;
+}
+
+.display-md {
+  font-family: var(--font-serif);
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  line-height: 1.15;
+}
+
+.label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-grey-500);
+}
+
+/* ---- Components ---- */
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-grey-300);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-lime {
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+.btn-lime:not(:disabled):hover {
+  background: var(--color-lime-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
+}
+
+.btn-ink {
+  background: var(--color-ink);
+  color: #fff;
+}
+.btn-ink:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--color-grey-300);
+  color: var(--color-ink);
+}
+.btn-outline:not(:disabled):hover {
+  border-color: var(--color-ink);
+  background: var(--color-card);
+}
+
+.btn-sm {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.78rem;
+  border-radius: var(--radius-sm);
+}
+
+.field {
+  width: 100%;
+  background: var(--color-card);
+  border: 1px solid var(--color-grey-300);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  color: var(--color-ink);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field::placeholder {
+  color: var(--color-grey-400);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 3px rgb(200 241 53 / 0.35);
+}
+
+/* Focus ring for anything keyboard-reachable, since the lime is easy to miss
+   against a light surface. */
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

@@ -48,16 +48,19 @@ export type Database = {
         Row: {
           division_id: string
           league_id: string
+          season_id: string
           user_id: string
         }
         Insert: {
           division_id: string
           league_id: string
+          season_id: string
           user_id: string
         }
         Update: {
           division_id?: string
           league_id?: string
+          season_id?: string
           user_id?: string
         }
         Relationships: [
@@ -75,6 +78,13 @@ export type Database = {
             referencedRelation: "leagues"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "division_members_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
         ]
       }
       divisions: {
@@ -83,6 +93,7 @@ export type Database = {
           id: string
           league_id: string
           name: string
+          season_id: string
           tier: number
         }
         Insert: {
@@ -90,6 +101,7 @@ export type Database = {
           id?: string
           league_id: string
           name: string
+          season_id: string
           tier: number
         }
         Update: {
@@ -97,6 +109,7 @@ export type Database = {
           id?: string
           league_id?: string
           name?: string
+          season_id?: string
           tier?: number
         }
         Relationships: [
@@ -105,6 +118,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "divisions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -354,7 +374,6 @@ export type Database = {
           join_code: string
           name: string
           owner_id: string
-          season_id: string
         }
         Insert: {
           created_at?: string
@@ -363,7 +382,6 @@ export type Database = {
           join_code: string
           name: string
           owner_id: string
-          season_id: string
         }
         Update: {
           created_at?: string
@@ -372,17 +390,8 @@ export type Database = {
           join_code?: string
           name?: string
           owner_id?: string
-          season_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "leagues_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "seasons"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       picks: {
         Row: {
@@ -521,10 +530,52 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      division_standings: {
+        Row: {
+          auto_picks: number | null
+          division_id: string | null
+          league_id: string | null
+          points: number | null
+          position: number | null
+          season_id: string | null
+          tier: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "division_members_division_id_fkey"
+            columns: ["division_id"]
+            isOneToOne: false
+            referencedRelation: "divisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "division_members_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "division_members_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       advance_draft_turn: { Args: { p_draft_id: string }; Returns: undefined }
+      apply_promotion_relegation: {
+        Args: {
+          p_from_season_id: string
+          p_league_id: string
+          p_to_season_id: string
+        }
+        Returns: number
+      }
       auto_pick: {
         Args: { p_draft_id: string }
         Returns: {
@@ -574,8 +625,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_due_drafts: { Args: never; Returns: number }
       run_expired_turns: { Args: never; Returns: number }
       set_admin_by_email: { Args: { p_email: string }; Returns: undefined }
+      settle_due_gameweeks: { Args: never; Returns: number }
       settle_gameweek: { Args: { p_gameweek_id: string }; Returns: number }
       shares_league_with_division: {
         Args: { p_division_id: string }

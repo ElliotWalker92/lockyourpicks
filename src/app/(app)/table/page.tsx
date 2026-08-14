@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { rank, type StandingRow } from '@/lib/standings';
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'Table · Lock Your Picks' };
+export const metadata = { title: 'Table' };
 
 const PALETTE = [
   '#c8f135',
@@ -37,18 +37,18 @@ function Table({
   return (
     <section>
       <div className="mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
+        <h2 className="label">
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-0.5 text-xs text-neutral-500">{subtitle}</p>
+          <p className="mt-0.5 text-xs text-grey-500">{subtitle}</p>
         )}
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[22rem] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-neutral-200 text-left text-xs uppercase tracking-wider text-neutral-500 dark:border-neutral-800">
+            <tr className="border-b border-grey-300 text-left text-xs uppercase tracking-wider text-grey-500">
               <th className="w-10 py-2 font-medium">Pos</th>
               <th className="py-2 font-medium">Player</th>
               <th className="w-16 py-2 text-right font-medium">GW</th>
@@ -59,13 +59,13 @@ function Table({
             {rows.map((row, index) => (
               <tr
                 key={row.userId}
-                className={`border-b border-neutral-100 dark:border-neutral-900 ${
+                className={`border-b border-grey-100 ${
                   row.userId === highlightUserId
-                    ? 'bg-lime-50 dark:bg-lime-950/30'
+                    ? 'bg-lime/10'
                     : ''
                 }`}
               >
-                <td className="py-2.5 tabular-nums text-neutral-500">
+                <td className="py-2.5 tabular-nums text-grey-500">
                   {row.position}
                   {row.tied && <span aria-label="tied">=</span>}
                 </td>
@@ -73,7 +73,7 @@ function Table({
                   <span className="flex items-center gap-2.5">
                     <span
                       aria-hidden
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-neutral-900"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-ink"
                       style={{ background: PALETTE[index % PALETTE.length] }}
                     >
                       {initials(row.displayName)}
@@ -81,7 +81,7 @@ function Table({
                     {row.displayName}
                   </span>
                 </td>
-                <td className="py-2.5 text-right tabular-nums text-neutral-500">
+                <td className="py-2.5 text-right tabular-nums text-grey-500">
                   {row.gameweeksPlayed}
                 </td>
                 <td className="py-2.5 text-right font-medium tabular-nums">
@@ -113,8 +113,8 @@ export default async function TablePage() {
 
   const heading = (
     <div>
-      <h1 className="text-3xl font-semibold tracking-tight">Table</h1>
-      <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+      <h1 className="display-lg">Table</h1>
+      <p className="mt-2 text-grey-700">
         One point per correct result. Divisions run alongside the overall
         standings.
       </p>
@@ -125,9 +125,9 @@ export default async function TablePage() {
     return (
       <div className="flex flex-col gap-8">
         {heading}
-        <div className="rounded-xl border border-neutral-200 p-6 dark:border-neutral-800">
+        <div className="card p-6">
           <h2 className="font-medium">You&rsquo;re not in a league yet</h2>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-2 text-sm text-grey-700">
             Join or create one on the{' '}
             <Link href="/leagues" className="underline underline-offset-4">
               leagues page
@@ -139,16 +139,28 @@ export default async function TablePage() {
     );
   }
 
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id, name')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  const seasonId = season?.id ?? '00000000-0000-0000-0000-000000000000';
+
+  // Divisions are per-season — this shows the current arrangement, not every
+  // division the league has ever had.
   const [{ data: divisions }, { data: divisionMembers }] = await Promise.all([
     supabase
       .from('divisions')
       .select('id, name, tier')
       .eq('league_id', league.id)
+      .eq('season_id', seasonId)
       .order('tier', { ascending: true }),
     supabase
       .from('division_members')
       .select('division_id, user_id')
-      .eq('league_id', league.id),
+      .eq('league_id', league.id)
+      .eq('season_id', seasonId),
   ]);
 
   const userIds = (divisionMembers ?? []).map((m) => m.user_id);
@@ -189,9 +201,9 @@ export default async function TablePage() {
     return (
       <div className="flex flex-col gap-8">
         {heading}
-        <div className="rounded-xl border border-neutral-200 p-6 dark:border-neutral-800">
+        <div className="card p-6">
           <h2 className="font-medium">No divisions yet</h2>
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-2 text-sm text-grey-700">
             {league.name} has no divisions, so there&rsquo;s nothing to rank. The
             league owner needs to arrange members into divisions on the{' '}
             <Link
@@ -212,7 +224,7 @@ export default async function TablePage() {
       {heading}
 
       {(settledCount ?? 0) === 0 && (
-        <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+        <p className="card px-4 py-3 text-sm text-grey-700">
           No gameweek has been settled yet, so everyone is on zero. Points appear
           once results come in and the gameweek is scored.
         </p>
@@ -240,7 +252,7 @@ export default async function TablePage() {
         );
       })}
 
-      <p className="text-xs leading-relaxed text-neutral-500">
+      <p className="text-xs leading-relaxed text-grey-500">
         Players level on points share a position, shown with{' '}
         <span className="font-medium">=</span>. There is no tiebreak &mdash; the
         spreadsheet this game comes from ranks on total points alone.

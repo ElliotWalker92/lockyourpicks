@@ -9,8 +9,7 @@ import {
   type LeagueState,
 } from '@/lib/actions/leagues';
 
-const field =
-  'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-neutral-400 focus:border-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-lime-300';
+const field = 'field';
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -18,7 +17,7 @@ function Submit({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-lime-300 dark:text-neutral-900 dark:hover:bg-lime-200"
+      className="btn btn-lime"
     >
       {pending ? 'Working…' : label}
     </button>
@@ -30,7 +29,7 @@ function Error({ state }: { state: LeagueState }) {
   return (
     <p
       role="alert"
-      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+      className="rounded-md border border-loss/30 bg-loss/5 px-3 py-2 text-sm text-loss"
     >
       {state.error}
     </p>
@@ -71,7 +70,7 @@ export function CreateLeagueForm() {
           className={field}
         />
         {size > 3 ? (
-          <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          <p className="rounded-md border border-loss/30 bg-loss/5 px-3 py-2 text-xs leading-relaxed text-loss">
             <strong>{size} per division needs {size * 3} fixtures a week.</strong>{' '}
             Three gameweeks this season carry only 10 fixtures across all
             competitions — international breaks. Those drafts would run out of
@@ -79,7 +78,7 @@ export function CreateLeagueForm() {
             every week.
           </p>
         ) : (
-          <p className="text-xs leading-relaxed text-neutral-500">
+          <p className="text-xs leading-relaxed text-grey-500">
             A division of <em>n</em> consumes 3<em>n</em> fixtures a week. Three
             players means 9 — the most that fits every gameweek this season.
           </p>

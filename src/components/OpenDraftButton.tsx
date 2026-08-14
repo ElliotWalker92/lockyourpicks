@@ -11,7 +11,7 @@ function Submit() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-lime-300 dark:text-neutral-900 dark:hover:bg-lime-200"
+      className="btn btn-lime"
     >
       {pending ? 'Opening…' : 'Open draft for this gameweek'}
     </button>
@@ -28,7 +28,7 @@ export function OpenDraftButton({ gameweekId }: { gameweekId: string }) {
         <Submit />
       </div>
       {state.error && (
-        <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+        <p role="alert" className="text-sm text-loss">
           {state.error}
         </p>
       )}

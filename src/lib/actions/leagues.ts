@@ -35,19 +35,9 @@ export async function createLeague(
   } = await supabase.auth.getUser();
   if (!user) return { error: 'You need to be signed in.' };
 
-  const { data: season } = await supabase
-    .from('seasons')
-    .select('id')
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (!season) {
-    return {
-      error:
-        'No active season. Run migration 0004 in the Supabase SQL editor first.',
-    };
-  }
-
+  // A league is not tied to a season — it persists, and its divisions are
+  // rearranged each year by promotion and relegation.
+  //
   // Retry on the (vanishingly unlikely) join-code collision rather than
   // failing the whole action — the unique index is what actually guarantees
   // uniqueness, so we just need another go.
@@ -59,7 +49,6 @@ export async function createLeague(
         name,
         join_code: generateJoinCode(),
         owner_id: user.id,
-        season_id: season.id,
         division_size: divisionSize,
       })
       .select('id')
@@ -163,6 +152,21 @@ export async function buildDivisions(
 
   if (!members?.length) return { error: 'This league has no members yet.' };
 
+  // Divisions are per-season: this arranges the active season only, leaving
+  // previous seasons' tables intact.
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!season) {
+    return {
+      error:
+        'No active season. Run migration 0004 in the Supabase SQL editor first.',
+    };
+  }
+
   const size = league.division_size;
   const divisionCount = Math.ceil(members.length / size);
 
@@ -172,17 +176,23 @@ export async function buildDivisions(
     };
   }
 
-  // Clear existing arrangement. Cascades to division_members.
+  // Clear this season's arrangement only. Cascades to division_members.
   const { error: clearError } = await supabase
     .from('divisions')
     .delete()
-    .eq('league_id', leagueId);
+    .eq('league_id', leagueId)
+    .eq('season_id', season.id);
   if (clearError) return { error: clearError.message };
 
   for (let tier = 1; tier <= divisionCount; tier++) {
     const { data: division, error: divisionError } = await supabase
       .from('divisions')
-      .insert({ league_id: leagueId, name: `Division ${tier}`, tier })
+      .insert({
+        league_id: leagueId,
+        season_id: season.id,
+        name: `Division ${tier}`,
+        tier,
+      })
       .select('id')
       .single();
 
@@ -198,6 +208,7 @@ export async function buildDivisions(
           division_id: division.id,
           user_id: m.user_id,
           league_id: leagueId,
+          season_id: season.id,
         })),
       );
 

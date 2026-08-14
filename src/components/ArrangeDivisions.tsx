@@ -11,7 +11,7 @@ function Submit({ hasDivisions }: { hasDivisions: boolean }) {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium transition hover:border-neutral-900 disabled:opacity-50 dark:border-neutral-700 dark:hover:border-neutral-100"
+      className="btn btn-outline"
     >
       {pending
         ? 'Arranging…'
@@ -40,13 +40,13 @@ export function ArrangeDivisions({
       {state.error && (
         <p
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className="rounded-md border border-loss/30 bg-loss/5 px-3 py-2 text-sm text-loss"
         >
           {state.error}
         </p>
       )}
       {hasDivisions && (
-        <p className="text-xs leading-relaxed text-neutral-500">
+        <p className="text-xs leading-relaxed text-grey-500">
           Re-arranging rebuilds every division from scratch and reallocates
           players in join order. Once a season is running, promotion and
           relegation should decide this instead.

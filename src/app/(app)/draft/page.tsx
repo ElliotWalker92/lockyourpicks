@@ -4,7 +4,7 @@ import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'Draft · Lock Your Picks' };
+export const metadata = { title: 'Draft' };
 
 function Empty({
   title,
@@ -14,9 +14,9 @@ function Empty({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 p-6 dark:border-neutral-800">
+    <div className="card p-6">
       <h2 className="font-medium">{title}</h2>
-      <div className="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
+      <div className="mt-2 text-sm leading-relaxed text-grey-700">
         {children}
       </div>
     </div>
@@ -29,11 +29,20 @@ export default async function DraftPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  // Scoped to the active season: a player has a division per season, so
+  // without this a returning player matches several rows.
   const [{ data: membership }, { data: profile }] = await Promise.all([
     supabase
       .from('division_members')
       .select('division_id, league_id, divisions(id, name, tier)')
       .eq('user_id', user!.id)
+      .eq('season_id', season?.id ?? '00000000-0000-0000-0000-000000000000')
       .maybeSingle(),
     supabase
       .from('profiles')
@@ -44,8 +53,8 @@ export default async function DraftPage() {
 
   const heading = (
     <div>
-      <h1 className="text-3xl font-semibold tracking-tight">Draft</h1>
-      <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+      <h1 className="display-lg">Draft</h1>
+      <p className="mt-2 text-grey-700">
         Three fixtures a week. Once one&rsquo;s gone in your division, it&rsquo;s
         gone.
       </p>
@@ -115,7 +124,7 @@ export default async function DraftPage() {
     .maybeSingle();
 
   const gameweekLabel = (
-    <p className="text-sm text-neutral-500">
+    <p className="text-sm text-grey-500">
       {division?.name} &middot; {gameweek.name ?? `Gameweek ${gameweek.number}`}{' '}
       &middot; closes{' '}
       {new Date(gameweek.draft_closes_at).toLocaleString('en-GB', {

@@ -221,11 +221,7 @@ export function DraftBoard({
     <div className="flex flex-col gap-8">
       {/* ---- Turn state ---- */}
       <section
-        className={`rounded-xl border p-4 ${
-          isMyTurn
-            ? 'border-lime-400 bg-lime-50 dark:border-lime-600 dark:bg-lime-950/30'
-            : 'border-neutral-200 dark:border-neutral-800'
-        }`}
+        className={`card p-5 ${isMyTurn ? 'border-lime-dark bg-lime/10' : ''}`}
       >
         {draft.status === 'complete' ? (
           <p className="font-medium">
@@ -234,22 +230,19 @@ export function DraftBoard({
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-medium">
+              <h2 className="display-md">
                 {isMyTurn ? (
-                  <>Your pick &mdash; choose a fixture and call it.</>
-                ) : (
                   <>
-                    Waiting on{' '}
-                    <span className="font-semibold">
-                      {onTurn ? nameOf(onTurn) : '—'}
-                    </span>
+                    Your pick &mdash; <span className="italic">choose one</span>
                   </>
+                ) : (
+                  <>Waiting on {onTurn ? nameOf(onTurn) : '—'}</>
                 )}
-              </p>
+              </h2>
               {remaining && (
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                <p className="text-sm text-grey-500">
                   {remaining === 'expired' ? (
-                    <span className="text-amber-700 dark:text-amber-500">
+                    <span className="text-loss">
                       Turn expired &mdash; auto-pick due
                     </span>
                   ) : (
@@ -272,7 +265,7 @@ export function DraftBoard({
                     title={`Pick ${turn + 1}: ${nameOf(userId)}`}
                     className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
                       current
-                        ? 'ring-2 ring-neutral-900 ring-offset-1 dark:ring-lime-300'
+                        ? 'ring-2 ring-ink ring-offset-1'
                         : ''
                     } ${done ? 'opacity-35' : ''}`}
                     style={{
@@ -292,7 +285,7 @@ export function DraftBoard({
       {error && (
         <p
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className="rounded-md border border-loss/30 bg-loss/5 px-3 py-2 text-sm text-loss"
         >
           {error}
         </p>
@@ -300,11 +293,11 @@ export function DraftBoard({
 
       {/* ---- Your picks ---- */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+        <h2 className="label mb-3">
           Your picks ({myPicks.length}/{draft.picks_per_player})
         </h2>
         {myPicks.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nothing drafted yet.</p>
+          <p className="text-sm text-grey-500">Nothing drafted yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {myPicks
@@ -321,14 +314,14 @@ export function DraftBoard({
                 return (
                   <li
                     key={pick.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-sm dark:border-neutral-800"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 card px-3 py-2.5 text-sm "
                   >
                     <span className="flex-1">
                       {f.home.name} v {f.away.name}
                     </span>
                     <span className="font-medium">{called}</span>
                     {pick.is_auto_pick && (
-                      <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                      <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-700">
                         auto
                       </span>
                     )}
@@ -342,7 +335,7 @@ export function DraftBoard({
       {/* ---- Taken ---- */}
       {picks.length > myPicks.length && (
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+          <h2 className="label mb-3">
             Gone
           </h2>
           <ul className="flex flex-col gap-1.5">
@@ -354,7 +347,7 @@ export function DraftBoard({
                 return (
                   <li
                     key={pick.id}
-                    className="flex items-center gap-2.5 text-sm text-neutral-500"
+                    className="flex items-center gap-2.5 text-sm text-grey-500"
                   >
                     <span
                       aria-hidden
@@ -376,12 +369,12 @@ export function DraftBoard({
 
       {/* ---- Available ---- */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+        <h2 className="label mb-3">
           Available ({available.length})
         </h2>
 
         {!isMyTurn && draft.status === 'active' && (
-          <p className="mb-3 text-sm text-neutral-500">
+          <p className="mb-3 text-sm text-grey-500">
             You can look, but you can&rsquo;t pick until it&rsquo;s your turn.
           </p>
         )}
@@ -389,7 +382,7 @@ export function DraftBoard({
         <div className="flex flex-col gap-6">
           {byDay.map(([day, dayFixtures]) => (
             <div key={day}>
-              <h3 className="mb-2 text-sm font-medium text-neutral-500">
+              <h3 className="mb-2 text-sm font-medium text-grey-500">
                 {day}
               </h3>
               <ul className="flex flex-col gap-1.5">
@@ -398,31 +391,31 @@ export function DraftBoard({
                   return (
                     <li
                       key={f.id}
-                      className="rounded-lg border border-neutral-200 dark:border-neutral-800"
+                      className="rounded-lg border border-grey-300"
                     >
                       <button
                         type="button"
                         disabled={!isMyTurn || pending}
                         onClick={() => setSelected(open ? null : f.id)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition enabled:hover:bg-neutral-50 disabled:cursor-default dark:enabled:hover:bg-neutral-900"
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition enabled:hover:bg-grey-100 disabled:cursor-default"
                       >
-                        <span className="w-12 shrink-0 font-mono text-xs text-neutral-500">
+                        <span className="w-12 shrink-0 font-mono text-xs text-grey-500">
                           {time(f.kickoff_at)}
                         </span>
                         <span className="flex-1">
                           {f.home.name}{' '}
-                          <span className="text-neutral-400">v</span>{' '}
+                          <span className="text-grey-400">v</span>{' '}
                           {f.away.name}
                         </span>
                         {f.competition && (
-                          <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
                             {f.competition.code}
                           </span>
                         )}
                       </button>
 
                       {open && isMyTurn && (
-                        <div className="flex flex-wrap gap-2 border-t border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
+                        <div className="flex flex-wrap gap-2 border-t border-grey-300 px-3 py-2.5 ">
                           {(
                             [
                               ['HOME', f.home.name],
@@ -435,7 +428,7 @@ export function DraftBoard({
                               type="button"
                               disabled={pending}
                               onClick={() => submit(f.id, outcome)}
-                              className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-lime-300 dark:text-neutral-900 dark:hover:bg-lime-200"
+                              className="btn btn-lime btn-sm"
                             >
                               {label}
                             </button>
