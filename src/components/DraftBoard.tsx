@@ -10,6 +10,13 @@ import { LockIcon } from '@/components/LockIcon';
 import { createClient } from '@/lib/supabase/client';
 import type { Outcome } from '@/lib/types';
 
+/** Home lime, draw grey, away electric blue — same key as the model bars. */
+const OUTCOME_BTN: Record<Outcome, string> = {
+  HOME: 'btn-lime',
+  DRAW: 'btn-draw',
+  AWAY: 'btn-away',
+};
+
 export type BoardTeam = {
   id: string;
   name: string;
@@ -524,7 +531,7 @@ export function DraftBoard({
                                 ? 'Call it a draw'
                                 : `${label} to win`
                             }
-                            className={`btn btn-lime btn-sm ${
+                            className={`btn btn-sm ${OUTCOME_BTN[outcome]} ${
                               busy ? 'opacity-60' : ''
                             }`}
                           >

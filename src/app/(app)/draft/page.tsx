@@ -5,7 +5,7 @@ import { OpenDraftButton } from '@/components/OpenDraftButton';
 import { loadCrowdCounts, loadTeamForm } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'Draft' };
+export const metadata = { title: 'Picks' };
 
 function Empty({
   title,
@@ -54,7 +54,7 @@ export default async function DraftPage() {
 
   const heading = (
     <div>
-      <h1 className="display-lg">Draft</h1>
+      <h1 className="display-lg">Picks</h1>
       <p className="mt-2 text-grey-700">
         Three fixtures a week. Once one&rsquo;s gone in your division, it&rsquo;s
         gone.
@@ -144,7 +144,7 @@ export default async function DraftPage() {
       <div className="flex flex-col gap-8">
         {heading}
         {gameweekLabel}
-        <Empty title="Draft not open yet">
+        <Empty title="Picks aren’t open yet">
           <p>
             No draft has been opened for this gameweek. In a running season this
             happens automatically when the previous gameweek settles.

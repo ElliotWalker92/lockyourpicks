@@ -25,6 +25,7 @@
   /* The away side in a probability bar. Carried over from the WC2026 app,
      where .prob-seg.away used exactly this. */
   --color-away: #3b82f6;
+  --color-away-dark: #2563eb;
 
   --font-serif: var(--font-dm-serif), Georgia, serif;
   --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
@@ -120,6 +121,30 @@ body {
 }
 .btn-lime:not(:disabled):hover {
   background: var(--color-lime-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
+}
+
+/* The three outcome buttons carry the same colours the model bars use:
+   lime for home, grey for the draw, electric blue for away. The button you
+   press and the segment you read are then the same thing, so the board
+   doesn't have to be relearned as a second colour language. */
+.btn-draw {
+  background: var(--color-grey-300);
+  color: var(--color-ink);
+}
+.btn-draw:not(:disabled):hover {
+  background: var(--color-grey-400);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
+}
+
+.btn-away {
+  background: var(--color-away);
+  color: #fff;
+}
+.btn-away:not(:disabled):hover {
+  background: var(--color-away-dark);
   transform: translateY(-1px);
   box-shadow: var(--shadow-raised);
 }

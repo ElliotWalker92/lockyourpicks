@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 /**
  * Bottom tab bar, phones only.
  *
- * The header nav scrolled horizontally on a 375px screen, so Draft and Leagues
+ * The header nav scrolled horizontally on a 375px screen, so Picks and Leagues
  * sat off-edge — the two things people open the app to do. A bottom bar keeps
  * all of them in thumb reach and always visible, which a hamburger doesn't.
  *
@@ -60,7 +60,7 @@ const ICONS = {
 
 const TABS = [
   { href: '/dashboard', label: 'Home', icon: ICONS.dashboard },
-  { href: '/draft', label: 'Draft', icon: ICONS.draft },
+  { href: '/draft', label: 'Picks', icon: ICONS.draft },
   { href: '/results', label: 'Results', icon: ICONS.results },
   { href: '/table', label: 'Table', icon: ICONS.table },
   { href: '/leaderboard', label: 'Global', icon: ICONS.global },
