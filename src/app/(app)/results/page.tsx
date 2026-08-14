@@ -13,6 +13,20 @@ function initialsOf(name: string) {
   return (w[0].charAt(0) + w[w.length - 1].charAt(0)).toUpperCase();
 }
 
+/**
+ * What to show in place of a scoreline.
+ *
+ * `scheduled` is a database enum and shouldn't be on screen. The other
+ * states are kept because they change what the pick is worth — a postponed
+ * fixture scores nothing, and that's worth saying rather than hiding.
+ */
+const STATUS_LABEL: Record<string, string> = {
+  scheduled: 'picked',
+  live: 'live',
+  postponed: 'postponed',
+  cancelled: 'cancelled',
+};
+
 type Team = { name: string } | { name: string }[];
 const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
 
@@ -259,35 +273,39 @@ export default async function ResultsPage({
                     return (
                       <li
                         key={row.id}
-                        className="flex items-start gap-3 border-b border-grey-100 px-5 py-2.5 text-sm last:border-0"
+                        className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-3 gap-y-1 border-b border-grey-100 px-5 py-2.5 text-sm last:border-0 sm:grid-cols-[minmax(0,1fr)_3.5rem_5.5rem_10rem_1rem] sm:gap-x-4"
                       >
-                        {/* Fixture on top, everything about the pick beneath.
-                            The previous row asked for 424px of fixed widths,
-                            which can't fit a 375px screen, so it wrapped into
-                            an unreadable jumble. Widths only apply from sm up. */}
-                        <span className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
-                          <span className="min-w-0 sm:flex-1">
-                            {home} <span className="text-grey-400">v</span>{' '}
-                            {away}
-                          </span>
+                        {/* Explicit placement: on a phone the fixture and tick
+                            share row 1 and the rest wraps to row 2; on desktop
+                            the wrapper dissolves via `contents` so every field
+                            becomes its own aligned column. */}
+                        <span className="col-start-1 row-start-1 min-w-0">
+                          {home} <span className="text-grey-400">v</span> {away}
+                        </span>
 
-                          <span className="flex flex-wrap items-center gap-2">
+                        <span className="col-span-2 row-start-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:contents">
+                          <span className="text-xs font-medium text-grey-500">
                             {comp && (
-                              <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
+                              <span className="rounded bg-grey-100 px-1.5 py-0.5">
                                 {comp}
                               </span>
                             )}
+                          </span>
 
-                            <span className="font-mono text-xs text-grey-500 sm:w-14">
-                              {finished
-                                ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
-                                : row.fixtures.status}
-                            </span>
+                          <span className="font-mono text-xs text-grey-500">
+                            {finished
+                              ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
+                              : (STATUS_LABEL[row.fixtures.status] ??
+                                row.fixtures.status)}
+                          </span>
 
-                            <span className="font-medium sm:w-32">{called}</span>
-
+                          {/* auto sits with the call rather than in its own
+                              column — it qualifies the pick, and giving it a
+                              column would leave a gap on every manual pick. */}
+                          <span className="flex min-w-0 items-baseline gap-1.5">
+                            <span className="truncate font-medium">{called}</span>
                             {row.is_auto_pick && (
-                              <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
+                              <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
                                 auto
                               </span>
                             )}
@@ -298,7 +316,7 @@ export default async function ResultsPage({
                             column you can scan down. */}
                         {row.points_awarded !== null && (
                           <span
-                            className={`w-4 shrink-0 text-right font-medium ${
+                            className={`col-start-2 row-start-1 w-4 text-right font-medium sm:col-start-5 sm:row-start-1 ${
                               correct ? 'text-win' : 'text-loss'
                             }`}
                             title={correct ? 'Correct' : 'Wrong'}
