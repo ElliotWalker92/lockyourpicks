@@ -139,6 +139,19 @@ body {
   background: var(--color-card);
 }
 
+/* Outline button on the dark hero. Needs its own rule rather than utilities:
+   `.btn` sets the border shorthand, so a `border-white/25` utility lands in the
+   same cascade layer and the transparent colour tends to win. */
+.btn-on-dark {
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.3);
+  color: #fff;
+}
+.btn-on-dark:not(:disabled):hover {
+  border-color: #fff;
+  background: rgb(255 255 255 / 0.1);
+}
+
 .btn-sm {
   padding: 0.35rem 0.8rem;
   font-size: 0.78rem;

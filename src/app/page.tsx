@@ -1,23 +1,24 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { PitchBackdrop } from '@/components/PitchBackdrop';
 import { createClient } from '@/lib/supabase/server';
 
 const RULES = [
   {
     n: '01',
     title: 'Draft three fixtures',
-    body: 'Every gameweek you pick three matches from across the Premier League, Championship, League One, League Two and the cups.',
+    body: 'Every gameweek you take three matches from across the Premier League, Championship, League One, League Two and the cups.',
   },
   {
     n: '02',
     title: 'Take it in turns',
-    body: 'Your division drafts in order, and the order rotates each week. Once a fixture is taken, nobody else in your division can have it.',
+    body: 'Your division drafts in order, and the order rotates each week. Once a fixture is gone, nobody else in your division can have it.',
   },
   {
     n: '03',
     title: 'Call the result',
-    body: 'Name the winner, or call the draw. One point for every result you get right. Miss your turn and the clock picks for you.',
+    body: 'Name the winner, or call the draw. One point per correct result. Miss your turn and the clock picks for you.',
   },
 ];
 
@@ -32,43 +33,69 @@ export default async function Home() {
   return (
     <main className="flex flex-1 flex-col">
       {/* ---- Hero ---- */}
-      <section className="mx-auto w-full max-w-5xl px-6 pt-16 pb-14 sm:pt-24">
-        <p className="label">Lock Your Picks</p>
+      <section className="relative isolate overflow-hidden bg-ink text-white">
+        <PitchBackdrop className="absolute inset-0 h-full w-full text-lime/25" />
 
-        <h1 className="display-xl mt-4 max-w-3xl">
-          Three picks.
-          <br />
-          One draft.
-          <br />
-          <span className="italic">No second chances.</span>
-        </h1>
+        {/* Warms the centre so the headline has something to sit against. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-[radial-gradient(60%_70%_at_30%_45%,rgba(200,241,53,0.14),transparent_70%)]"
+        />
 
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-grey-700">
-          A weekly football prediction league where you don&rsquo;t just pick
-          winners &mdash; you take the fixtures off everyone else first.
-        </p>
+        <div className="relative mx-auto w-full max-w-5xl px-6 pt-20 pb-20 sm:pt-28 sm:pb-24">
+          <p className="label text-lime">Lock Your Picks</p>
 
-        <div className="mt-9 flex flex-wrap gap-3">
-          <Link href="/auth/sign-up" className="btn btn-lime">
-            Create your account
-          </Link>
-          <Link href="/auth/sign-in" className="btn btn-outline">
-            Sign in
-          </Link>
+          <h1 className="display-xl mt-5 max-w-3xl text-white">
+            Three picks.
+            <br />
+            One draft.
+            <br />
+            <span className="italic text-lime">No second chances.</span>
+          </h1>
+
+          <p className="mt-7 max-w-xl text-lg leading-relaxed text-white/70">
+            A weekly football prediction league where you don&rsquo;t just pick
+            winners &mdash; you take the fixtures off everyone else first.
+          </p>
+
+          <div className="mt-10 flex flex-wrap gap-3">
+            <Link href="/auth/sign-up" className="btn btn-lime">
+              Create your account
+            </Link>
+            <Link href="/auth/sign-in" className="btn btn-on-dark">
+              Sign in
+            </Link>
+          </div>
+
+          <p className="mt-5 text-sm text-white/50">
+            Got a join code from a mate? Create an account, then enter it.
+          </p>
         </div>
 
-        <p className="mt-4 text-sm text-grey-500">
-          Got an invite code from a mate? Create an account, then join their
-          league.
-        </p>
+        {/* ---- Season facts, straddling the fold ---- */}
+        <div className="relative border-t border-white/10">
+          <dl className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-px px-6 sm:grid-cols-4">
+            {[
+              ['6', 'competitions'],
+              ['92', 'clubs'],
+              ['43', 'gameweeks'],
+              ['3', 'picks a week'],
+            ].map(([value, label]) => (
+              <div key={label} className="py-6">
+                <dt className="font-serif text-4xl text-lime">{value}</dt>
+                <dd className="label mt-1 text-white/50">{label}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
       {/* ---- How it works ---- */}
-      <section className="border-t border-grey-300 bg-card">
-        <div className="mx-auto w-full max-w-5xl px-6 py-14">
+      <section className="border-b border-grey-300 bg-card">
+        <div className="mx-auto w-full max-w-5xl px-6 py-16">
           <h2 className="label">How it works</h2>
 
-          <div className="mt-8 grid gap-8 sm:grid-cols-3">
+          <div className="mt-9 grid gap-9 sm:grid-cols-3">
             {RULES.map((rule) => (
               <div key={rule.n}>
                 <span className="font-serif text-3xl text-lime-dark">
@@ -83,7 +110,7 @@ export default async function Home() {
       </section>
 
       {/* ---- Divisions ---- */}
-      <section className="mx-auto w-full max-w-5xl px-6 py-14">
+      <section className="mx-auto w-full max-w-5xl px-6 py-16">
         <div className="grid items-center gap-10 sm:grid-cols-2">
           <div>
             <h2 className="display-lg">
@@ -101,29 +128,38 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="card p-5">
-            <p className="label">Division 1</p>
-            <ul className="mt-3 divide-y divide-grey-100">
+          <div className="card overflow-hidden">
+            <div className="border-b border-grey-300 px-5 py-3">
+              <p className="label">Division 1</p>
+            </div>
+            <ul>
               {(
                 [
-                  { pos: '1', label: 'Going up', note: 'to the tier above', up: true },
-                  { pos: '2', label: 'Safe', note: '', up: false },
-                  { pos: '3', label: 'Going down', note: 'to the tier below', up: false },
+                  { pos: '1', label: 'Promoted', note: 'up a tier', tone: 'up' },
+                  { pos: '2', label: 'Safe', note: '', tone: 'flat' },
+                  {
+                    pos: '3',
+                    label: 'Relegated',
+                    note: 'down a tier',
+                    tone: 'down',
+                  },
                 ] as const
               ).map((row) => (
                 <li
                   key={row.pos}
-                  className="flex items-center gap-3 py-2.5 text-sm"
+                  className="flex items-center gap-3 border-b border-grey-100 px-5 py-3 text-sm last:border-0"
                 >
-                  <span className="w-5 font-serif text-grey-500">
+                  <span className="w-5 font-serif text-lg text-grey-400">
                     {row.pos}
                   </span>
                   <span className="flex-1 font-medium">{row.label}</span>
                   {row.note && (
                     <span
-                      className={`text-xs ${row.up ? 'text-win' : 'text-loss'}`}
+                      className={`text-xs font-medium ${
+                        row.tone === 'up' ? 'text-win' : 'text-loss'
+                      }`}
                     >
-                      {row.note}
+                      {row.tone === 'up' ? '▲' : '▼'} {row.note}
                     </span>
                   )}
                 </li>
@@ -133,7 +169,21 @@ export default async function Home() {
         </div>
       </section>
 
-      <footer className="mt-auto border-t border-grey-300">
+      {/* ---- Closing call to action ---- */}
+      <section className="border-t border-grey-300 bg-ink text-white">
+        <div className="mx-auto w-full max-w-5xl px-6 py-14 text-center">
+          <h2 className="display-lg">
+            Ready to <span className="italic text-lime">lock them in?</span>
+          </h2>
+          <div className="mt-7 flex justify-center">
+            <Link href="/auth/sign-up" className="btn btn-lime">
+              Create your account
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-grey-300">
         <div className="mx-auto w-full max-w-5xl px-6 py-6 text-sm text-grey-500">
           Lock Your Picks &mdash; a prediction league for people who take it too
           seriously.
