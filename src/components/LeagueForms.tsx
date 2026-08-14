@@ -6,6 +6,7 @@ import { useFormStatus } from 'react-dom';
 import {
   createLeague,
   joinLeague,
+  joinOpenLeague,
   type LeagueState,
 } from '@/lib/actions/leagues';
 
@@ -88,6 +89,26 @@ export function CreateLeagueForm() {
       <Error state={state} />
       <div>
         <Submit label="Create league" />
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Take a place in the open league.
+ *
+ * Deliberately a one-button form with no options. Someone here has no code
+ * and no group; asking them to name a league or pick a division size is
+ * asking them to make decisions they have no basis for.
+ */
+export function JoinOpenLeagueForm({ label }: { label?: string }) {
+  const [state, action] = useActionState(joinOpenLeague, { error: null });
+
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Error state={state} />
+      <div>
+        <Submit label={label ?? 'Play the open league'} />
       </div>
     </form>
   );

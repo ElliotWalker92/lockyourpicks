@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { FormGuide, FormGuideHeading } from '@/components/FormGuide';
+import { JoinOpenLeagueForm } from '@/components/LeagueForms';
 import { LockIcon } from '@/components/LockIcon';
 import { TurnCountdown } from '@/components/TurnCountdown';
 import { userAtTurn } from '@/lib/draft-order';
@@ -65,7 +66,7 @@ export default async function DashboardPage() {
 
   const { data: membership } = await supabase
     .from('division_members')
-    .select('division_id, league_id, divisions(name, tier), leagues(name)')
+    .select('division_id, league_id, divisions(name, tier), leagues(name, is_open, division_size)')
     .eq('user_id', user!.id)
     .eq('season_id', seasonId)
     .maybeSingle();
@@ -92,12 +93,21 @@ export default async function DashboardPage() {
           <p className="mt-2 max-w-lg text-grey-700">
             {leagueCount
               ? 'You’ve joined a league, but the owner hasn’t split everyone into divisions yet. Drafting happens inside a division, so nothing starts until that’s done.'
-              : 'Ask whoever runs your league for their join code, then enter it on the leagues page. Or start one of your own.'}
+              : 'Got a join code from a mate? Enter it on the leagues page. If not, take a place in the open league — we’ll put you in a division of three and you can start drafting.'}
           </p>
-          <div className="mt-5">
-            <Link href="/leagues" className="btn btn-lime">
-              {leagueCount ? 'View your league' : 'Join or create a league'}
-            </Link>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {leagueCount ? (
+              <Link href="/leagues" className="btn btn-lime">
+                View your league
+              </Link>
+            ) : (
+              <>
+                <JoinOpenLeagueForm />
+                <Link href="/leagues" className="btn btn-outline">
+                  I have a join code
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -178,6 +188,13 @@ export default async function DashboardPage() {
   // A table only carries meaning once something has been scored.
   const tableIsLive = divisionTable.some((r) => r.gameweeksPlayed > 0);
 
+  // Only meaningful in the open league: a private league's owner arranges
+  // divisions deliberately, so an incomplete one there is their choice.
+  const openDivisionSize = membership.leagues?.division_size ?? 3;
+  const openSeatsLeft = membership.leagues?.is_open
+    ? Math.max(0, openDivisionSize - divisionIds.length)
+    : 0;
+
   const meDiv = divisionTable.find((r) => r.userId === user!.id);
   const meLeague = leagueTable.find((r) => r.userId === user!.id);
 
@@ -254,6 +271,21 @@ export default async function DashboardPage() {
         <h1 className="display-lg mt-1">
           {gameweek ? `Gameweek ${gameweek.number}` : 'No gameweek open'}
         </h1>
+
+        {/* An open division that hasn't filled reads as "1st of 1", which
+            looks like a broken table rather than a division still forming.
+            Say which it is. */}
+        {openSeatsLeft > 0 && (
+          <p className="mt-3 flex items-start gap-2 rounded-md border border-grey-300 bg-surface px-3 py-2 text-sm text-grey-700">
+            <LockIcon open className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>
+              Your division is still filling &mdash; {divisionIds.length} of{' '}
+              {openDivisionSize} players. You can draft now, but fixtures
+              won&rsquo;t start going off the board until{' '}
+              {openSeatsLeft === 1 ? 'one more player joins' : `${openSeatsLeft} more players join`}.
+            </span>
+          </p>
+        )}
       </div>
 
       {/* ---- The clock ---- */}

@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/draft', label: 'Draft' },
   { href: '/results', label: 'Results' },
   { href: '/table', label: 'Table' },
+  { href: '/leaderboard', label: 'Global' },
   { href: '/leagues', label: 'Leagues' },
 ];
 

@@ -19,6 +19,17 @@ const eslintConfig = defineConfig([
     ".wrangler/**",
     "cloudflare-env.d.ts",
   ]),
+  {
+    rules: {
+      // Server actions used with useActionState must take (prevState, formData)
+      // whether or not they read either. The leading underscore is already the
+      // convention here for a parameter that exists to satisfy a signature.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

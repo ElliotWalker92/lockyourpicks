@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation';
  *
  * The header nav scrolled horizontally on a 375px screen, so Draft and Leagues
  * sat off-edge — the two things people open the app to do. A bottom bar keeps
- * all four in thumb reach and always visible, which a hamburger doesn't.
+ * all of them in thumb reach and always visible, which a hamburger doesn't.
  *
  * Icons are inline SVG rather than an icon font: four glyphs isn't worth a
  * webfont request, and the v1 app pulled Tabler from a CDN on every page load.
@@ -41,6 +41,13 @@ const ICONS = {
       <path d="M17.5 17.5 19 19l3-3" />
     </>
   ),
+  global: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+    </>
+  ),
   leagues: (
     <>
       <circle cx="9" cy="8" r="3.2" />
@@ -56,6 +63,7 @@ const TABS = [
   { href: '/draft', label: 'Draft', icon: ICONS.draft },
   { href: '/results', label: 'Results', icon: ICONS.results },
   { href: '/table', label: 'Table', icon: ICONS.table },
+  { href: '/leaderboard', label: 'Global', icon: ICONS.global },
   { href: '/leagues', label: 'Leagues', icon: ICONS.leagues },
 ];
 

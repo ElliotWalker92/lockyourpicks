@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { callRpc } from '@/lib/supabase/rpc';
 import { createClient } from '@/lib/supabase/server';
 
 export type LeagueState = { error: string | null };
@@ -90,13 +91,23 @@ export async function joinLeague(
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id')
+    .select('id, is_open')
     .eq('join_code', code)
     .maybeSingle();
 
-  if (!league) {
+  if (!league || league.is_open) {
     return { error: 'No league with that code. Check it and try again.' };
   }
+
+  // A player drafts in one pool. Three picks a week is the game, so an open
+  // place has to be given up before taking a private one — otherwise they'd
+  // owe six picks and two turns, and gameweek_scores can only hold one score
+  // per week anyway.
+  const { error: leaveError } = await callRpc<boolean>(
+    supabase,
+    'leave_open_league',
+  );
+  if (leaveError) return { error: leaveError.message };
 
   const { error } = await supabase
     .from('league_members')
@@ -109,6 +120,32 @@ export async function joinLeague(
 
   revalidatePath('/leagues');
   redirect(`/leagues/${league.id}`);
+}
+
+/**
+ * Take a place in the open league.
+ *
+ * No join code, no waiting on an owner to arrange divisions: the database
+ * fills the bottom division and opens a new one when it's full, so a player
+ * who knows nobody still drafts against real opponents rather than picking
+ * freely from an unclaimed board.
+ */
+export async function joinOpenLeague(
+  _prev: LeagueState,
+  _formData: FormData,
+): Promise<LeagueState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'You need to be signed in.' };
+
+  const { error } = await callRpc<string>(supabase, 'join_open_league');
+  if (error) return { error: error.message };
+
+  revalidatePath('/leagues');
+  revalidatePath('/dashboard');
+  redirect('/dashboard');
 }
 
 /**

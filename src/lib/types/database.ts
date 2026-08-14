@@ -374,25 +374,28 @@ export type Database = {
           created_at: string
           division_size: number
           id: string
+          is_open: boolean
           join_code: string
           name: string
-          owner_id: string
+          owner_id: string | null
         }
         Insert: {
           created_at?: string
           division_size?: number
           id?: string
+          is_open?: boolean
           join_code: string
           name: string
-          owner_id: string
+          owner_id?: string | null
         }
         Update: {
           created_at?: string
           division_size?: number
           id?: string
+          is_open?: boolean
           join_code?: string
           name?: string
-          owner_id?: string
+          owner_id?: string | null
         }
         Relationships: []
       }
@@ -571,6 +574,26 @@ export type Database = {
           },
         ]
       }
+      global_standings: {
+        Row: {
+          correct_count: number | null
+          gameweeks_played: number | null
+          plays_open: boolean | null
+          points: number | null
+          position: number | null
+          season_id: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gameweeks_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       advance_draft_turn: { Args: { p_draft_id: string }; Returns: undefined }
@@ -588,6 +611,8 @@ export type Database = {
         Returns: string
       }
       is_admin: { Args: never; Returns: boolean }
+      join_open_league: { Args: never; Returns: string }
+      leave_open_league: { Args: never; Returns: boolean }
       lock_in_picks: { Args: { p_draft_id: string }; Returns: number }
       make_pick: {
         Args: {
