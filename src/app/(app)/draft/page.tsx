@@ -295,6 +295,8 @@ export default async function DraftPage() {
         currentUserId={user!.id}
         elsewhere={elsewhere}
         crowd={crowd}
+        gameweekLabel={gameweek.name ?? `Gameweek ${gameweek.number}`}
+        divisionName={division?.name ?? 'Your division'}
       />
     </div>
   );

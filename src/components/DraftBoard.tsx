@@ -7,6 +7,7 @@ import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
 import { LockIcon } from '@/components/LockIcon';
+import { SharePicks, type SharePick } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
 import type { Outcome } from '@/lib/types';
 
@@ -98,6 +99,8 @@ export function DraftBoard({
   currentUserId,
   elsewhere,
   crowd,
+  gameweekLabel,
+  divisionName,
 }: {
   draft: BoardDraft;
   fixtures: BoardFixture[];
@@ -108,6 +111,9 @@ export function DraftBoard({
   elsewhere: Record<string, { division: string; called: string }[]>;
   /** How every division called each fixture this gameweek. */
   crowd: Record<string, { home: number; draw: number; away: number }>;
+  /** For the shareable card — 'Gameweek 2'. */
+  gameweekLabel: string;
+  divisionName: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -200,6 +206,29 @@ export function DraftBoard({
   const isMyTurn = draft.status === 'active' && onTurn === currentUserId;
   const order = fullOrder(draft.pick_order);
   const myPicks = picks.filter((p) => p.user_id === currentUserId);
+
+  // The shared card has to say exactly what the list above it says, so the
+  // call is derived once here rather than formatted again at the boundary.
+  const sharePicks: SharePick[] = myPicks
+    .slice()
+    .sort((a, b) => a.pick_number - b.pick_number)
+    .flatMap((pick) => {
+      const f = fixtures.find((x) => x.id === pick.fixture_id);
+      if (!f) return [];
+      return [
+        {
+          home: f.home.name,
+          away: f.away.name,
+          outcome: pick.predicted_outcome,
+          called:
+            pick.predicted_outcome === 'HOME'
+              ? f.home.name
+              : pick.predicted_outcome === 'AWAY'
+                ? f.away.name
+                : 'Draw',
+        },
+      ];
+    });
 
   const available = fixtures.filter((f) => !takenBy.has(f.id));
 
@@ -416,6 +445,21 @@ export function DraftBoard({
                 : 'Locking in passes the turn on — you can’t change them after.'}
             </p>
           </div>
+        )}
+
+        {/* Only once the set is complete: a half-finished slip sent to the
+            group is worse than none. */}
+        {myPicks.length >= draft.picks_per_player && (
+          <SharePicks
+            picks={sharePicks}
+            gameweek={gameweekLabel}
+            player={
+              players.find((p) => p.id === currentUserId)?.display_name ??
+              'My picks'
+            }
+            division={divisionName}
+            locked={!isMyTurn}
+          />
         )}
       </section>
 
