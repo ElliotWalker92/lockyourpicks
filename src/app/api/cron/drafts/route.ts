@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { serverEnv } from '@/lib/server-env';
+
 import { callRpc } from '@/lib/supabase/rpc';
 import { notifyTurns } from '@/lib/notify/turns';
 import { createServiceRoleClient } from '@/lib/supabase/server';
@@ -33,7 +35,7 @@ export const maxDuration = 60;
  * All three are idempotent, so overlapping runs are harmless.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = serverEnv('CRON_SECRET');
   if (!secret) {
     return NextResponse.json(
       { error: 'CRON_SECRET is not configured' },

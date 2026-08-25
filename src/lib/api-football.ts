@@ -13,6 +13,8 @@
  *    tested for length.
  */
 
+import { serverEnv } from '@/lib/server-env';
+
 const BASE = 'https://v3.football.api-sports.io';
 
 export type ApiFootballResponse<T> = {
@@ -92,7 +94,7 @@ async function request<T>(
   path: string,
   params: Record<string, string | number>,
 ): Promise<T[]> {
-  const key = process.env.API_FOOTBALL_KEY;
+  const key = serverEnv('API_FOOTBALL_KEY');
   if (!key) throw new ApiFootballError('API_FOOTBALL_KEY is not set');
 
   await throttle();

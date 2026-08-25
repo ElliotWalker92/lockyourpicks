@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { serverEnv } from '@/lib/server-env';
+
 import { ingestStandings } from '@/lib/ingest/standings';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 
@@ -14,7 +16,7 @@ export const maxDuration = 60;
  * cron routes: there's no user here.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = serverEnv('CRON_SECRET');
   if (!secret) {
     return NextResponse.json(
       { error: 'CRON_SECRET is not configured' },

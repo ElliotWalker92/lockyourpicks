@@ -5,6 +5,8 @@
  * resets. Anything the app itself wants to say goes through Resend's HTTP
  * API instead, which also avoids needing an SMTP client inside a Worker.
  */
+import { serverEnv } from '@/lib/server-env';
+
 export class ResendError extends Error {}
 
 export type Email = {
@@ -22,7 +24,7 @@ const FROM = 'Lock Your Picks <noreply@lockyourpicks.com>';
  * failing the cron that calls it.
  */
 export async function sendEmail(email: Email): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY;
+  const key = serverEnv('RESEND_API_KEY');
   if (!key) return false;
 
   const res = await fetch('https://api.resend.com/emails', {
