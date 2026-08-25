@@ -6,7 +6,8 @@ import { ingestStandings } from '@/lib/ingest/standings';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Four competitions, each of which may wait out a per-minute ceiling.
+export const maxDuration = 120;
 
 /**
  * League tables.

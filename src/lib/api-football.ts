@@ -90,6 +90,25 @@ async function throttle() {
   lastRequestAt = Date.now();
 }
 
+/**
+ * Retries when the minute ceiling is hit.
+ *
+ * The gap above only paces one run. Nothing coordinates a scheduled run
+ * against another that overlaps it — every cron invocation gets its own
+ * module state — so two jobs firing near each other can trip the ceiling
+ * even though neither is close to it alone.
+ *
+ * Without a retry the consequence is silent and uneven: whichever call
+ * happened to land during the burst is dropped, so a competition or a date
+ * quietly goes missing from an otherwise successful run. Waiting is the
+ * whole fix, because the limit is per minute.
+ */
+const RATE_LIMIT_RETRIES = 2;
+const RATE_LIMIT_BACKOFF_MS = 20_000;
+
+const isRateLimit = (err: unknown) =>
+  err instanceof ApiFootballError && /rateLimit/i.test(err.message);
+
 async function request<T>(
   path: string,
   params: Record<string, string | number>,
@@ -97,26 +116,36 @@ async function request<T>(
   const key = serverEnv('API_FOOTBALL_KEY');
   if (!key) throw new ApiFootballError('API_FOOTBALL_KEY is not set');
 
-  await throttle();
-
   const url = new URL(`${BASE}${path}`);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, String(v));
   }
 
-  const res = await fetch(url, {
-    headers: { 'x-apisports-key': key },
-    // Fixture data changes constantly; never let Next cache it.
-    cache: 'no-store',
-  });
+  for (let attempt = 0; ; attempt++) {
+    await throttle();
 
-  if (!res.ok) {
-    throw new ApiFootballError(
-      `${path} returned HTTP ${res.status} ${res.statusText}`,
-    );
+    const res = await fetch(url, {
+      headers: { 'x-apisports-key': key },
+      // Fixture data changes constantly; never let Next cache it.
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      throw new ApiFootballError(
+        `${path} returned HTTP ${res.status} ${res.statusText}`,
+      );
+    }
+
+    try {
+      return unwrap<T>(await res.json(), path);
+    } catch (err) {
+      if (isRateLimit(err) && attempt < RATE_LIMIT_RETRIES) {
+        await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
+        continue;
+      }
+      throw err;
+    }
   }
-
-  return unwrap<T>(await res.json(), path);
 }
 
 /**

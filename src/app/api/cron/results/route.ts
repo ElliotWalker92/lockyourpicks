@@ -6,7 +6,8 @@ import { ingestResults } from '@/lib/ingest/results';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// Up to fourteen dates, any of which may wait out a per-minute ceiling.
+export const maxDuration = 180;
 
 /**
  * Results polling and settlement.
