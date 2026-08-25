@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { TableScopeToggle } from '@/components/TableScopeToggle';
+import { Crest } from '@/components/Crest';
 import { rank, type StandingRow } from '@/lib/standings';
 import { createClient } from '@/lib/supabase/server';
 
@@ -24,16 +25,23 @@ function initials(name: string) {
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
 }
 
+export type WeekPick = { crest: string | null; label: string };
+
 function Table({
   title,
   subtitle,
   rows,
   highlightUserId,
+  picksOf,
+  weekLabel,
 }: {
   title: string;
   subtitle?: string;
   rows: StandingRow[];
   highlightUserId: string;
+  /** This round's picks per player, as badges. */
+  picksOf: (userId: string) => WeekPick[];
+  weekLabel: string | null;
 }) {
   return (
     <section>
@@ -52,7 +60,12 @@ function Table({
             <tr className="border-b border-grey-300 text-left text-xs uppercase tracking-wider text-grey-500">
               <th className="w-10 py-2 font-medium">Pos</th>
               <th className="py-2 font-medium">Player</th>
-              <th className="w-16 py-2 text-right font-medium">GW</th>
+              {weekLabel && (
+                <th className="hidden w-28 py-2 font-medium sm:table-cell">
+                  {weekLabel} picks
+                </th>
+              )}
+              <th className="w-16 py-2 text-right font-medium">Played</th>
               <th className="w-16 py-2 text-right font-medium">Pts</th>
             </tr>
           </thead>
@@ -82,6 +95,35 @@ function Table({
                     {row.displayName}
                   </span>
                 </td>
+                {weekLabel && (
+                  <td className="hidden py-2.5 sm:table-cell">
+                    <span className="flex items-center gap-1">
+                      {picksOf(row.userId).length === 0 ? (
+                        <span className="text-xs text-grey-400">&mdash;</span>
+                      ) : (
+                        picksOf(row.userId).map((p, i) =>
+                          p.crest ? (
+                            <Crest
+                              key={i}
+                              url={p.crest}
+                              alt={p.label}
+                              className="h-5 w-5"
+                            />
+                          ) : (
+                            // A called draw has no single club to show.
+                            <span
+                              key={i}
+                              title={p.label}
+                              className="flex h-5 w-5 items-center justify-center rounded-full bg-grey-300 text-[9px] font-bold text-ink"
+                            >
+                              D
+                            </span>
+                          ),
+                        )
+                      )}
+                    </span>
+                  </td>
+                )}
                 <td className="py-2.5 text-right tabular-nums text-grey-500">
                   {row.gameweeksPlayed}
                 </td>
@@ -199,6 +241,93 @@ export default async function TablePage() {
       };
     });
 
+  // ---- This round's picks, as badges ----
+  //
+  // The table has no clubs on it otherwise: it ranks players. Showing what
+  // each of them has taken this round is the one place a crest belongs here,
+  // and it answers the question you actually have looking at a table
+  // mid-week — not just who is ahead, but what they are holding.
+  //
+  // Picks within a league are already public: the board shows what a
+  // division-mate has taken the moment they take it, and what other
+  // divisions took as well. Nothing is revealed here that the draft doesn't.
+  const divisionIds = (divisions ?? []).map((d) => d.id);
+  type LeagueDraft = {
+    id: string;
+    gameweek_id: string;
+    gameweeks: { number: number; name: string | null } | { number: number; name: string | null }[] | null;
+  };
+
+  const leagueDrafts: LeagueDraft[] = divisionIds.length
+    ? (((
+        await supabase
+          .from('drafts')
+          .select('id, gameweek_id, gameweeks(number, name)')
+          .in('division_id', divisionIds)
+      ).data ?? []) as unknown as LeagueDraft[])
+    : [];
+
+  const picksOfUser = new Map<string, WeekPick[]>();
+  let weekLabel: string | null = null;
+
+  if (leagueDrafts.length) {
+    // The latest round anyone has actually picked in.
+    const byGameweek = new Map<string, { number: number; ids: string[] }>();
+    for (const d of leagueDrafts) {
+      const gw = Array.isArray(d.gameweeks) ? d.gameweeks[0] : d.gameweeks;
+      const entry = byGameweek.get(d.gameweek_id) ?? {
+        number: gw?.number ?? 0,
+        ids: [],
+      };
+      entry.ids.push(d.id);
+      byGameweek.set(d.gameweek_id, entry);
+    }
+
+    const ordered = [...byGameweek.values()].sort((a, b) => b.number - a.number);
+    for (const round of ordered) {
+      const { data: roundPicks } = await supabase
+        .from('picks')
+        .select(
+          `user_id, predicted_outcome, pick_number,
+           fixtures(
+             home:teams!fixtures_home_team_id_fkey(name, crest_url),
+             away:teams!fixtures_away_team_id_fkey(name, crest_url)
+           )`,
+        )
+        .in('draft_id', round.ids)
+        .order('pick_number');
+
+      if (!roundPicks?.length) continue;
+
+      const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
+      for (const pick of roundPicks) {
+        const fixture = one(pick.fixtures) as {
+          home: { name: string; crest_url: string | null };
+          away: { name: string; crest_url: string | null };
+        } | null;
+        if (!fixture) continue;
+        const home = one(fixture.home);
+        const away = one(fixture.away);
+
+        const called =
+          pick.predicted_outcome === 'HOME'
+            ? { crest: home.crest_url, label: home.name }
+            : pick.predicted_outcome === 'AWAY'
+              ? { crest: away.crest_url, label: away.name }
+              : { crest: null, label: `Draw — ${home.name} v ${away.name}` };
+
+        const list = picksOfUser.get(pick.user_id) ?? [];
+        list.push(called);
+        picksOfUser.set(pick.user_id, list);
+      }
+
+      weekLabel = `GW${round.number}`;
+      break;
+    }
+  }
+
+  const picksOf = (userId: string) => picksOfUser.get(userId) ?? [];
+
   const overall = rank(totalsFor(userIds));
 
   if (userIds.length === 0) {
@@ -239,6 +368,8 @@ export default async function TablePage() {
         subtitle={`${userIds.length} players`}
         rows={overall}
         highlightUserId={user!.id}
+        picksOf={picksOf}
+        weekLabel={weekLabel}
       />
 
       {(divisions ?? []).map((division) => {
@@ -252,6 +383,8 @@ export default async function TablePage() {
             subtitle={`Tier ${division.tier}`}
             rows={rank(totalsFor(ids))}
             highlightUserId={user!.id}
+            picksOf={picksOf}
+            weekLabel={weekLabel}
           />
         );
       })}

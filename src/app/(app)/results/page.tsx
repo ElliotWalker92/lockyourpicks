@@ -348,7 +348,19 @@ export default async function ResultsPage({
                           {/* auto sits with the call rather than in its own
                               column — it qualifies the pick, and giving it a
                               column would leave a gap on every manual pick. */}
-                          <span className="flex min-w-0 items-baseline gap-1.5">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {/* A called draw has no single club, so the badge
+                                is simply absent rather than guessed at. */}
+                            <Crest
+                              url={
+                                row.predicted_outcome === 'HOME'
+                                  ? homeTeam.crest_url
+                                  : row.predicted_outcome === 'AWAY'
+                                    ? awayTeam.crest_url
+                                    : null
+                              }
+                              className="h-4 w-4"
+                            />
                             <span className="truncate font-medium">{called}</span>
                             {row.is_auto_pick && (
                               <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
