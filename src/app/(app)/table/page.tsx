@@ -118,6 +118,14 @@ export default async function TablePage() {
         One point per correct result. Divisions run alongside the overall
         standings.
       </p>
+      {/* The phone's tab bar is full, so this is how the real tables are
+          reached on mobile. */}
+      <Link
+        href="/standings"
+        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:text-lime-dark"
+      >
+        Looking for the real league tables? &rarr;
+      </Link>
     </div>
   );
 

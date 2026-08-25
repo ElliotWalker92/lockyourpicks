@@ -28,7 +28,13 @@
   //               expired turns, so a quiet player never blocks the rest
   //   elo       — Tuesdays 05:00, after fixtures land
   "triggers": {
-    "crons": ["0 4 * * 2", "*/15 * * * *", "*/10 * * * *", "0 5 * * 2"]
+    "crons": [
+      "0 4 * * 2",
+      "*/15 * * * *",
+      "*/10 * * * *",
+      "0 5 * * 2",
+      "20 6,13,22 * * *"
+    ]
   },
 
   "vars": {

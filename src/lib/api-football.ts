@@ -175,3 +175,53 @@ export function mapStatus(
   if (['CANC', 'ABD', 'AWD', 'WO'].includes(short)) return 'cancelled';
   return 'scheduled';
 }
+
+export type ApiStandingRow = {
+  rank: number;
+  team: { id: number; name: string; logo: string | null };
+  points: number;
+  goalsDiff: number;
+  form: string | null;
+  status: string | null;
+  description: string | null;
+  all: ApiStandingSplit;
+  home: ApiStandingSplit;
+  away: ApiStandingSplit;
+};
+
+export type ApiStandingSplit = {
+  played: number;
+  win: number;
+  draw: number;
+  lose: number;
+  goals: { for: number; against: number };
+};
+
+type ApiStandingsResponse = {
+  league: {
+    id: number;
+    name: string;
+    season: number;
+    /** Grouped — one array per group. A league has exactly one. */
+    standings: ApiStandingRow[][];
+  };
+};
+
+/**
+ * The league table for one competition.
+ *
+ * Knockouts have no table: the FA Cup and EFL Cup return zero results
+ * rather than an error, so an empty array here is expected, not a failure.
+ */
+export async function getStandings(
+  leagueId: number,
+  season: number,
+): Promise<ApiStandingRow[]> {
+  const response = await request<ApiStandingsResponse>('/standings', {
+    league: leagueId,
+    season,
+  });
+
+  // Groups are concatenated so a grouped competition would still work.
+  return (response[0]?.league?.standings ?? []).flat();
+}

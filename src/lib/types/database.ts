@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -507,6 +507,121 @@ export type Database = {
         }
         Relationships: []
       }
+      standings: {
+        Row: {
+          away_draw: number
+          away_goals_against: number
+          away_goals_for: number
+          away_lose: number
+          away_played: number
+          away_win: number
+          competition_id: string
+          description: string | null
+          draw: number
+          form: string | null
+          goals_against: number
+          goals_diff: number
+          goals_for: number
+          home_draw: number
+          home_goals_against: number
+          home_goals_for: number
+          home_lose: number
+          home_played: number
+          home_win: number
+          lose: number
+          played: number
+          points: number
+          rank: number
+          season_id: string
+          status: string | null
+          team_id: string
+          updated_at: string
+          win: number
+        }
+        Insert: {
+          away_draw?: number
+          away_goals_against?: number
+          away_goals_for?: number
+          away_lose?: number
+          away_played?: number
+          away_win?: number
+          competition_id: string
+          description?: string | null
+          draw?: number
+          form?: string | null
+          goals_against?: number
+          goals_diff: number
+          goals_for?: number
+          home_draw?: number
+          home_goals_against?: number
+          home_goals_for?: number
+          home_lose?: number
+          home_played?: number
+          home_win?: number
+          lose?: number
+          played?: number
+          points: number
+          rank: number
+          season_id: string
+          status?: string | null
+          team_id: string
+          updated_at?: string
+          win?: number
+        }
+        Update: {
+          away_draw?: number
+          away_goals_against?: number
+          away_goals_for?: number
+          away_lose?: number
+          away_played?: number
+          away_win?: number
+          competition_id?: string
+          description?: string | null
+          draw?: number
+          form?: string | null
+          goals_against?: number
+          goals_diff?: number
+          goals_for?: number
+          home_draw?: number
+          home_goals_against?: number
+          home_goals_for?: number
+          home_lose?: number
+          home_played?: number
+          home_win?: number
+          lose?: number
+          played?: number
+          points?: number
+          rank?: number
+          season_id?: string
+          status?: string | null
+          team_id?: string
+          updated_at?: string
+          win?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standings_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           crest_url: string | null
@@ -606,6 +721,7 @@ export type Database = {
         Returns: number
       }
       auto_pick: { Args: { p_draft_id: string }; Returns: number }
+      draft_hard_deadline: { Args: { p_gameweek_id: string }; Returns: string }
       draft_user_at_turn: {
         Args: { p_order: string[]; p_turn: number }
         Returns: string
@@ -651,6 +767,10 @@ export type Database = {
       start_drafts_for_gameweek: {
         Args: { p_gameweek_id: string }
         Returns: number
+      }
+      turn_deadline: {
+        Args: { p_gameweek_id: string; p_remaining: number }
+        Returns: string
       }
     }
     Enums: {

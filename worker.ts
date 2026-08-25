@@ -24,6 +24,8 @@ const ROUTES: Record<string, string> = {
   '*/10 * * * *': '/api/cron/drafts',
   // Recompute team Elo ratings from full history.
   '0 5 * * 2': '/api/cron/elo',
+  // League tables — four provider calls, three times a day.
+  '20 6,13,22 * * *': '/api/cron/standings',
 };
 
 const handler = {
