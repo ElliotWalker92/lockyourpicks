@@ -1,7 +1,7 @@
 import { HOME_ADV, matchProbabilities, type Probabilities } from '@/lib/elo';
 
 /**
- * The prediction model: Elo, recent form, and the crowd, blended.
+ * The prediction model: Elo, the league table, recent form, and the crowd.
  *
  * Each layer is exposed separately so the UI can show what each thinks, not
  * just the combined number. A single blended percentage hides whether the
@@ -10,15 +10,33 @@ import { HOME_ADV, matchProbabilities, type Probabilities } from '@/lib/elo';
 
 export type ModelLayers = {
   elo: Probabilities;
+  table: (Probabilities & { sample: number }) | null;
   form: Probabilities | null;
   crowd: (Probabilities & { sample: number }) | null;
   blended: Probabilities;
   /** Weights actually used, after any small-sample adjustment. */
-  weights: { elo: number; form: number; crowd: number };
+  weights: { elo: number; table: number; form: number; crowd: number };
 };
 
-/** Starting point. Crowd is deliberately the smallest — see below. */
-const BASE_WEIGHTS = { elo: 0.6, form: 0.25, crowd: 0.15 };
+/**
+ * Starting point.
+ *
+ * Elo stays the backbone: it is the only layer that spans competitions, so
+ * it is the one that can price a Premier League side against a League Two
+ * side in a cup tie. The table is worth a fifth on its own account because
+ * it is read by venue — see tableProbabilities. Crowd is deliberately the
+ * smallest.
+ */
+const BASE_WEIGHTS = { elo: 0.45, table: 0.2, form: 0.2, crowd: 0.15 };
+
+/**
+ * Home and away records below this many games are too thin to price.
+ *
+ * A team three games into a season has played one or two at home; its home
+ * points-per-game is 0 or 3 and means nothing. Weight scales up to this and
+ * is handed back to Elo until then.
+ */
+const MIN_TABLE_GAMES = 5;
 
 /**
  * Below this many picks the crowd is noise, so its weight is scaled down in
@@ -80,6 +98,55 @@ export function formProbabilities(
   return matchProbabilities(1500 + home.ppg * PER_PPG, 1500 + away.ppg * PER_PPG);
 }
 
+/**
+ * One side's league record at a given venue.
+ *
+ * `competitionId` is carried so two teams are only ever compared within the
+ * same division.
+ */
+export type TableRecord = {
+  /** Points per game — at home for the home side, away for the away side. */
+  ppg: number;
+  /** Games played at that venue. */
+  played: number;
+  competitionId: string;
+  rank: number;
+};
+
+/**
+ * Turn two league records into three-way probabilities.
+ *
+ * Read by venue: the home side's home record against the away side's away
+ * record. That is the part Elo cannot see — it applies the same hundred-point
+ * home advantage to everyone, while real sides differ enormously in how much
+ * home is worth to them. Because the venue is already baked into both
+ * numbers, the curve is asked for a neutral venue; adding the usual home
+ * advantage on top would count it twice.
+ *
+ * Returns null when the two sides are not in the same competition. Points per
+ * game only compares within a division — a League Two leader out-scores a
+ * mid-table Premier League side on that measure and is plainly not better, so
+ * for a cup tie across divisions this layer has nothing to say and stands
+ * aside for Elo, which is seeded by tier and does.
+ */
+export function tableProbabilities(
+  home: TableRecord | null,
+  away: TableRecord | null,
+): (Probabilities & { sample: number }) | null {
+  if (!home || !away) return null;
+  if (home.competitionId !== away.competitionId) return null;
+  if (home.played === 0 || away.played === 0) return null;
+
+  const PER_PPG = 200 / 3;
+  const p = matchProbabilities(
+    1500 + home.ppg * PER_PPG,
+    1500 + away.ppg * PER_PPG,
+    { neutral: true },
+  );
+
+  return { ...p, sample: Math.min(home.played, away.played) };
+}
+
 /** Crowd distribution from raw pick counts. */
 export function crowdProbabilities(counts: {
   home: number;
@@ -105,6 +172,8 @@ function normalise(p: Probabilities): Probabilities {
 export function buildModel({
   homeElo,
   awayElo,
+  homeTable = null,
+  awayTable = null,
   homeForm,
   awayForm,
   crowdCounts,
@@ -112,17 +181,24 @@ export function buildModel({
 }: {
   homeElo: number;
   awayElo: number;
+  homeTable?: TableRecord | null;
+  awayTable?: TableRecord | null;
   homeForm: FormRun;
   awayForm: FormRun;
   crowdCounts: { home: number; draw: number; away: number };
   neutral?: boolean;
 }): ModelLayers {
   const elo = matchProbabilities(homeElo, awayElo, { neutral });
+  const table = tableProbabilities(homeTable, awayTable);
   const form = formProbabilities(homeForm, awayForm);
   const crowd = crowdProbabilities(crowdCounts);
 
   // Start from the base and drop any layer we haven't got.
   const weights = { ...BASE_WEIGHTS };
+  if (!table) weights.table = 0;
+  else if (table.sample < MIN_TABLE_GAMES) {
+    weights.table = BASE_WEIGHTS.table * (table.sample / MIN_TABLE_GAMES);
+  }
   if (!form) weights.form = 0;
   if (!crowd) weights.crowd = 0;
   else if (crowd.sample < MIN_CROWD) {
@@ -131,25 +207,28 @@ export function buildModel({
 
   // Redistribute whatever's left over onto Elo, which is the layer we trust
   // most and the only one always present.
-  const used = weights.elo + weights.form + weights.crowd;
+  const used = weights.elo + weights.table + weights.form + weights.crowd;
   weights.elo += 1 - used;
 
   const blended = normalise({
     home:
       elo.home * weights.elo +
+      (table?.home ?? 0) * weights.table +
       (form?.home ?? 0) * weights.form +
       (crowd?.home ?? 0) * weights.crowd,
     draw:
       elo.draw * weights.elo +
+      (table?.draw ?? 0) * weights.table +
       (form?.draw ?? 0) * weights.form +
       (crowd?.draw ?? 0) * weights.crowd,
     away:
       elo.away * weights.elo +
+      (table?.away ?? 0) * weights.table +
       (form?.away ?? 0) * weights.form +
       (crowd?.away ?? 0) * weights.crowd,
   });
 
-  return { elo, form, crowd, blended, weights };
+  return { elo, table, form, crowd, blended, weights };
 }
 
 export { HOME_ADV };

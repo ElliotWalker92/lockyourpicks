@@ -2,12 +2,14 @@
 
 import { LockIcon } from '@/components/LockIcon';
 import { formatPct } from '@/lib/elo';
+import type { TeamTable } from '@/lib/ingest/form';
 import { buildModel, formRun, type FormRun } from '@/lib/model';
 
 export type ModelTeam = {
   name: string;
   elo: number;
   form: ('W' | 'D' | 'L')[];
+  table: TeamTable | null;
 };
 
 /** Home lime, draw grey, away electric blue — same as the WC2026 app. */
@@ -97,9 +99,29 @@ export function FixtureModel({
   const homeForm: FormRun = formRun(home.form);
   const awayForm: FormRun = formRun(away.form);
 
+  // Each side is read at the venue it is actually playing at.
+  const homeTable = home.table
+    ? {
+        ppg: home.table.homePpg,
+        played: home.table.homePlayed,
+        competitionId: home.table.competitionId,
+        rank: home.table.rank,
+      }
+    : null;
+  const awayTable = away.table
+    ? {
+        ppg: away.table.awayPpg,
+        played: away.table.awayPlayed,
+        competitionId: away.table.competitionId,
+        rank: away.table.rank,
+      }
+    : null;
+
   const model = buildModel({
     homeElo: home.elo,
     awayElo: away.elo,
+    homeTable,
+    awayTable,
     homeForm,
     awayForm,
     crowdCounts,
@@ -117,7 +139,7 @@ export function FixtureModel({
             Model
           </p>
           <p className="text-xs text-grey-500">
-            Elo, form and the crowd combined
+            Elo, the table, form and the crowd combined
           </p>
         </div>
 
@@ -160,6 +182,40 @@ export function FixtureModel({
             {Math.round(home.elo)} v {Math.round(away.elo)}
             {edge !== 0 && (
               <> &middot; {edge > 0 ? home.name : away.name} +{Math.abs(edge)}</>
+            )}
+          </span>
+        </div>
+
+        {/* Table */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="w-14 shrink-0 text-xs font-medium text-grey-700">
+            Table
+          </span>
+          <span className="min-w-32 flex-1">
+            {model.table ? (
+              <Bar
+                p={model.table}
+                homeName={home.name}
+                awayName={away.name}
+                compact
+              />
+            ) : (
+              <span className="text-xs text-grey-400">
+                {homeTable && awayTable
+                  ? 'not enough games yet'
+                  : 'different divisions — no comparable table'}
+              </span>
+            )}
+          </span>
+          <span className="shrink-0 text-xs text-grey-500 tabular-nums">
+            {homeTable && awayTable ? (
+              <>
+                {ordinal(homeTable.rank)} v {ordinal(awayTable.rank)}
+                {' · '}
+                {homeTable.ppg.toFixed(1)} home v {awayTable.ppg.toFixed(1)} away
+              </>
+            ) : (
+              '—'
             )}
           </span>
         </div>
@@ -227,12 +283,20 @@ export function FixtureModel({
       )}
 
       <p className="text-xs leading-relaxed text-grey-500">
-        Elo from last season and this, form from the last {FORM_MAX} results,
-        crowd from every division&rsquo;s picks this gameweek. A guide, not a
-        tip &mdash; none of it knows who&rsquo;s injured.
+        Elo from last season and this; the table read by venue &mdash; home
+        side&rsquo;s home record against the away side&rsquo;s away record;
+        form from the last {FORM_MAX} results; crowd from every
+        division&rsquo;s picks this gameweek. A guide, not a tip &mdash; none
+        of it knows who&rsquo;s injured.
       </p>
     </div>
   );
 }
 
 const FORM_MAX = 5;
+
+function ordinal(n: number) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}

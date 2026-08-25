@@ -107,3 +107,53 @@ export async function loadCrowdCounts(
   }
   return counts;
 }
+
+export type TeamTable = {
+  competitionId: string;
+  rank: number;
+  homePpg: number;
+  homePlayed: number;
+  awayPpg: number;
+  awayPlayed: number;
+};
+
+export type TableRecords = Record<string, TeamTable>;
+
+/**
+ * Each team's league record, split by venue.
+ *
+ * Read straight from the stored standings rather than recomputed from
+ * fixtures: the provider's table already accounts for points deductions and
+ * expunged results, which counting wins from our own fixture rows would miss.
+ *
+ * Only league competitions have a table, so a cup side simply isn't in the
+ * map and the model's table layer stands aside for that fixture.
+ */
+export async function loadTableRecords(
+  supabase: SupabaseClient<Database>,
+  seasonId: string,
+): Promise<TableRecords> {
+  const { data } = await supabase
+    .from('standings')
+    .select(
+      `team_id, competition_id, rank,
+       home_played, home_win, home_draw,
+       away_played, away_win, away_draw`,
+    )
+    .eq('season_id', seasonId);
+
+  const records: TableRecords = {};
+  for (const row of data ?? []) {
+    const homePoints = row.home_win * 3 + row.home_draw;
+    const awayPoints = row.away_win * 3 + row.away_draw;
+    records[row.team_id] = {
+      competitionId: row.competition_id,
+      rank: row.rank,
+      homePpg: row.home_played ? homePoints / row.home_played : 0,
+      homePlayed: row.home_played,
+      awayPpg: row.away_played ? awayPoints / row.away_played : 0,
+      awayPlayed: row.away_played,
+    };
+  }
+  return records;
+}

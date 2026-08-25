@@ -13,6 +13,7 @@ import {
   type SlipGroup,
 } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
+import type { TeamTable } from '@/lib/ingest/form';
 import type { Outcome } from '@/lib/types';
 
 /** Home lime, draw grey, away electric blue — same key as the model bars. */
@@ -29,6 +30,8 @@ export type BoardTeam = {
   crest_url: string | null;
   elo_rating: number;
   form: ('W' | 'D' | 'L')[];
+  /** League record split by venue. Absent for a side with no table. */
+  table: TeamTable | null;
 };
 
 export type BoardFixture = {
@@ -664,11 +667,13 @@ export function DraftBoard({
                             name: f.home.name,
                             elo: f.home.elo_rating,
                             form: f.home.form,
+                            table: f.home.table,
                           }}
                           away={{
                             name: f.away.name,
                             elo: f.away.elo_rating,
                             form: f.away.form,
+                            table: f.away.table,
                           }}
                           crowdCounts={
                             crowd[f.id] ?? { home: 0, draw: 0, away: 0 }

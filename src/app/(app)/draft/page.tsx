@@ -3,7 +3,11 @@ import Link from 'next/link';
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
 import { currentDraftFor } from '@/lib/current-draft';
-import { loadCrowdCounts, loadTeamForm } from '@/lib/ingest/form';
+import {
+  loadCrowdCounts,
+  loadTableRecords,
+  loadTeamForm,
+} from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Picks' };
@@ -169,9 +173,13 @@ export default async function DraftPage() {
       (members ?? []).map((m) => m.user_id),
     );
 
-  const [teamForm, crowd] = await Promise.all([
+  const [teamForm, crowd, tables] = await Promise.all([
     loadTeamForm(supabase),
     loadCrowdCounts(supabase, gameweek.id),
+    loadTableRecords(
+      supabase,
+      season?.id ?? '00000000-0000-0000-0000-000000000000',
+    ),
   ]);
 
   // PostgREST types embedded relations as arrays when it can't prove a single
@@ -193,8 +201,16 @@ export default async function DraftPage() {
       return {
         id: row.id,
         kickoff_at: row.kickoff_at,
-        home: { ...homeTeam, form: teamForm[homeTeam.id] ?? [] },
-        away: { ...awayTeam, form: teamForm[awayTeam.id] ?? [] },
+        home: {
+          ...homeTeam,
+          form: teamForm[homeTeam.id] ?? [],
+          table: tables[homeTeam.id] ?? null,
+        },
+        away: {
+          ...awayTeam,
+          form: teamForm[awayTeam.id] ?? [],
+          table: tables[awayTeam.id] ?? null,
+        },
         competition: one(row.competition) ?? null,
       };
     })
