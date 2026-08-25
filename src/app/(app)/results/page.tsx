@@ -1,6 +1,8 @@
 import Link from 'next/link';
 
+import { Crest } from '@/components/Crest';
 import { LockIcon } from '@/components/LockIcon';
+import { SharePicks, type SlipGroup } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Results' };
@@ -28,7 +30,8 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: 'cancelled',
 };
 
-type Team = { name: string } | { name: string }[];
+type TeamRow = { name: string; crest_url: string | null };
+type Team = TeamRow | TeamRow[];
 const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
 
 /**
@@ -133,8 +136,8 @@ export default async function ResultsPage({
         `id, user_id, predicted_outcome, is_auto_pick, points_awarded, pick_number,
          fixtures(
            kickoff_at, home_score, away_score, result, status,
-           home:teams!fixtures_home_team_id_fkey(name),
-           away:teams!fixtures_away_team_id_fkey(name),
+           home:teams!fixtures_home_team_id_fkey(name, crest_url),
+           away:teams!fixtures_away_team_id_fkey(name, crest_url),
            competition:competitions(code)
          )`,
       )
@@ -184,6 +187,41 @@ export default async function ResultsPage({
   byPlayer.sort((a, b) => b.points - a.points);
 
   const anyScored = rows.some((r) => r.points_awarded !== null);
+
+  // The same slip as the draft board's, but carrying how it's actually going.
+  // Sharing three picks on Tuesday and never saying how they finished is half
+  // a conversation; this is the other half, and it works mid-gameweek because
+  // a fixture that has a score has one whether or not the week has settled.
+  const slip: SlipGroup[] = byPlayer.map((player) => ({
+    player: nameOf(player.id),
+    points: anyScored ? player.points : null,
+    picks: player.picks.map((r) => {
+      const home = one(r.fixtures.home);
+      const away = one(r.fixtures.away);
+      return {
+        home: home.name,
+        away: away.name,
+        homeCrest: home.crest_url,
+        awayCrest: away.crest_url,
+        outcome: r.predicted_outcome,
+        called:
+          r.predicted_outcome === 'HOME'
+            ? home.name
+            : r.predicted_outcome === 'AWAY'
+              ? away.name
+              : 'Draw',
+        homeScore: r.fixtures.home_score,
+        awayScore: r.fixtures.away_score,
+        result: r.fixtures.result,
+        points: r.points_awarded,
+      };
+    }),
+  }));
+
+  const finished = rows.every(
+    (r) => r.fixtures.status === 'finished' || r.points_awarded !== null,
+  );
+  const kickedOff = rows.some((r) => r.fixtures.home_score !== null);
 
   return (
     <div className="flex flex-col gap-8">
@@ -258,8 +296,10 @@ export default async function ResultsPage({
                   </li>
                 ) : (
                   player.picks.map((row) => {
-                    const home = one(row.fixtures.home).name;
-                    const away = one(row.fixtures.away).name;
+                    const homeTeam = one(row.fixtures.home);
+                    const awayTeam = one(row.fixtures.away);
+                    const home = homeTeam.name;
+                    const away = awayTeam.name;
                     const comp = row.fixtures.competition
                       ? one(row.fixtures.competition).code
                       : null;
@@ -281,8 +321,12 @@ export default async function ResultsPage({
                             share row 1 and the rest wraps to row 2; on desktop
                             the wrapper dissolves via `contents` so every field
                             becomes its own aligned column. */}
-                        <span className="col-start-1 row-start-1 min-w-0">
-                          {home} <span className="text-grey-400">v</span> {away}
+                        <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
+                          <Crest url={homeTeam.crest_url} className="h-4 w-4" />
+                          <span className="truncate">{home}</span>
+                          <span className="text-grey-400">v</span>
+                          <Crest url={awayTeam.crest_url} className="h-4 w-4" />
+                          <span className="truncate">{away}</span>
                         </span>
 
                         <span className="col-span-2 row-start-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:contents">
@@ -335,6 +379,29 @@ export default async function ResultsPage({
           );
         })}
       </div>
+
+      {rows.length > 0 && (
+        <section>
+          <h2 className="label mb-1 flex items-center gap-1.5">
+            <LockIcon className="h-3 w-3" />
+            {finished ? 'How it finished' : kickedOff ? 'How it stands' : 'The slip'}
+          </h2>
+          <p className="mb-1 text-sm text-grey-700">
+            {finished
+              ? `All ${rows.length} picks from gameweek ${selected.number}, with the results and what they scored.`
+              : kickedOff
+                ? `All ${rows.length} picks with the scores as they stand right now.`
+                : `All ${rows.length} picks from gameweek ${selected.number}.`}
+          </p>
+          <SharePicks
+            groups={slip}
+            gameweek={`Gameweek ${selected.number}`}
+            subtitle={membership.divisions?.name ?? 'Your division'}
+            locked
+            heading={finished ? 'Send the final slip' : 'Send the slip'}
+          />
+        </section>
+      )}
     </div>
   );
 }

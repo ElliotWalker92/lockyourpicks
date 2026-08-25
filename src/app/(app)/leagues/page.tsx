@@ -5,6 +5,7 @@ import {
   JoinLeagueForm,
   JoinOpenLeagueForm,
 } from '@/components/LeagueForms';
+import { JoinCode } from '@/components/JoinCode';
 import { LockIcon } from '@/components/LockIcon';
 import { createClient } from '@/lib/supabase/server';
 
@@ -58,19 +59,21 @@ export default async function LeaguesPage() {
                       Owner
                     </span>
                   )}
-                  {/* The open league's code is deliberately unusable, so
-                      showing it would only invite someone to type it. */}
-                  {league.is_open ? (
+                  {league.is_open && (
                     <span className="text-sm text-grey-500">Open league</span>
-                  ) : (
-                    <span className="font-mono text-sm tracking-widest text-grey-500">
-                      {league.join_code}
-                    </span>
                   )}
                 </Link>
               </li>
             ))}
           </ul>
+
+          {/* The open league's code is deliberately unusable, so showing it
+              would only invite someone to type it. */}
+          {leagues
+            .filter((l) => !l.is_open)
+            .map((l) => (
+              <JoinCode key={l.id} code={l.join_code} name={l.name} />
+            ))}
         </section>
       )}
 

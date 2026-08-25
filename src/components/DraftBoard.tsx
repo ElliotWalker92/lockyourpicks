@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
+import { Crest } from '@/components/Crest';
 import { LockIcon } from '@/components/LockIcon';
 import {
   SharePicks,
@@ -223,6 +224,8 @@ export function DraftBoard({
       {
         home: f.home.name,
         away: f.away.name,
+        homeCrest: f.home.crest_url,
+        awayCrest: f.away.crest_url,
         outcome: pick.predicted_outcome,
         called:
           pick.predicted_outcome === 'HOME'
@@ -418,8 +421,11 @@ export function DraftBoard({
                         wraps into its own space instead of squeezing the
                         call and the tags against the right edge. */}
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-                      <span className="min-w-0 flex-1 text-grey-700">
-                        {f.home.name} <span className="text-grey-400">v</span>{' '}
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-grey-700">
+                        <Crest url={f.home.crest_url} className="h-4 w-4" />
+                        {f.home.name}
+                        <span className="text-grey-400">v</span>
+                        <Crest url={f.away.crest_url} className="h-4 w-4" />
                         {f.away.name}
                       </span>
                       <span className="flex items-center gap-2">
@@ -567,8 +573,12 @@ export function DraftBoard({
                         rather than colliding with it — and sits inline once
                         there's room. */}
                     <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                      <span className="text-grey-500 line-through">
-                        {f.home.name} v {f.away.name}
+                      <span className="flex items-center gap-1.5 text-grey-500">
+                        <Crest url={f.home.crest_url} className="h-4 w-4 opacity-50" />
+                        <span className="line-through">{f.home.name}</span>
+                        <span className="line-through">v</span>
+                        <Crest url={f.away.crest_url} className="h-4 w-4 opacity-50" />
+                        <span className="line-through">{f.away.name}</span>
                       </span>
                       <span className="text-xs text-grey-400">
                         picked by {nameOf(pick.user_id)}
@@ -621,8 +631,15 @@ export function DraftBoard({
                         className="min-w-40 flex-1 text-left transition hover:text-lime-dark"
                         title="Show the model's read on this fixture"
                       >
-                        {f.home.name} <span className="text-grey-400">v</span>{' '}
-                        {f.away.name}
+                        <span className="inline-flex items-center gap-1.5">
+                          <Crest url={f.home.crest_url} />
+                          {f.home.name}
+                        </span>
+                        <span className="mx-1.5 text-grey-400">v</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Crest url={f.away.crest_url} />
+                          {f.away.name}
+                        </span>
                       </button>
 
                       {f.competition && (

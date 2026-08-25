@@ -8,14 +8,24 @@ import type { Outcome } from '@/lib/types';
 export type SharePick = {
   home: string;
   away: string;
+  homeCrest?: string | null;
+  awayCrest?: string | null;
   outcome: Outcome;
   called: string;
+  /** Set once the match has a score to show. */
+  homeScore?: number | null;
+  awayScore?: number | null;
+  result?: Outcome | null;
+  /** null while unscored; 0 or 1 once the gameweek settles. */
+  points?: number | null;
 };
 
 /** One player's picks. A personal slip is a single group; a division slip is one per player. */
 export type SlipGroup = {
   player: string;
   picks: SharePick[];
+  /** Shown beside the name on a scored slip. */
+  points?: number | null;
 };
 
 /** Matches the outcome buttons and the model bars. */
@@ -30,6 +40,7 @@ const PAD = 72;
 const ROW_H = 122;
 /** Room for a player's name above their picks, on a division slip. */
 const GROUP_H = 76;
+const CREST = 30;
 
 function fontStack(variable: string, fallback: string) {
   if (typeof window === 'undefined') return fallback;
@@ -40,11 +51,52 @@ function fontStack(variable: string, fallback: string) {
 }
 
 /**
- * Shrink until it fits, then ellipsize — a long fixture shouldn't overflow.
+ * Load a crest for drawing onto the canvas.
  *
- * Returns the size it settled on as well as the text, because the caller may
- * need to re-set the font later: measuring anything else in between leaves
- * ctx.font pointing at the wrong size.
+ * `crossOrigin` matters more than it looks: without it the canvas is tainted
+ * the moment a remote image is drawn, and `toBlob` then throws a security
+ * error instead of producing the card. The provider sends
+ * `access-control-allow-origin: *`, so anonymous is enough.
+ *
+ * A crest that fails to load resolves to null rather than rejecting — a
+ * missing badge should cost a badge, not the whole slip.
+ */
+function loadCrest(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/**
+ * The pick as WhatsApp should read it.
+ *
+ * The side you called is shouted — capitals and bold; a draw shouts both,
+ * which is exactly what calling a draw means. Reading the fixture tells you
+ * the call without a separate arrow and a repeated team name.
+ */
+export function pickText(p: SharePick): string {
+  const shout = (name: string) => `*${name.toUpperCase()}*`;
+  const home = p.outcome === 'AWAY' ? p.home : shout(p.home);
+  const away = p.outcome === 'HOME' ? p.away : shout(p.away);
+
+  let line = `${home} v ${away}`;
+
+  if (p.homeScore !== null && p.homeScore !== undefined &&
+      p.awayScore !== null && p.awayScore !== undefined) {
+    line += `  ${p.homeScore}-${p.awayScore}`;
+  }
+  if (p.points !== null && p.points !== undefined) {
+    line += p.points > 0 ? ' ✅' : ' ❌';
+  }
+  return line;
+}
+
+/**
+ * Shrink until it fits, then ellipsize — a long fixture shouldn't overflow.
  */
 function fitText(
   ctx: CanvasRenderingContext2D,
@@ -74,19 +126,18 @@ function fitText(
  *
  * A canvas rather than a screenshot of the page: the board is a wide,
  * scrollable table that reads badly cropped into a chat, and a phone
- * screenshot would carry whatever else happened to be on screen. Drawing it
- * means the same card whatever device sent it.
+ * screenshot would carry whatever else happened to be on screen.
  */
 async function drawCard(opts: {
   groups: SlipGroup[];
   gameweek: string;
   subtitle: string;
   locked: boolean;
+  scored: boolean;
 }): Promise<Blob> {
   const display = fontStack('--font-display', 'system-ui, sans-serif');
   const sans = fontStack('--font-sans', 'system-ui, sans-serif');
 
-  // Wait for the webfonts, or the card silently renders in a fallback.
   if (typeof document !== 'undefined' && document.fonts?.ready) {
     try {
       await document.fonts.ready;
@@ -95,8 +146,25 @@ async function drawCard(opts: {
     }
   }
 
+  // Every crest, fetched once and reused across rows.
+  const urls = new Set<string>();
+  for (const g of opts.groups) {
+    for (const p of g.picks) {
+      if (p.homeCrest) urls.add(p.homeCrest);
+      if (p.awayCrest) urls.add(p.awayCrest);
+    }
+  }
+  const crests = new Map<string, HTMLImageElement | null>();
+  await Promise.all(
+    [...urls].map(async (u) => crests.set(u, await loadCrest(u))),
+  );
+
   const grouped = opts.groups.length > 1;
   const totalPicks = opts.groups.reduce((n, g) => n + g.picks.length, 0);
+  const totalPoints = opts.groups.reduce(
+    (n, g) => n + (g.points ?? 0),
+    0,
+  );
 
   const headerH = 300;
   const footerH = 130;
@@ -110,11 +178,8 @@ async function drawCard(opts: {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not draw the card.');
 
-  // ---- Background ----
   ctx.fillStyle = '#0d0d0d';
   ctx.fillRect(0, 0, CARD_W, height);
-
-  // Lime spine down the left edge, echoing the app's accent.
   ctx.fillStyle = '#c8f135';
   ctx.fillRect(0, 0, 10, height);
 
@@ -143,10 +208,12 @@ async function drawCard(opts: {
   ctx.stroke();
 
   // ---- Picks ----
+  const NUM_X = PAD;
   const FIXTURE_X = PAD + 56;
-  const GAP = 28;
-  /** Widest the call pill may get before the fixture has nowhere to go. */
-  const PILL_MAX = 340;
+  const GAP = 24;
+  const PILL_MAX = 300;
+  const SCORE_W = 92;
+  const MARK_W = 40;
 
   let y = headerH;
   let index = 0;
@@ -158,44 +225,127 @@ async function drawCard(opts: {
       ctx.letterSpacing = '2px';
       ctx.fillText(group.player.toUpperCase(), PAD, y + 42);
       ctx.letterSpacing = '0px';
+
+      if (group.points !== null && group.points !== undefined) {
+        const label = `${group.points} PT${group.points === 1 ? '' : 'S'}`;
+        ctx.fillStyle = '#c8f135';
+        ctx.font = `700 26px ${sans}`;
+        ctx.fillText(label, CARD_W - PAD - ctx.measureText(label).width, y + 42);
+      }
       y += GROUP_H;
     }
 
     group.picks.forEach((p, i) => {
       const top = y + i * ROW_H;
+      const mid = top + 44;
 
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       ctx.font = `500 24px ${sans}`;
-      ctx.fillText(String(index + 1).padStart(2, '0'), PAD, top + 46);
+      ctx.fillText(String(index + 1).padStart(2, '0'), NUM_X, mid + 6);
       index++;
 
-      // The pill is measured first: its real width decides how much room the
-      // fixture actually has. Sizing the fixture against a guessed pill width
-      // let a long call and a long fixture collide.
-      const pillFont = (size: number) => `700 ${size}px ${sans}`;
-      const label = fitText(ctx, p.called, PILL_MAX - 52, pillFont, 30, 20);
-      const pillW = ctx.measureText(label.text).width + 52;
-      const pillX = CARD_W - PAD - pillW;
+      let rightEdge = CARD_W - PAD;
 
-      ctx.fillStyle = '#ffffff';
-      const fixture = fitText(
-        ctx,
-        `${p.home} v ${p.away}`,
-        pillX - FIXTURE_X - GAP,
-        (size) => `${size}px ${sans}`,
-        34,
-        22,
-      );
-      ctx.fillText(fixture.text, FIXTURE_X, top + 48);
+      // Right to left: the mark, then the score, then the call.
+      if (p.points !== null && p.points !== undefined) {
+        const hit = p.points > 0;
+        ctx.fillStyle = hit ? '#c8f135' : '#ef4444';
+        ctx.font = `700 30px ${sans}`;
+        const mark = hit ? '✓' : '✗';
+        ctx.fillText(mark, rightEdge - ctx.measureText(mark).width, mid + 8);
+        rightEdge -= MARK_W;
+      }
+
+      const hasScore =
+        p.homeScore !== null && p.homeScore !== undefined &&
+        p.awayScore !== null && p.awayScore !== undefined;
+
+      if (hasScore) {
+        const score = `${p.homeScore}–${p.awayScore}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 32px ${display}`;
+        ctx.fillText(score, rightEdge - ctx.measureText(score).width, mid + 8);
+        rightEdge -= SCORE_W;
+      }
+
+      const pillFont = (size: number) => `700 ${size}px ${sans}`;
+      const label = fitText(ctx, p.called, PILL_MAX - 52, pillFont, 28, 20);
+      const pillW = ctx.measureText(label.text).width + 52;
+      const pillX = rightEdge - pillW;
 
       ctx.fillStyle = CARD_TONE[p.outcome];
       ctx.beginPath();
-      ctx.roundRect(pillX, top + 14, pillW, 52, 26);
+      ctx.roundRect(pillX, mid - 26, pillW, 52, 26);
       ctx.fill();
-
       ctx.fillStyle = p.outcome === 'AWAY' ? '#ffffff' : '#0d0d0d';
       ctx.font = pillFont(label.size);
-      ctx.fillText(label.text, pillX + 26, top + 49);
+      ctx.fillText(label.text, pillX + 26, mid + 9);
+
+      // ---- Fixture, with a crest before each side ----
+      const room = pillX - FIXTURE_X - GAP;
+      const homeImg = p.homeCrest ? crests.get(p.homeCrest) : null;
+      const awayImg = p.awayCrest ? crests.get(p.awayCrest) : null;
+      const badges = (homeImg ? CREST + 10 : 0) + (awayImg ? CREST + 10 : 0);
+
+      let size = 32;
+      const measure = (s: number) => {
+        ctx.font = `${s}px ${sans}`;
+        return (
+          ctx.measureText(p.home).width +
+          ctx.measureText(' v ').width +
+          ctx.measureText(p.away).width +
+          badges
+        );
+      };
+      while (measure(size) > room && size > 20) size -= 2;
+
+      // Still too wide at the floor: shorten the names. An ellipsis marks
+      // the cut, or "Sheffield Wednes v West Bromwich Al" reads as a bug
+      // rather than as a name that wouldn't fit.
+      const ellipsised = (full: string, cut: string) =>
+        cut === full ? cut : `${cut.trimEnd()}…`;
+
+      let homeCut = p.home;
+      let awayCut = p.away;
+      ctx.font = `${size}px ${sans}`;
+      const widthOf = (h: string, a: string) =>
+        ctx.measureText(h).width +
+        ctx.measureText(' v ').width +
+        ctx.measureText(a).width +
+        badges;
+
+      while (
+        widthOf(ellipsised(p.home, homeCut), ellipsised(p.away, awayCut)) >
+          room &&
+        (homeCut.length > 8 || awayCut.length > 8)
+      ) {
+        if (homeCut.length >= awayCut.length) homeCut = homeCut.slice(0, -1);
+        else awayCut = awayCut.slice(0, -1);
+      }
+
+      const homeName = ellipsised(p.home, homeCut);
+      const awayName = ellipsised(p.away, awayCut);
+
+      let x = FIXTURE_X;
+      ctx.font = `${size}px ${sans}`;
+      if (homeImg) {
+        ctx.drawImage(homeImg, x, mid - CREST / 2, CREST, CREST);
+        x += CREST + 10;
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(homeName, x, mid + 9);
+      x += ctx.measureText(homeName).width;
+
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillText(' v ', x, mid + 9);
+      x += ctx.measureText(' v ').width;
+
+      if (awayImg) {
+        ctx.drawImage(awayImg, x, mid - CREST / 2, CREST, CREST);
+        x += CREST + 10;
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(awayName, x, mid + 9);
 
       if (index < totalPicks) {
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -212,16 +362,16 @@ async function drawCard(opts: {
 
   // ---- Footer ----
   const footY = height - 54;
-  ctx.fillStyle = opts.locked ? '#c8f135' : 'rgba(255,255,255,0.45)';
+  ctx.fillStyle = '#c8f135';
   ctx.font = `700 24px ${sans}`;
   ctx.letterSpacing = '1px';
-  ctx.fillText(
-    opts.locked
+  const status = opts.scored
+    ? `${totalPoints} PT${totalPoints === 1 ? '' : 'S'} FROM ${totalPicks} PICKS`
+    : opts.locked
       ? `${totalPicks} PICKS · LOCKED IN`
-      : `${totalPicks} PICKS · NOT LOCKED IN YET`,
-    PAD,
-    footY,
-  );
+      : `${totalPicks} PICKS · NOT LOCKED IN YET`;
+  if (!opts.scored && !opts.locked) ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText(status, PAD, footY);
   ctx.letterSpacing = '0px';
 
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
@@ -238,13 +388,6 @@ async function drawCard(opts: {
   });
 }
 
-/**
- * Send picks to a WhatsApp group.
- *
- * Three routes, because no single one works everywhere: the native share
- * sheet carries the image straight into a group but only exists on mobile;
- * wa.me carries text only, on any device; saving the PNG covers the rest.
- */
 export function SharePicks({
   groups,
   gameweek,
@@ -263,25 +406,39 @@ export function SharePicks({
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const totalPicks = groups.reduce((n, g) => n + g.picks.length, 0);
+  // A player with nothing in contributes no lines, and a name with nothing
+  // under it reads as a bug rather than as "hasn't picked".
+  const filled = groups.filter((g) => g.picks.length > 0);
+  const totalPicks = filled.reduce((n, g) => n + g.picks.length, 0);
   if (!totalPicks) return null;
 
-  const grouped = groups.length > 1;
+  const grouped = filled.length > 1;
+  const scored = filled.some((g) =>
+    g.picks.some((p) => p.points !== null && p.points !== undefined),
+  );
+  const totalPoints = filled.reduce((n, g) => n + (g.points ?? 0), 0);
 
   const lines: string[] = [`🔒 Lock Your Picks — ${gameweek}`, subtitle, ''];
-  let n = 0;
-  for (const g of groups) {
-    if (grouped) lines.push(`*${g.player}*`);
-    for (const p of g.picks) {
-      n++;
-      lines.push(`${n}. ${p.home} v ${p.away} → ${p.called}`);
+  for (const g of filled) {
+    if (grouped) {
+      lines.push(
+        g.points !== null && g.points !== undefined
+          ? `*${g.player}* — ${g.points} pt${g.points === 1 ? '' : 's'}`
+          : `*${g.player}*`,
+      );
     }
+    for (const p of g.picks) lines.push(pickText(p));
     if (grouped) lines.push('');
+  }
+  if (scored) {
+    lines.push(`${totalPoints} point${totalPoints === 1 ? '' : 's'} so far`);
+    lines.push('');
   }
   lines.push('lockyourpicks.com');
   const text = lines.join('\n');
 
-  const build = () => drawCard({ groups, gameweek, subtitle, locked });
+  const build = () =>
+    drawCard({ groups: filled, gameweek, subtitle, locked, scored });
 
   function saveBlob(blob: Blob) {
     const url = URL.createObjectURL(blob);
@@ -309,7 +466,6 @@ export function SharePicks({
         setMessage('Image saved — attach it in WhatsApp.');
       }
     } catch (e) {
-      // A cancelled share sheet throws AbortError; that isn't a failure.
       if ((e as Error)?.name !== 'AbortError') {
         setMessage((e as Error)?.message ?? 'Could not share.');
       }
@@ -357,9 +513,7 @@ export function SharePicks({
           {busy === 'share' ? 'Working…' : 'Share'}
         </button>
 
-        {/* Text only — WhatsApp's link scheme can't carry an attachment.
-            Opens the app with the message ready and lets you choose the
-            group. */}
+        {/* Text only — WhatsApp's link scheme can't carry an attachment. */}
         <a
           href={`https://wa.me/?text=${encodeURIComponent(text)}`}
           target="_blank"
@@ -389,9 +543,11 @@ export function SharePicks({
 
       <p className="mt-2 text-xs text-grey-500">
         {note ??
-          (locked
-            ? 'Share sends the picture on a phone, or saves it to attach.'
-            : 'These aren’t locked in yet — share now and they could still change.')}
+          (scored
+            ? 'Scores and points are as they stand right now.'
+            : locked
+              ? 'Share sends the picture on a phone, or saves it to attach.'
+              : 'These aren’t locked in yet — share now and they could still change.')}
       </p>
 
       {message && (
