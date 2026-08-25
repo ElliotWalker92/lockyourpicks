@@ -5,6 +5,8 @@ import { LockIcon } from '@/components/LockIcon';
 import { PitchBackdrop } from '@/components/PitchBackdrop';
 import { createClient } from '@/lib/supabase/server';
 
+const NO_SEASON = '00000000-0000-0000-0000-000000000000';
+
 const RULES = [
   {
     n: '01',
@@ -30,6 +32,29 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   if (user) redirect('/dashboard');
+
+  // Counted rather than written down. These were hardcoded and went stale
+  // the moment the season was re-cut — the page still advertised 43
+  // gameweeks after it became 64. Reference data is readable without a
+  // session, so a signed-out visitor gets the real figures.
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  const [{ count: competitions }, { count: clubs }, { count: gameweeks }] =
+    await Promise.all([
+      supabase
+        .from('competitions')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true),
+      supabase.from('teams').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('gameweeks')
+        .select('*', { count: 'exact', head: true })
+        .eq('season_id', season?.id ?? NO_SEASON),
+    ]);
 
   return (
     <main className="flex flex-1 flex-col">
@@ -80,10 +105,12 @@ export default async function Home() {
         <div className="relative border-t border-white/10">
           <dl className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-px px-6 sm:grid-cols-4">
             {[
-              ['6', 'competitions'],
-              ['92', 'clubs'],
-              ['43', 'gameweeks'],
-              ['3', 'picks a week'],
+              [String(competitions ?? 6), 'competitions'],
+              [String(clubs ?? 92), 'clubs'],
+              [String(gameweeks ?? 0), 'gameweeks'],
+              // Not "a week": midweek cup rounds are their own gameweek, so
+              // a busy week carries two.
+              ['3', 'picks a round'],
             ].map(([value, label]) => (
               <div key={label} className="py-6">
                 <dt className="font-display text-4xl text-lime">{value}</dt>

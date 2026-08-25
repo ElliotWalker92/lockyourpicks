@@ -108,7 +108,7 @@ export default async function LeaguesPage() {
           {playsOpen && (
             <p className="mb-3 rounded-md border border-grey-300 bg-surface px-3 py-2 text-xs leading-relaxed text-grey-700">
               You&rsquo;re in the open league. Joining a private group gives
-              up that place &mdash; three picks a week means one division.
+              up that place &mdash; three picks a round means one division.
               Points you&rsquo;ve already scored stay on the global table.
             </p>
           )}

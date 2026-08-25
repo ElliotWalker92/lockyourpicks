@@ -99,7 +99,7 @@ export async function joinLeague(
     return { error: 'No league with that code. Check it and try again.' };
   }
 
-  // A player drafts in one pool. Three picks a week is the game, so an open
+  // A player drafts in one pool. Three picks a round is the game, so an open
   // place has to be given up before taking a private one — otherwise they'd
   // owe six picks and two turns, and gameweek_scores can only hold one score
   // per week anyway.
