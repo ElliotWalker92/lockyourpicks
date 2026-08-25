@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
 import { DivisionEditor } from '@/components/DivisionEditor';
+import { OpenNextGameweek } from '@/components/OpenNextGameweek';
+import { SharePicks, type SlipGroup } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'League' };
@@ -68,6 +70,105 @@ export default async function LeaguePage({
     profiles?.find((p) => p.id === userId)?.avatar_color ?? '#c8f135';
 
   const isOwner = league.owner_id === user!.id;
+
+  // ---- Every division's picks for the latest round, on one card ----
+  //
+  // The owner is usually the one running the group chat, so they're the one
+  // who wants the whole thing rather than just their own three. Built here
+  // and not on the picks page because only the owner can see across every
+  // division at once.
+  const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
+  const wholeSlip: SlipGroup[] = [];
+  let slipGameweek: number | null = null;
+
+  if (isOwner && divisions?.length) {
+    const { data: leagueDrafts } = await supabase
+      .from('drafts')
+      .select('id, division_id, gameweek_id, gameweeks(number)')
+      .in(
+        'division_id',
+        divisions.map((d) => d.id),
+      );
+
+    const rounds = new Map<string, { number: number; drafts: typeof leagueDrafts }>();
+    for (const d of leagueDrafts ?? []) {
+      const gw = one(d.gameweeks) as { number: number } | null;
+      const entry = rounds.get(d.gameweek_id) ?? {
+        number: gw?.number ?? 0,
+        drafts: [] as typeof leagueDrafts,
+      };
+      entry.drafts!.push(d);
+      rounds.set(d.gameweek_id, entry);
+    }
+
+    for (const round of [...rounds.values()].sort((a, b) => b.number - a.number)) {
+      const draftIds = (round.drafts ?? []).map((d) => d.id);
+      const { data: picks } = await supabase
+        .from('picks')
+        .select(
+          `draft_id, user_id, predicted_outcome, pick_number, points_awarded,
+           fixtures(
+             home_score, away_score,
+             home:teams!fixtures_home_team_id_fkey(name, crest_url),
+             away:teams!fixtures_away_team_id_fkey(name, crest_url)
+           )`,
+        )
+        .in('draft_id', draftIds)
+        .order('pick_number');
+
+      if (!picks?.length) continue;
+
+      for (const division of divisions) {
+        const ids = (round.drafts ?? [])
+          .filter((d) => d.division_id === division.id)
+          .map((d) => d.id);
+        const inDivision = picks.filter((p) => ids.includes(p.draft_id));
+        if (!inDivision.length) continue;
+
+        const players = [...new Set(inDivision.map((p) => p.user_id))];
+        for (const playerId of players) {
+          const theirs = inDivision.filter((p) => p.user_id === playerId);
+          const scored = theirs.some((p) => p.points_awarded !== null);
+          wholeSlip.push({
+            section: division.name,
+            player: nameOf(playerId),
+            points: scored
+              ? theirs.reduce((n, p) => n + (p.points_awarded ?? 0), 0)
+              : null,
+            picks: theirs.map((p) => {
+              const fixture = one(p.fixtures) as {
+                home_score: number | null;
+                away_score: number | null;
+                home: { name: string; crest_url: string | null };
+                away: { name: string; crest_url: string | null };
+              };
+              const home = one(fixture.home);
+              const away = one(fixture.away);
+              return {
+                home: home.name,
+                away: away.name,
+                homeCrest: home.crest_url,
+                awayCrest: away.crest_url,
+                outcome: p.predicted_outcome,
+                called:
+                  p.predicted_outcome === 'HOME'
+                    ? home.name
+                    : p.predicted_outcome === 'AWAY'
+                      ? away.name
+                      : 'Draw',
+                homeScore: fixture.home_score,
+                awayScore: fixture.away_score,
+                points: p.points_awarded,
+              };
+            }),
+          });
+        }
+      }
+
+      slipGameweek = round.number;
+      break;
+    }
+  }
   const unassigned = (members ?? []).filter(
     (m) => !divisionMembers?.some((dm) => dm.user_id === m.user_id),
   );
@@ -207,6 +308,32 @@ export default async function LeaguePage({
           ))}
         </ul>
       </section>
+
+      {isOwner && (
+        <section className="card p-5">
+          <h2 className="display-md">Running the group</h2>
+          <p className="mt-1 text-sm text-grey-700">
+            Only you can see this.
+          </p>
+
+          <div className="mt-4 border-t border-grey-300 pt-4">
+            <OpenNextGameweek leagueId={league.id} />
+          </div>
+
+          {wholeSlip.length > 0 && (
+            <div className="mt-2">
+              <SharePicks
+                groups={wholeSlip}
+                gameweek={`Gameweek ${slipGameweek}`}
+                subtitle={league.name}
+                locked
+                heading="Send every division's slip"
+                note={`Every pick in ${league.name} for gameweek ${slipGameweek}, division by division, on one card.`}
+              />
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

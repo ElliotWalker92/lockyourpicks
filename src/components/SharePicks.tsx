@@ -26,6 +26,8 @@ export type SlipGroup = {
   picks: SharePick[];
   /** Shown beside the name on a scored slip. */
   points?: number | null;
+  /** Groups the players under a heading — a division, on a whole-group slip. */
+  section?: string;
 };
 
 /** Matches the outcome buttons and the model bars. */
@@ -40,6 +42,8 @@ const PAD = 72;
 const ROW_H = 122;
 /** Room for a player's name above their picks, on a division slip. */
 const GROUP_H = 76;
+/** Room for a division heading above the players in it. */
+const SECTION_H = 84;
 const CREST = 30;
 
 function fontStack(variable: string, fallback: string) {
@@ -166,10 +170,16 @@ async function drawCard(opts: {
     0,
   );
 
+  const sectionCount = new Set(
+    opts.groups.map((g) => g.section).filter(Boolean),
+  ).size;
+
   const headerH = 300;
   const footerH = 130;
   const bodyH =
-    totalPicks * ROW_H + (grouped ? opts.groups.length * GROUP_H : 0);
+    totalPicks * ROW_H +
+    (grouped ? opts.groups.length * GROUP_H : 0) +
+    sectionCount * SECTION_H;
   const height = headerH + bodyH + footerH;
 
   const canvas = document.createElement('canvas');
@@ -217,8 +227,27 @@ async function drawCard(opts: {
 
   let y = headerH;
   let index = 0;
+  let section: string | null = null;
 
   for (const group of opts.groups) {
+    if (group.section && group.section !== section) {
+      section = group.section;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 34px ${display}`;
+      ctx.letterSpacing = '-0.5px';
+      ctx.fillText(section, PAD, y + 46);
+      ctx.letterSpacing = '0px';
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y + 64);
+      ctx.lineTo(CARD_W - PAD, y + 64);
+      ctx.stroke();
+
+      y += SECTION_H;
+    }
+
     if (grouped) {
       ctx.fillStyle = '#ff2d87';
       ctx.font = `700 26px ${sans}`;
@@ -419,7 +448,12 @@ export function SharePicks({
   const totalPoints = filled.reduce((n, g) => n + (g.points ?? 0), 0);
 
   const lines: string[] = [`🔒 Lock Your Picks — ${gameweek}`, subtitle, ''];
+  let textSection: string | null = null;
   for (const g of filled) {
+    if (g.section && g.section !== textSection) {
+      textSection = g.section;
+      lines.push(`— ${g.section.toUpperCase()} —`, '');
+    }
     if (grouped) {
       lines.push(
         g.points !== null && g.points !== undefined
