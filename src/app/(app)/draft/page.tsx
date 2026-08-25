@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
+import { currentDraftFor } from '@/lib/current-draft';
 import { loadCrowdCounts, loadTeamForm } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
 
@@ -80,28 +81,12 @@ export default async function DraftPage() {
 
   const division = membership.divisions;
 
-  // The gameweek currently open for drafting, else the next one due.
+  // Shared with the dashboard, so the two agree on what's running.
   const nowIso = new Date().toISOString();
-  const { data: openGameweek } = await supabase
-    .from('gameweeks')
-    .select('id, number, name, draft_opens_at, draft_closes_at, status')
-    .lte('draft_opens_at', nowIso)
-    .gt('draft_closes_at', nowIso)
-    .order('number', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: nextGameweek } = openGameweek
-    ? { data: null }
-    : await supabase
-        .from('gameweeks')
-        .select('id, number, name, draft_opens_at, draft_closes_at, status')
-        .gt('draft_opens_at', nowIso)
-        .order('number', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-  const gameweek = openGameweek ?? nextGameweek;
+  const { gameweek, draft } = await currentDraftFor(
+    supabase,
+    membership.division_id,
+  );
 
   if (!gameweek) {
     return (
@@ -114,15 +99,6 @@ export default async function DraftPage() {
       </div>
     );
   }
-
-  const { data: draft } = await supabase
-    .from('drafts')
-    .select(
-      'id, status, pick_order, picks_per_player, current_turn, turn_expires_at',
-    )
-    .eq('division_id', membership.division_id)
-    .eq('gameweek_id', gameweek.id)
-    .maybeSingle();
 
   const gameweekLabel = (
     <p className="text-sm text-grey-500">

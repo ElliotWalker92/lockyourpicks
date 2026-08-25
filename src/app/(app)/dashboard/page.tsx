@@ -6,6 +6,7 @@ import { LockIcon } from '@/components/LockIcon';
 import { TurnCountdown } from '@/components/TurnCountdown';
 import { userAtTurn } from '@/lib/draft-order';
 import { rank } from '@/lib/standings';
+import { currentDraftFor } from '@/lib/current-draft';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Dashboard' };
@@ -114,18 +115,11 @@ export default async function DashboardPage() {
     );
   }
 
-  const nowIso = new Date().toISOString();
-
-  const [{ data: gameweek }, { data: divisionMembers }, { data: leagueMembers }] =
+  // Shared with the picks page, so the two can't tell the player different
+  // stories about whether a draft is running.
+  const [{ gameweek, draft }, { data: divisionMembers }, { data: leagueMembers }] =
     await Promise.all([
-      supabase
-        .from('gameweeks')
-        .select('id, number, draft_closes_at')
-        .lte('draft_opens_at', nowIso)
-        .gt('draft_closes_at', nowIso)
-        .order('number')
-        .limit(1)
-        .maybeSingle(),
+      currentDraftFor(supabase, membership.division_id),
       supabase
         .from('division_members')
         .select('user_id')
@@ -146,27 +140,16 @@ export default async function DashboardPage() {
     .eq('league_id', membership.league_id)
     .eq('season_id', seasonId);
 
-  const [{ data: profiles }, { data: scores }, { data: draft }] =
-    await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, display_name, avatar_color, avatar_url')
-        .in('id', leagueIds.length ? leagueIds : [NOBODY]),
-      supabase
-        .from('gameweek_scores')
-        .select('user_id, points, gameweek_id')
-        .in('user_id', leagueIds.length ? leagueIds : [NOBODY]),
-      gameweek
-        ? supabase
-            .from('drafts')
-            .select(
-              'id, status, pick_order, current_turn, picks_per_player, turn_expires_at',
-            )
-            .eq('division_id', membership.division_id)
-            .eq('gameweek_id', gameweek.id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
+  const [{ data: profiles }, { data: scores }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, display_name, avatar_color, avatar_url')
+      .in('id', leagueIds.length ? leagueIds : [NOBODY]),
+    supabase
+      .from('gameweek_scores')
+      .select('user_id, points, gameweek_id')
+      .in('user_id', leagueIds.length ? leagueIds : [NOBODY]),
+  ]);
 
   const profileOf = (id: string) => profiles?.find((p) => p.id === id);
   const nameOf = (id: string) => profileOf(id)?.display_name ?? 'Player';
@@ -306,9 +289,19 @@ export default async function DashboardPage() {
           </h2>
           <p className="mt-2 text-grey-700">
             {!gameweek
-              ? 'The next gameweek opens on Tuesday.'
+              ? 'The season has no more gameweeks scheduled.'
               : !draft
-                ? 'Your division’s draft opens automatically once the window starts.'
+                ? `Picks open ${new Date(gameweek.draft_opens_at).toLocaleString(
+                    'en-GB',
+                    {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Europe/London',
+                    },
+                  )} — your division's draft starts automatically.`
                 : `Your division has finished drafting gameweek ${gameweek.number}. Points land as results come in.`}
           </p>
         </section>
@@ -316,7 +309,8 @@ export default async function DashboardPage() {
 
       {isMyTurn && (
         <div>
-          <Link href="/draft" className="btn btn-lime">
+          <Link href="/draft" className="btn btn-hot">
+            <LockIcon className="h-4 w-4" />
             Make your picks
           </Link>
         </div>
