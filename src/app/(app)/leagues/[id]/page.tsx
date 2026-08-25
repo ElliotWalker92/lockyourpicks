@@ -4,7 +4,11 @@ import { notFound } from 'next/navigation';
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
 import { DivisionEditor } from '@/components/DivisionEditor';
 import { OpenNextGameweek } from '@/components/OpenNextGameweek';
-import { SharePicks, type SlipGroup } from '@/components/SharePicks';
+import { SLIP_ACCENTS } from '@/lib/slip-accents';
+import {
+  SlipSet,
+  type SlipGroup,
+} from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'League' };
@@ -371,13 +375,16 @@ export default async function LeaguePage({
                   ))}
                 </div>
               )}
-              <SharePicks
-                groups={wholeSlip}
+              <SlipSet
+                sections={(divisions ?? []).map((division, i) => ({
+                  title: division.name,
+                  accent: SLIP_ACCENTS[i % SLIP_ACCENTS.length],
+                  groups: wholeSlip.filter(
+                    (g) => g.section === division.name,
+                  ),
+                }))}
                 gameweek={`Gameweek ${slipGameweek}`}
                 subtitle={league.name}
-                locked
-                heading="Send every division's slip"
-                note={`Every pick in ${league.name} for gameweek ${slipGameweek}, division by division, on one card.`}
               />
             </div>
           )}

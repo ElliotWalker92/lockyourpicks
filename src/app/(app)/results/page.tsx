@@ -2,7 +2,13 @@ import Link from 'next/link';
 
 import { Crest } from '@/components/Crest';
 import { LockIcon } from '@/components/LockIcon';
-import { SharePicks, type SlipGroup } from '@/components/SharePicks';
+import { SLIP_ACCENTS } from '@/lib/slip-accents';
+import {
+  SharePicks,
+  SlipSet,
+  type SlipGroup,
+  type SlipSection,
+} from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Results' };
@@ -281,7 +287,6 @@ export default async function ResultsPage({
   // a conversation; this is the other half, and it works mid-gameweek because
   // a fixture that has a score has one whether or not the week has settled.
   const slip: SlipGroup[] = byPlayer.map((player) => ({
-    section: wholeGroup ? divisionName.get(player.divisionId) : undefined,
     player: nameOf(player.id),
     points: anyScored ? player.points : null,
     picks: player.picks.map((r) => {
@@ -305,6 +310,15 @@ export default async function ResultsPage({
         points: r.points_awarded,
       };
     }),
+  }));
+
+  // One slip per division, each with its own colour.
+  const slipSections: SlipSection[] = divisionsInView.map((division, i) => ({
+    title: division.name,
+    accent: SLIP_ACCENTS[i % SLIP_ACCENTS.length],
+    groups: slip.filter(
+      (_, index) => byPlayer[index]?.divisionId === division.id,
+    ),
   }));
 
   const finished = rows.every(
@@ -508,30 +522,28 @@ export default async function ResultsPage({
           </h2>
           <p className="mb-1 text-sm text-grey-700">
             {wholeGroup
-              ? `Every pick in ${league?.name ?? 'the group'} for gameweek ${selected.number}, division by division, on one card.`
+              ? `Every pick in ${league?.name ?? 'the group'} for gameweek ${selected.number} — one card per division.`
               : finished
                 ? `All ${rows.length} picks from gameweek ${selected.number}, with the results and what they scored.`
                 : kickedOff
                   ? `All ${rows.length} picks with the scores as they stand right now.`
                   : `All ${rows.length} picks from gameweek ${selected.number}.`}
           </p>
-          <SharePicks
-            groups={slip}
-            gameweek={`Gameweek ${selected.number}`}
-            subtitle={
-              wholeGroup
-                ? (league?.name ?? 'Your group')
-                : (one(membership.divisions)?.name ?? 'Your division')
-            }
-            locked
-            heading={
-              wholeGroup
-                ? "Send every division's slip"
-                : finished
-                  ? 'Send the final slip'
-                  : 'Send the slip'
-            }
-          />
+          {wholeGroup ? (
+            <SlipSet
+              sections={slipSections}
+              gameweek={`Gameweek ${selected.number}`}
+              subtitle={league?.name ?? 'Your group'}
+            />
+          ) : (
+            <SharePicks
+              groups={slip}
+              gameweek={`Gameweek ${selected.number}`}
+              subtitle={one(membership.divisions)?.name ?? 'Your division'}
+              locked
+              heading={finished ? 'Send the final slip' : 'Send the slip'}
+            />
+          )}
         </section>
       )}
     </div>

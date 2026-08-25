@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { LockIcon } from '@/components/LockIcon';
+import { SLIP_ACCENTS } from '@/lib/slip-accents';
 import type { Outcome } from '@/lib/types';
 
 export type SharePick = {
@@ -138,7 +139,10 @@ async function drawCard(opts: {
   subtitle: string;
   locked: boolean;
   scored: boolean;
+  /** The division's colour — spine, masthead, names, footer. */
+  accent?: string;
 }): Promise<Blob> {
+  const accent = opts.accent ?? '#c8f135';
   const display = fontStack('--font-display', 'system-ui, sans-serif');
   const sans = fontStack('--font-sans', 'system-ui, sans-serif');
 
@@ -190,11 +194,11 @@ async function drawCard(opts: {
 
   ctx.fillStyle = '#0d0d0d';
   ctx.fillRect(0, 0, CARD_W, height);
-  ctx.fillStyle = '#c8f135';
+  ctx.fillStyle = accent;
   ctx.fillRect(0, 0, 10, height);
 
   // ---- Header ----
-  ctx.fillStyle = '#c8f135';
+  ctx.fillStyle = accent;
   ctx.font = `700 26px ${sans}`;
   ctx.letterSpacing = '3px';
   ctx.fillText('LOCK YOUR PICKS', PAD, 92);
@@ -249,7 +253,7 @@ async function drawCard(opts: {
     }
 
     if (grouped) {
-      ctx.fillStyle = '#ff2d87';
+      ctx.fillStyle = accent;
       ctx.font = `700 26px ${sans}`;
       ctx.letterSpacing = '2px';
       ctx.fillText(group.player.toUpperCase(), PAD, y + 42);
@@ -257,7 +261,7 @@ async function drawCard(opts: {
 
       if (group.points !== null && group.points !== undefined) {
         const label = `${group.points} PT${group.points === 1 ? '' : 'S'}`;
-        ctx.fillStyle = '#c8f135';
+        ctx.fillStyle = '#ffffff';
         ctx.font = `700 26px ${sans}`;
         ctx.fillText(label, CARD_W - PAD - ctx.measureText(label).width, y + 42);
       }
@@ -391,7 +395,7 @@ async function drawCard(opts: {
 
   // ---- Footer ----
   const footY = height - 54;
-  ctx.fillStyle = '#c8f135';
+  ctx.fillStyle = accent;
   ctx.font = `700 24px ${sans}`;
   ctx.letterSpacing = '1px';
   const status = opts.scored
@@ -582,6 +586,218 @@ export function SharePicks({
             : locked
               ? 'Share sends the picture on a phone, or saves it to attach.'
               : 'These aren’t locked in yet — share now and they could still change.')}
+      </p>
+
+      {message && (
+        <p role="status" className="mt-2 text-xs text-grey-700">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+export { SLIP_ACCENTS };
+
+export type SlipSection = {
+  title: string;
+  accent: string;
+  groups: SlipGroup[];
+};
+
+/**
+ * One card per division rather than one long one.
+ *
+ * A single card carrying three divisions is a poster: too tall to read in a
+ * chat, and it makes somebody scroll past two divisions they aren't in to
+ * find their own. Separate cards can go to separate chats, and each takes
+ * its division's colour so nobody has to read the header to know which is
+ * theirs.
+ */
+export function SlipSet({
+  sections,
+  gameweek,
+  subtitle,
+  heading = "Send each division's slip",
+}: {
+  sections: SlipSection[];
+  gameweek: string;
+  subtitle: string;
+  heading?: string;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const filled = sections.filter((section) =>
+    section.groups.some((g) => g.picks.length),
+  );
+  if (!filled.length) return null;
+
+  const scoredOf = (section: SlipSection) =>
+    section.groups.some((g) =>
+      g.picks.some((p) => p.points !== null && p.points !== undefined),
+    );
+
+  const textOf = (section: SlipSection) => {
+    const lines = [
+      `🔒 Lock Your Picks — ${gameweek}`,
+      `${subtitle} · ${section.title}`,
+      '',
+    ];
+    for (const g of section.groups) {
+      if (!g.picks.length) continue;
+      lines.push(
+        g.points !== null && g.points !== undefined
+          ? `*${g.player}* — ${g.points} pt${g.points === 1 ? '' : 's'}`
+          : `*${g.player}*`,
+      );
+      for (const p of g.picks) lines.push(pickText(p));
+      lines.push('');
+    }
+    lines.push('lockyourpicks.com');
+    return lines.join('\n');
+  };
+
+  const buildOne = (section: SlipSection) =>
+    drawCard({
+      // The card is the division, so the heading inside it would repeat.
+      groups: section.groups.map((g) => ({ ...g, section: undefined })),
+      gameweek,
+      subtitle: `${subtitle} · ${section.title}`,
+      locked: true,
+      scored: scoredOf(section),
+      accent: section.accent,
+    });
+
+  function saveBlob(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const fileName = (section: SlipSection) =>
+    `${gameweek} ${section.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-') +
+    '.png';
+
+  async function shareOne(section: SlipSection) {
+    setMessage(null);
+    setBusy(section.title);
+    try {
+      const blob = await buildOne(section);
+      const file = new File([blob], fileName(section), { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], text: textOf(section) });
+      } else {
+        saveBlob(blob, fileName(section));
+        setMessage(`${section.title} saved — attach it in WhatsApp.`);
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') {
+        setMessage((e as Error)?.message ?? 'Could not share.');
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function shareAll() {
+    setMessage(null);
+    setBusy('all');
+    try {
+      const files = await Promise.all(
+        filled.map(async (section) =>
+          new File([await buildOne(section)], fileName(section), {
+            type: 'image/png',
+          }),
+        ),
+      );
+      if (navigator.canShare?.({ files })) {
+        await navigator.share({ files });
+      } else {
+        // No share sheet: save them all, which is the desktop path anyway.
+        files.forEach((file, i) => saveBlob(file, fileName(filled[i])));
+        setMessage(`${files.length} slips saved.`);
+      }
+    } catch (e) {
+      if ((e as Error)?.name !== 'AbortError') {
+        setMessage((e as Error)?.message ?? 'Could not share.');
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-5 border-t border-grey-300 pt-4">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <h3 className="label flex items-center gap-1.5">
+          <LockIcon className="h-3 w-3" />
+          {heading}
+        </h3>
+        <button
+          type="button"
+          onClick={shareAll}
+          disabled={busy !== null}
+          className="btn btn-lime btn-sm"
+        >
+          {busy === 'all' ? 'Working…' : `Send all ${filled.length}`}
+        </button>
+      </div>
+
+      <ul className="flex flex-col gap-2">
+        {filled.map((section) => {
+          const picks = section.groups.reduce(
+            (n, g) => n + g.picks.length,
+            0,
+          );
+          return (
+            <li
+              key={section.title}
+              className="card flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
+            >
+              <span
+                aria-hidden
+                className="h-8 w-1.5 shrink-0 rounded-full"
+                style={{ background: section.accent }}
+              />
+              <span className="min-w-32 flex-1">
+                <span className="font-medium">{section.title}</span>
+                <span className="ml-2 text-sm text-grey-500">
+                  {picks} pick{picks === 1 ? '' : 's'}
+                </span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => shareOne(section)}
+                disabled={busy !== null}
+                className="btn btn-outline btn-sm"
+              >
+                {busy === section.title ? 'Working…' : 'Share'}
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(textOf(section))}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-outline btn-sm"
+              >
+                WhatsApp
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="mt-2 text-xs text-grey-500">
+        One card per division, each in its own colour. &ldquo;Send all&rdquo;
+        puts them through the share sheet together on a phone, or saves them
+        all on a desktop.
       </p>
 
       {message && (
