@@ -1,0 +1,110 @@
+<!--
+  Lock Your Picks — password reset.
+
+  Paste into Supabase → Authentication → Email Templates → Reset Password.
+
+  Email is not the web. Every style is inline because Gmail strips <style>
+  from the head, the layout is tables because Outlook renders with Word, and
+  the display face is a system stack because a webfont would silently fall
+  back in most clients and take the letter-spacing with it.
+-->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+  Set a new password for Lock Your Picks. The link works once.
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background-color:#f9f9f8;margin:0;padding:24px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+             style="width:100%;max-width:600px;border-collapse:collapse;">
+
+        <!-- Masthead -->
+        <tr>
+          <td style="background-color:#0d0d0d;padding:28px 32px;border-radius:16px 16px 0 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding-right:10px;font-size:0;line-height:0;vertical-align:middle;">
+                  <!-- Padlock, drawn as a table so it can't fail to load. -->
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="width:14px;height:8px;border:2px solid #c8f135;border-bottom:0;border-radius:7px 7px 0 0;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                      <td style="width:18px;height:12px;background-color:#c8f135;border-radius:3px;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+                <td style="vertical-align:middle;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:2.5px;color:#c8f135;text-transform:uppercase;">
+                  Lock Your Picks
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="background-color:#ffffff;padding:36px 32px 32px;border-left:1px solid #e6e6e4;border-right:1px solid #e6e6e4;">
+
+            <h1 style="margin:0 0 14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:30px;line-height:1.15;font-weight:800;letter-spacing:-0.6px;color:#0d0d0d;">
+              Set a new password
+            </h1>
+
+            <p style="margin:0 0 22px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#374151;">
+              Someone asked to reset the password for
+              <span style="color:#0d0d0d;font-weight:600;">{{ .Email }}</span>.
+              If that was you, the button below will take you to it.
+            </p>
+
+            <!-- Bulletproof-ish button -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
+              <tr>
+                <td align="center" bgcolor="#c8f135" style="border-radius:10px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:14px 28px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#0d0d0d;text-decoration:none;border-radius:10px;">
+                    Set a new password
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- The thing that actually catches people out. -->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="margin:0 0 22px;background-color:#f9f9f8;border:1px solid #e6e6e4;border-radius:10px;">
+              <tr>
+                <td style="padding:14px 16px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#374151;">
+                  Open it in the <strong style="color:#0d0d0d;">same browser you asked from</strong>.
+                  The link is tied to that device, so requesting it on a laptop
+                  and opening it on a phone won't work. It can only be used once.
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#6b7280;">
+              Or paste this into your browser:
+            </p>
+            <p style="margin:0 0 24px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;word-break:break-all;">
+              <a href="{{ .ConfirmationURL }}" style="color:#3b82f6;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+            </p>
+
+            <p style="margin:0;padding-top:20px;border-top:1px solid #e6e6e4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#6b7280;">
+              Didn't ask for this? Ignore it — your password stays as it is and
+              nobody gets in.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background-color:#ffffff;padding:20px 32px 26px;border:1px solid #e6e6e4;border-top:0;border-radius:0 0 16px 16px;">
+            <p style="margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#9ca3af;">
+              Lock Your Picks &mdash; three picks, one draft, no second chances.<br />
+              <a href="https://lockyourpicks.com" style="color:#9ca3af;text-decoration:underline;">lockyourpicks.com</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
