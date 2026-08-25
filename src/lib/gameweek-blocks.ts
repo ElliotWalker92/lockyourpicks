@@ -114,7 +114,59 @@ export function blocksFrom<T>(
     next.absorbed += opener.items.length;
   }
 
-  return merged;
+  return peelEarlyStragglers(merged, kickoffOf, minSize);
+}
+
+/** At most this many fixtures can count as a block's leading stragglers. */
+const LEAD_MAX = 3;
+/** And the rest of the block must start at least this long after them. */
+const LEAD_GAP_HOURS = 12;
+
+/**
+ * Move a block's handful of early fixtures back into the block before it.
+ *
+ * Picks close at a gameweek's first kickoff, because a fixture that has
+ * started can't be drafted. So one Friday night game in front of a Saturday
+ * programme drags the whole weekend's deadline forward a day — on this
+ * season's fixture list that happens in eighteen gameweeks of sixty-four,
+ * costing about seventeen hours of drafting each time.
+ *
+ * Handing those stragglers to the previous gameweek keeps every fixture
+ * draftable — they're simply drafted earlier, in the round before — and lets
+ * the weekend's deadline sit where the weekend actually starts.
+ */
+function peelEarlyStragglers<T>(
+  blocks: Block<T>[],
+  kickoffOf: (item: T) => Date,
+  minSize: number,
+): Block<T>[] {
+  for (let i = 1; i < blocks.length; i++) {
+    const block = blocks[i];
+    const items = [...block.items].sort(
+      (a, b) => kickoffOf(a).getTime() - kickoffOf(b).getTime(),
+    );
+
+    const first = kickoffOf(items[0]).getTime();
+    const lead = items.filter(
+      (it) => kickoffOf(it).getTime() - first < 6 * 3_600_000,
+    );
+
+    if (lead.length > LEAD_MAX) continue;
+    if (items.length - lead.length < minSize) continue;
+
+    const bulkStart = kickoffOf(items[lead.length]).getTime();
+    if (bulkStart - first < LEAD_GAP_HOURS * 3_600_000) continue;
+
+    const previous = blocks[i - 1];
+    previous.items.push(...lead);
+    previous.end = kickoffOf(lead[lead.length - 1]);
+    previous.absorbed += lead.length;
+
+    block.items = items.slice(lead.length);
+    block.start = kickoffOf(block.items[0]);
+  }
+
+  return blocks;
 }
 
 /**

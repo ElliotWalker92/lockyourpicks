@@ -22,7 +22,11 @@ import type { Database } from '@/lib/types';
  * order however the fixture list shifts underneath it.
  */
 
-export type FixtureLike = { id: string; kickoff_at: string };
+export type FixtureLike = {
+  id: string;
+  kickoff_at: string;
+  gameweek_id: string;
+};
 
 /** Numbers are reassigned through this offset so the unique index never collides. */
 const RENUMBER_OFFSET = 10_000;
@@ -43,7 +47,7 @@ async function allSeasonFixtures(
   for (let offset = 0; offset < 10_000; offset += 1000) {
     const { data } = await supabase
       .from('fixtures')
-      .select('id, kickoff_at')
+      .select('id, kickoff_at, gameweek_id')
       .in('gameweek_id', ids)
       .order('kickoff_at', { ascending: true })
       .range(offset, offset + 999);
@@ -182,43 +186,56 @@ export async function syncGameweeks(
   supabase: SupabaseClient<Database>,
   seasonId: string,
 ): Promise<{ frozen: number; recut: number }> {
+  const nowIso = new Date().toISOString();
+
   const { data: gameweeks } = await supabase
     .from('gameweeks')
     .select('id, number, draft_closes_at')
     .eq('season_id', seasonId)
-    .order('number');
+    .order('draft_closes_at');
 
+  const all = gameweeks ?? [];
   const { data: drafted } = await supabase
     .from('drafts')
     .select('gameweek_id')
-    .in('gameweek_id', (gameweeks ?? []).map((g) => g.id));
+    .in('gameweek_id', all.map((g) => g.id));
 
-  const frozenIds = new Set((drafted ?? []).map((d) => d.gameweek_id));
+  // Frozen: anything already being drafted, and anything already under way.
+  // History and live rounds are never re-cut — players have picked against
+  // them, and a fixture that has kicked off cannot move.
+  const hasDraft = new Set((drafted ?? []).map((d) => d.gameweek_id));
+  const frozen = new Set(
+    all
+      .filter((g) => hasDraft.has(g.id) || g.draft_closes_at <= nowIso)
+      .map((g) => g.id),
+  );
 
-  // Fixtures in frozen gameweeks stay put; the rest are fair game.
-  const all = await allSeasonFixtures(supabase, seasonId);
-  const { data: owners } = await supabase
-    .from('fixtures')
-    .select('id, gameweek_id')
-    .in('id', all.map((f) => f.id).slice(0, 1000));
-
-  const ownerOf = new Map((owners ?? []).map((o) => [o.id, o.gameweek_id]));
-  const loose = all.filter((f) => !frozenIds.has(ownerOf.get(f.id) ?? ''));
-
-  if (!loose.length) return { frozen: frozenIds.size, recut: 0 };
+  const fixtures = await allSeasonFixtures(supabase, seasonId);
+  const loose = fixtures.filter((f) => !frozen.has(f.gameweek_id));
+  if (!loose.length) return { frozen: frozen.size, recut: 0 };
 
   const blocks = blocksFrom(loose, (f) => new Date(f.kickoff_at));
+
+  // The first loose gameweek's draft opens when the last frozen one locks.
+  const lastFrozenClose = all
+    .filter((g) => frozen.has(g.id))
+    .map((g) => g.draft_closes_at)
+    .sort()
+    .pop();
+
   const windows = draftWindows(blocks);
-  const startNumber = (gameweeks ?? []).length + RENUMBER_OFFSET;
+  if (lastFrozenClose && windows.length) {
+    windows[0] = { ...windows[0], opensAt: new Date(lastFrozenClose) };
+  }
 
   const created: string[] = [];
   for (const [i, block] of blocks.entries()) {
-    const { data: gw } = await supabase
+    const { data: gw, error } = await supabase
       .from('gameweeks')
       .insert({
         season_id: seasonId,
-        number: startNumber + i + 1,
-        name: `Gameweek ${i + 1}`,
+        number: RENUMBER_OFFSET + i + 1,
+        name: 'Gameweek',
         draft_opens_at: windows[i].opensAt.toISOString(),
         draft_closes_at: windows[i].closesAt.toISOString(),
         first_kickoff_at: block.start.toISOString(),
@@ -226,29 +243,29 @@ export async function syncGameweeks(
       })
       .select('id')
       .single();
-    if (!gw) continue;
+    if (error || !gw) throw new Error(`syncGameweeks: ${error?.message}`);
     created.push(gw.id);
 
     const ids = block.items.map((f) => f.id);
     for (let c = 0; c < ids.length; c += 200) {
-      await supabase
+      const { error: moveError } = await supabase
         .from('fixtures')
         .update({ gameweek_id: gw.id })
         .in('id', ids.slice(c, c + 200));
+      if (moveError) throw new Error(`syncGameweeks move: ${moveError.message}`);
     }
   }
 
-  // Drop the now-empty un-drafted gameweeks, then renumber chronologically.
-  const staleIds = (gameweeks ?? [])
-    .map((g) => g.id)
-    .filter((id) => !frozenIds.has(id));
+  // The old un-frozen gameweeks are empty now; dropping them earlier would
+  // have taken their fixtures with them.
+  const staleIds = all.map((g) => g.id).filter((id) => !frozen.has(id));
   if (staleIds.length) {
     await supabase.from('gameweeks').delete().in('id', staleIds);
   }
 
   const { data: fresh } = await supabase
     .from('gameweeks')
-    .select('id, draft_closes_at')
+    .select('id')
     .eq('season_id', seasonId)
     .order('draft_closes_at');
 
@@ -259,7 +276,7 @@ export async function syncGameweeks(
       .eq('id', g.id);
   }
 
-  return { frozen: frozenIds.size, recut: created.length };
+  return { frozen: frozen.size, recut: created.length };
 }
 
 export { MIN_FIXTURES_PER_GAMEWEEK };
