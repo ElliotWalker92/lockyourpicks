@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { Crest } from '@/components/Crest';
 import { FormGuide, FormGuideHeading } from '@/components/FormGuide';
 import { JoinOpenLeagueForm } from '@/components/LeagueForms';
 import { LockIcon } from '@/components/LockIcon';
@@ -222,8 +223,8 @@ export default async function DashboardPage() {
           `id, predicted_outcome, is_auto_pick,
            fixtures(
              kickoff_at,
-             home:teams!fixtures_home_team_id_fkey(name),
-             away:teams!fixtures_away_team_id_fkey(name)
+             home:teams!fixtures_home_team_id_fkey(name, crest_url),
+             away:teams!fixtures_away_team_id_fkey(name, crest_url)
            )`,
         )
         .eq('draft_id', draft.id)
@@ -231,14 +232,15 @@ export default async function DashboardPage() {
         .order('pick_number')
     : { data: null };
 
+  type TeamRow = { name: string; crest_url: string | null };
   type PickRow = {
     id: string;
     predicted_outcome: 'HOME' | 'DRAW' | 'AWAY';
     is_auto_pick: boolean;
     fixtures: {
       kickoff_at: string;
-      home: { name: string } | { name: string }[];
-      away: { name: string } | { name: string }[];
+      home: TeamRow | TeamRow[];
+      away: TeamRow | TeamRow[];
     };
   };
   const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
@@ -382,8 +384,10 @@ export default async function DashboardPage() {
           ) : (
             <ul className="flex flex-col gap-2">
               {(myPicks as unknown as PickRow[]).map((p) => {
-                const home = one(p.fixtures.home).name;
-                const away = one(p.fixtures.away).name;
+                const homeTeam = one(p.fixtures.home);
+                const awayTeam = one(p.fixtures.away);
+                const home = homeTeam.name;
+                const away = awayTeam.name;
                 const called =
                   p.predicted_outcome === 'HOME'
                     ? home
@@ -395,10 +399,27 @@ export default async function DashboardPage() {
                     key={p.id}
                     className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-grey-100 pb-2 text-sm last:border-0 last:pb-0"
                   >
-                    <span className="flex-1">
-                      {home} <span className="text-grey-400">v</span> {away}
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <Crest url={homeTeam.crest_url} className="h-4 w-4" />
+                      <span className="truncate">{home}</span>
+                      <span className="text-grey-400">v</span>
+                      <Crest url={awayTeam.crest_url} className="h-4 w-4" />
+                      <span className="truncate">{away}</span>
                     </span>
-                    <span className="font-medium">{called}</span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {/* A called draw has no single club to badge. */}
+                      <Crest
+                        url={
+                          p.predicted_outcome === 'HOME'
+                            ? homeTeam.crest_url
+                            : p.predicted_outcome === 'AWAY'
+                              ? awayTeam.crest_url
+                              : null
+                        }
+                        className="h-4 w-4"
+                      />
+                      {called}
+                    </span>
                     {p.is_auto_pick && (
                       <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
                         auto
