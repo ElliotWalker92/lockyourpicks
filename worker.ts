@@ -26,10 +26,6 @@ const ROUTES: Record<string, string> = {
   '0 5 * * 2': '/api/cron/elo',
   // League tables — four provider calls, three times a day.
   '20 6,13,22 * * *': '/api/cron/standings',
-  // "It's your turn" emails. Offset by five minutes rather than sharing
-  // the drafts schedule: these keys are a plain object, so a duplicate
-  // expression would silently replace the entry above it.
-  '5-59/10 * * * *': '/api/cron/notify',
 };
 
 const handler = {

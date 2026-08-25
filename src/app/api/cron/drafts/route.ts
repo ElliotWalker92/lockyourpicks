@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { callRpc } from '@/lib/supabase/rpc';
+import { notifyTurns } from '@/lib/notify/turns';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,14 @@ export const maxDuration = 60;
  *                      point of having a turn deadline is that something
  *                      enforces it.
  *
- * Both are idempotent, so overlapping runs are harmless.
+ *   notifyTurns        emails whoever the clock has just moved to. It rides
+ *                      here rather than on its own schedule for two reasons:
+ *                      this is the job that changes whose turn it is, so the
+ *                      email goes out in the same pass; and a Workers Free
+ *                      account gets five cron triggers, all of which were
+ *                      already spoken for.
+ *
+ * All three are idempotent, so overlapping runs are harmless.
  */
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -52,10 +60,28 @@ export async function GET(request: NextRequest) {
   );
   if (turnError) errors.push(`run_expired_turns: ${turnError.message}`);
 
+  // After the turns have moved, not before.
+  let notified = { due: 0, sent: 0, skipped: 0 };
+  try {
+    const report = await notifyTurns(supabase);
+    notified = {
+      due: report.due,
+      sent: report.sent,
+      skipped: report.skipped,
+    };
+    errors.push(...report.errors);
+  } catch (err) {
+    // A mail failure must not stop drafts opening or turns expiring.
+    errors.push(
+      `notifyTurns: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   const body = {
     ok: errors.length === 0,
     draftsOpened: opened ?? 0,
     turnsAutoPicked: autoPicked ?? 0,
+    notified,
     errors,
   };
 
