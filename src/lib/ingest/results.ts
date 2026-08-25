@@ -20,6 +20,9 @@ function isoDate(offset: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** How many dates one run may poll, so a long backlog can't blow the budget. */
+const MAX_DATES = 14;
+
 /**
  * Poll recent results and settle whatever is due.
  *
@@ -29,8 +32,13 @@ function isoDate(offset: number): string {
  * academic, but it also means a 10-minute cadence through a Saturday is ~50
  * calls instead of ~300.
  *
- * The window reaches two days back so a match that finished late, or had its
- * score corrected after the fact, still gets picked up.
+ * The window is a rolling few days *plus every date that still has an unplayed
+ * fixture on it*. A fixed lookback silently loses matches: miss more runs than
+ * the window is wide — a deploy gap, an outage, a cron that wasn't wired up yet
+ * — and those fixtures fall off the back of it, never get a result, and their
+ * gameweek can never settle. Since settling is what opens the next gameweek,
+ * one missed weekend would stall the season indefinitely. Asking the database
+ * what's still outstanding makes the poll self-healing instead.
  */
 export async function ingestResults(
   supabase: SupabaseClient<Database>,
@@ -38,6 +46,25 @@ export async function ingestResults(
 ): Promise<ResultsReport> {
   const dates: string[] = [];
   for (let d = -daysBack; d <= daysForward; d++) dates.push(isoDate(d));
+
+  // Any kickoff that has passed but still isn't resolved, however long ago.
+  const { data: outstanding } = await supabase
+    .from('fixtures')
+    .select('kickoff_at')
+    .in('status', ['scheduled', 'live'])
+    .lt('kickoff_at', new Date().toISOString())
+    .order('kickoff_at', { ascending: false })
+    .limit(500);
+
+  for (const f of outstanding ?? []) {
+    const day = f.kickoff_at.slice(0, 10);
+    if (!dates.includes(day)) dates.push(day);
+  }
+
+  // Newest first: a just-finished match matters more than an old straggler,
+  // and the stragglers still get picked up on subsequent runs.
+  dates.sort().reverse();
+  dates.splice(MAX_DATES);
 
   const report: ResultsReport = {
     datesChecked: dates,

@@ -45,17 +45,22 @@ export function PitchBackdrop({ className = '' }: { className?: string }) {
         <circle cx="525" cy="340" r="91.5" />
         <circle cx="525" cy="340" r="6" fill="currentColor" stroke="none" />
 
-        {/* Left penalty area, goal area, spot, D */}
+        {/* Left penalty area, goal area, spot, D.
+            The D is the part of a 9.15m circle round the penalty spot that
+            falls *outside* the box, so it bulges towards halfway. Its ends
+            meet the penalty-area line at x = 171, which is 55 from the spot
+            — hence ±√(91.5² − 55²) ≈ 73.13 either side of the centre line. */}
         <rect x="6" y="138.5" width="165" height="403" />
         <rect x="6" y="248.5" width="55" height="183" />
         <circle cx="116" cy="340" r="5" fill="currentColor" stroke="none" />
-        <path d="M171 249.6a91.5 91.5 0 0 0 0 180.8" />
+        <path d="M171 266.87A91.5 91.5 0 0 1 171 413.13" />
 
-        {/* Right penalty area, goal area, spot, D */}
+        {/* Right penalty area, goal area, spot, D — mirrored, so the arc
+            sweeps the other way to bulge towards halfway again. */}
         <rect x="879" y="138.5" width="165" height="403" />
         <rect x="989" y="248.5" width="55" height="183" />
         <circle cx="934" cy="340" r="5" fill="currentColor" stroke="none" />
-        <path d="M879 249.6a91.5 91.5 0 0 1 0 180.8" />
+        <path d="M879 266.87A91.5 91.5 0 0 0 879 413.13" />
 
         {/* Corner arcs */}
         <path d="M6 26a20 20 0 0 0 20-20" />
