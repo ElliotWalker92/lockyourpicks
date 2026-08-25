@@ -5,6 +5,7 @@ import {
   PasswordForm,
 } from '@/components/ProfileForms';
 import { signOut } from '@/lib/actions/auth';
+import { NotifyToggle } from '@/components/NotifyToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { createClient } from '@/lib/supabase/server';
 
@@ -45,7 +46,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, avatar_color, avatar_url')
+    .select('display_name, avatar_color, avatar_url, notify_turn')
     .eq('id', user!.id)
     .single();
 
@@ -70,6 +71,13 @@ export default async function ProfilePage() {
             avatarColor={colour}
             initials={initialsOf(name)}
           />
+        </Section>
+
+        <Section
+          title="Notifications"
+          description="An async draft only works if you know it's your go."
+        >
+          <NotifyToggle enabled={profile?.notify_turn ?? true} />
         </Section>
 
         <Section

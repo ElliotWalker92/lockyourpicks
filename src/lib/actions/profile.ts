@@ -113,3 +113,25 @@ export async function saveAvatarUrl(url: string | null): Promise<ProfileState> {
     success: url ? 'Picture updated.' : 'Picture removed.',
   };
 }
+
+/**
+ * Turn the "it's your turn" email on or off.
+ *
+ * The column defaults to true, so a new player is notified without having
+ * to find this — an async draft is unplayable if nobody tells you it's
+ * your go.
+ */
+export async function setTurnNotifications(enabled: boolean): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from('profiles')
+    .update({ notify_turn: enabled })
+    .eq('id', user.id);
+
+  revalidatePath('/profile');
+}

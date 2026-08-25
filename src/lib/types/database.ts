@@ -143,6 +143,7 @@ export type Database = {
           picks_per_player: number
           status: Database["public"]["Enums"]["draft_status"]
           turn_expires_at: string | null
+          turn_notified_at: string | null
           turn_started_at: string | null
         }
         Insert: {
@@ -155,6 +156,7 @@ export type Database = {
           picks_per_player?: number
           status?: Database["public"]["Enums"]["draft_status"]
           turn_expires_at?: string | null
+          turn_notified_at?: string | null
           turn_started_at?: string | null
         }
         Update: {
@@ -167,6 +169,7 @@ export type Database = {
           picks_per_player?: number
           status?: Database["public"]["Enums"]["draft_status"]
           turn_expires_at?: string | null
+          turn_notified_at?: string | null
           turn_started_at?: string | null
         }
         Relationships: [
@@ -409,6 +412,7 @@ export type Database = {
           pick_number: number
           points_awarded: number | null
           predicted_outcome: Database["public"]["Enums"]["outcome"]
+          source: string
           user_id: string
         }
         Insert: {
@@ -420,6 +424,7 @@ export type Database = {
           pick_number: number
           points_awarded?: number | null
           predicted_outcome: Database["public"]["Enums"]["outcome"]
+          source?: string
           user_id: string
         }
         Update: {
@@ -431,6 +436,7 @@ export type Database = {
           pick_number?: number
           points_awarded?: number | null
           predicted_outcome?: Database["public"]["Enums"]["outcome"]
+          source?: string
           user_id?: string
         }
         Relationships: [
@@ -459,6 +465,7 @@ export type Database = {
           email: string | null
           id: string
           is_admin: boolean
+          notify_turn: boolean
           updated_at: string
         }
         Insert: {
@@ -469,6 +476,7 @@ export type Database = {
           email?: string | null
           id: string
           is_admin?: boolean
+          notify_turn?: boolean
           updated_at?: string
         }
         Update: {
@@ -479,6 +487,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_admin?: boolean
+          notify_turn?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -726,6 +735,10 @@ export type Database = {
         Args: { p_order: string[]; p_turn: number }
         Returns: string
       }
+      import_gameweek_picks: {
+        Args: { p_entries: Json; p_gameweek_id: string; p_league_id: string }
+        Returns: Json
+      }
       is_admin: { Args: never; Returns: boolean }
       join_open_league: { Args: never; Returns: string }
       leave_open_league: { Args: never; Returns: boolean }
@@ -745,6 +758,7 @@ export type Database = {
           pick_number: number
           points_awarded: number | null
           predicted_outcome: Database["public"]["Enums"]["outcome"]
+          source: string
           user_id: string
         }
         SetofOptions: {
@@ -754,7 +768,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      mark_turn_notified: { Args: { p_draft_id: string }; Returns: undefined }
       open_due_drafts: { Args: never; Returns: number }
+      open_next_gameweek_for_league: {
+        Args: { p_league_id: string }
+        Returns: Json
+      }
+      pending_turn_notifications: {
+        Args: never
+        Returns: {
+          display_name: string
+          division_name: string
+          draft_id: string
+          email: string
+          expires_at: string
+          gameweek: number
+          league_name: string
+          user_id: string
+        }[]
+      }
       remove_pick: { Args: { p_pick_id: string }; Returns: undefined }
       run_expired_turns: { Args: never; Returns: number }
       set_admin_by_email: { Args: { p_email: string }; Returns: undefined }
