@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
@@ -10,10 +11,13 @@ export const metadata = { title: 'League' };
 
 export default async function LeaguePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ slip?: string }>;
 }) {
   const { id } = await params;
+  const { slip } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -71,13 +75,18 @@ export default async function LeaguePage({
 
   const isOwner = league.owner_id === user!.id;
 
-  // ---- Every division's picks for the latest round, on one card ----
+  // ---- Every division's picks for one round, on one card ----
   //
   // The owner is usually the one running the group chat, so they're the one
-  // who wants the whole thing rather than just their own three. Built here
-  // and not on the picks page because only the owner can see across every
-  // division at once.
+  // who wants the whole thing rather than just their own three.
+  //
+  // Any round the group has picked in can be sent, not only the latest.
+  // Last week's result is the one people argue about, and taking only the
+  // newest round put the settled weeks out of reach entirely.
   const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
+
+  type SlipRound = { number: number; draftIds: string[] };
+  const slipRounds: SlipRound[] = [];
   const wholeSlip: SlipGroup[] = [];
   let slipGameweek: number | null = null;
 
@@ -85,48 +94,69 @@ export default async function LeaguePage({
     const { data: leagueDrafts } = await supabase
       .from('drafts')
       .select('id, division_id, gameweek_id, gameweeks(number)')
-      .in(
-        'division_id',
-        divisions.map((d) => d.id),
-      );
+      .in('division_id', divisions.map((d) => d.id));
 
-    const rounds = new Map<string, { number: number; drafts: typeof leagueDrafts }>();
-    for (const d of leagueDrafts ?? []) {
-      const gw = one(d.gameweeks) as { number: number } | null;
-      const entry = rounds.get(d.gameweek_id) ?? {
-        number: gw?.number ?? 0,
-        drafts: [] as typeof leagueDrafts,
-      };
-      entry.drafts!.push(d);
-      rounds.set(d.gameweek_id, entry);
+    // Every pick the group has made, read once rather than once per round.
+    const allDraftIds = (leagueDrafts ?? []).map((d) => d.id);
+    const { data: allPicks } = allDraftIds.length
+      ? await supabase
+          .from('picks')
+          .select(
+            `draft_id, user_id, predicted_outcome, pick_number, points_awarded,
+             fixtures(
+               home_score, away_score,
+               home:teams!fixtures_home_team_id_fkey(name, crest_url),
+               away:teams!fixtures_away_team_id_fkey(name, crest_url)
+             )`,
+          )
+          .in('draft_id', allDraftIds)
+          .order('pick_number')
+      : { data: [] };
+
+    type PickRow = NonNullable<typeof allPicks>[number];
+    const picksByDraft = new Map<string, PickRow[]>();
+    for (const pick of allPicks ?? []) {
+      const list = picksByDraft.get(pick.draft_id) ?? [];
+      list.push(pick);
+      picksByDraft.set(pick.draft_id, list);
     }
 
-    for (const round of [...rounds.values()].sort((a, b) => b.number - a.number)) {
-      const draftIds = (round.drafts ?? []).map((d) => d.id);
-      const { data: picks } = await supabase
-        .from('picks')
-        .select(
-          `draft_id, user_id, predicted_outcome, pick_number, points_awarded,
-           fixtures(
-             home_score, away_score,
-             home:teams!fixtures_home_team_id_fkey(name, crest_url),
-             away:teams!fixtures_away_team_id_fkey(name, crest_url)
-           )`,
-        )
-        .in('draft_id', draftIds)
-        .order('pick_number');
+    const byRound = new Map<string, SlipRound>();
+    for (const draft of leagueDrafts ?? []) {
+      const gw = one(draft.gameweeks) as { number: number } | null;
+      const entry = byRound.get(draft.gameweek_id) ?? {
+        number: gw?.number ?? 0,
+        draftIds: [],
+      };
+      entry.draftIds.push(draft.id);
+      byRound.set(draft.gameweek_id, entry);
+    }
 
-      if (!picks?.length) continue;
+    // A round nobody picked in has nothing to send.
+    slipRounds.push(
+      ...[...byRound.values()]
+        .filter((r) => r.draftIds.some((id) => picksByDraft.get(id)?.length))
+        .sort((a, b) => b.number - a.number),
+    );
 
+    const wanted = Number(slip);
+    const chosen =
+      slipRounds.find((r) => r.number === wanted) ?? slipRounds[0] ?? null;
+
+    if (chosen) {
+      slipGameweek = chosen.number;
       for (const division of divisions) {
-        const ids = (round.drafts ?? [])
-          .filter((d) => d.division_id === division.id)
+        const ids = (leagueDrafts ?? [])
+          .filter(
+            (d) =>
+              d.division_id === division.id && chosen.draftIds.includes(d.id),
+          )
           .map((d) => d.id);
-        const inDivision = picks.filter((p) => ids.includes(p.draft_id));
+
+        const inDivision = ids.flatMap((id) => picksByDraft.get(id) ?? []);
         if (!inDivision.length) continue;
 
-        const players = [...new Set(inDivision.map((p) => p.user_id))];
-        for (const playerId of players) {
+        for (const playerId of [...new Set(inDivision.map((p) => p.user_id))]) {
           const theirs = inDivision.filter((p) => p.user_id === playerId);
           const scored = theirs.some((p) => p.points_awarded !== null);
           wholeSlip.push({
@@ -164,9 +194,6 @@ export default async function LeaguePage({
           });
         }
       }
-
-      slipGameweek = round.number;
-      break;
     }
   }
   const unassigned = (members ?? []).filter(
@@ -322,6 +349,28 @@ export default async function LeaguePage({
 
           {wholeSlip.length > 0 && (
             <div className="mt-2">
+              {slipRounds.length > 1 && (
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="label">Round</span>
+                  {slipRounds.map((round) => (
+                    <Link
+                      key={round.number}
+                      href={`/leagues/${league.id}?slip=${round.number}`}
+                      scroll={false}
+                      aria-current={
+                        round.number === slipGameweek ? 'page' : undefined
+                      }
+                      className={`btn btn-sm ${
+                        round.number === slipGameweek
+                          ? 'btn-lime'
+                          : 'btn-outline'
+                      }`}
+                    >
+                      GW{round.number}
+                    </Link>
+                  ))}
+                </div>
+              )}
               <SharePicks
                 groups={wholeSlip}
                 gameweek={`Gameweek ${slipGameweek}`}
