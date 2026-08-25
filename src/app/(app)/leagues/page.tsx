@@ -8,7 +8,7 @@ import {
 import { LockIcon } from '@/components/LockIcon';
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'Leagues' };
+export const metadata = { title: 'Group' };
 
 export default async function LeaguesPage() {
   const supabase = await createClient();
@@ -33,17 +33,17 @@ export default async function LeaguesPage() {
   return (
     <div className="flex flex-col gap-10">
       <div>
-        <h1 className="display-lg">Leagues</h1>
+        <h1 className="display-lg">Your group</h1>
         <p className="mt-2 text-grey-700">
-          A league is your group of players. Inside it, divisions are the pools
-          you actually draft against.
+          Your group is the people you play against. Inside it, divisions are
+          the pools you actually draft in &mdash; three players apiece.
         </p>
       </div>
 
       {leagues.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="label">
-            Your leagues
+            You&rsquo;re in
           </h2>
           <ul className="flex flex-col gap-2">
             {leagues.map((league) => (
@@ -84,8 +84,7 @@ export default async function LeaguesPage() {
             Take a place in the open league and we&rsquo;ll put you in a
             division of three with other players. You draft against them
             exactly as you would against mates &mdash; same turns, same
-            exclusivity &mdash; and you climb the global leaderboard from
-            there.
+            exclusivity &mdash; and you climb the global table from there.
           </p>
           <JoinOpenLeagueForm />
         </section>
@@ -94,7 +93,7 @@ export default async function LeaguesPage() {
       <div className="grid gap-8 sm:grid-cols-2">
         <section className="card p-5">
           <h2 className="label mb-4">
-            Start a league
+            Start a group
           </h2>
           <CreateLeagueForm />
         </section>
@@ -105,9 +104,9 @@ export default async function LeaguesPage() {
           </h2>
           {playsOpen && (
             <p className="mb-3 rounded-md border border-grey-300 bg-surface px-3 py-2 text-xs leading-relaxed text-grey-700">
-              You&rsquo;re in the open league. Joining a private one gives up
-              that place &mdash; three picks a week means one division. Points
-              you&rsquo;ve already scored stay on the global leaderboard.
+              You&rsquo;re in the open league. Joining a private group gives
+              up that place &mdash; three picks a week means one division.
+              Points you&rsquo;ve already scored stay on the global table.
             </p>
           )}
           <JoinLeagueForm />

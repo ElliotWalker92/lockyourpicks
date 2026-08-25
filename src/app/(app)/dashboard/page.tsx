@@ -89,17 +89,17 @@ export default async function DashboardPage() {
           <h2 className="display-md">
             {leagueCount
               ? 'Waiting on your divisions'
-              : "You're not in a league yet"}
+              : "You're not in a group yet"}
           </h2>
           <p className="mt-2 max-w-lg text-grey-700">
             {leagueCount
-              ? 'You’ve joined a league, but the owner hasn’t split everyone into divisions yet. Drafting happens inside a division, so nothing starts until that’s done.'
-              : 'Got a join code from a mate? Enter it on the leagues page. If not, take a place in the open league — we’ll put you in a division of three and you can start drafting.'}
+              ? 'You’ve joined a group, but the owner hasn’t split everyone into divisions yet. Drafting happens inside a division, so nothing starts until that’s done.'
+              : 'Got a join code from a mate? Enter it on the group page. If not, take a place in the open league — we’ll put you in a division of three and you can start drafting.'}
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {leagueCount ? (
               <Link href="/leagues" className="btn btn-lime">
-                View your league
+                View your group
               </Link>
             ) : (
               <>

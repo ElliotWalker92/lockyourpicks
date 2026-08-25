@@ -45,7 +45,7 @@ export function CreateLeagueForm() {
     <form action={action} className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="name" className="text-sm font-medium">
-          League name
+          Group name
         </label>
         <input
           id="name"
@@ -88,7 +88,7 @@ export function CreateLeagueForm() {
 
       <Error state={state} />
       <div>
-        <Submit label="Create league" />
+        <Submit label="Create group" />
       </div>
     </form>
   );
@@ -135,7 +135,7 @@ export function JoinLeagueForm() {
 
       <Error state={state} />
       <div>
-        <Submit label="Join league" />
+        <Submit label="Join group" />
       </div>
     </form>
   );

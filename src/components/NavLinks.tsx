@@ -3,15 +3,31 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const LINKS = [
+/**
+ * `also` marks the other routes a tab owns.
+ *
+ * Table covers the global leaderboard too — they are the same idea seen at
+ * two scales and share a tab, with a toggle between them. Without this the
+ * nav would go dark the moment you switched view.
+ *
+ * "Leagues" now means the real ones: the Premier League and the divisions
+ * below it. Your own set of players is a Group, which keeps the two apart
+ * in the one place a player has to tell them apart.
+ */
+const LINKS: { href: string; label: string; also?: string[] }[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/draft', label: 'Picks' },
   { href: '/results', label: 'Results' },
-  { href: '/table', label: 'Table' },
-  { href: '/standings', label: 'Football' },
-  { href: '/leaderboard', label: 'Global' },
-  { href: '/leagues', label: 'Leagues' },
+  { href: '/table', label: 'Table', also: ['/leaderboard'] },
+  { href: '/standings', label: 'Leagues' },
+  { href: '/leagues', label: 'Group' },
 ];
+
+function isActive(pathname: string, href: string, also: string[] = []) {
+  return [href, ...also].some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
 
 export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
@@ -19,8 +35,7 @@ export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
       {LINKS.map((link) => {
-        const active =
-          pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const active = isActive(pathname, link.href, link.also);
         return (
           <Link
             key={link.href}

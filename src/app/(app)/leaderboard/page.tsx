@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { LockIcon } from '@/components/LockIcon';
+import { TableScopeToggle } from '@/components/TableScopeToggle';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Global leaderboard' };
@@ -142,6 +143,9 @@ export default async function LeaderboardPage() {
         <div>
           <p className="label">{season.name}</p>
           <h1 className="display-lg mt-1">Global leaderboard</h1>
+          <div className="mt-4">
+            <TableScopeToggle scope="global" />
+          </div>
         </div>
         <div className="card p-6">
           <h2 className="display-md">Nothing scored yet</h2>
@@ -160,10 +164,13 @@ export default async function LeaderboardPage() {
         <p className="label">{season.name}</p>
         <h1 className="display-lg mt-1">Global leaderboard</h1>
         <p className="mt-2 max-w-xl text-grey-700">
-          Every player, every league, one table. You each get three picks a
+          Every player, every group, one table. You each get three picks a
           week worth a point apiece &mdash; so the totals compare, even though
           no two of you were choosing from the same board.
         </p>
+        <div className="mt-4">
+          <TableScopeToggle scope="global" />
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -209,7 +216,7 @@ export default async function LeaderboardPage() {
       <p className="text-sm text-grey-500">
         Not playing yet?{' '}
         <Link href="/leagues" className="underline">
-          Join a league or take a place in the open league.
+          Join a group or take a place in the open league.
         </Link>
       </p>
     </div>

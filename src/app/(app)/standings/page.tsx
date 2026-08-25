@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'League tables' };
+export const metadata = { title: 'Leagues' };
 
 type Zone = 'promotion' | 'playoff' | 'relegation' | null;
 

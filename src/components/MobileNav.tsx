@@ -41,11 +41,11 @@ const ICONS = {
       <path d="M17.5 17.5 19 19l3-3" />
     </>
   ),
-  global: (
+  football: (
     <>
       <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18" />
-      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+      <path d="m12 8.2 3.2 2.3-1.2 3.8h-4l-1.2-3.8L12 8.2Z" />
+      <path d="M12 3v5.2M4.2 9.6 9 11M19.8 9.6 15 11M7.2 19l1.6-4.7M16.8 19l-1.6-4.7" />
     </>
   ),
   leagues: (
@@ -58,13 +58,14 @@ const ICONS = {
   ),
 };
 
-const TABS = [
+const TABS: { href: string; label: string; icon: React.ReactNode; also?: string[] }[] = [
   { href: '/dashboard', label: 'Home', icon: ICONS.dashboard },
   { href: '/draft', label: 'Picks', icon: ICONS.draft },
   { href: '/results', label: 'Results', icon: ICONS.results },
-  { href: '/table', label: 'Table', icon: ICONS.table },
-  { href: '/leaderboard', label: 'Global', icon: ICONS.global },
-  { href: '/leagues', label: 'Leagues', icon: ICONS.leagues },
+  // Table owns the global leaderboard too; they share a toggle.
+  { href: '/table', label: 'Table', icon: ICONS.table, also: ['/leaderboard'] },
+  { href: '/standings', label: 'Leagues', icon: ICONS.football },
+  { href: '/leagues', label: 'Group', icon: ICONS.leagues },
 ];
 
 export function MobileNav() {
@@ -79,8 +80,9 @@ export function MobileNav() {
     >
       <ul className="mx-auto flex max-w-lg">
         {TABS.map((tab) => {
-          const active =
-            pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+          const active = [tab.href, ...(tab.also ?? [])].some(
+            (p) => pathname === p || pathname.startsWith(`${p}/`),
+          );
           return (
             <li key={tab.href} className="flex-1">
               <Link

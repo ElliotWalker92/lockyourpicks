@@ -72,10 +72,10 @@ export default async function DraftPage() {
       <div className="flex flex-col gap-8">
         {heading}
         <Empty title="You're not in a division yet">
-          Drafting happens inside a division, not across a whole league. Join or
-          create a league on the{' '}
+          Drafting happens inside a division, not across a whole group. Join
+          or create one on the{' '}
           <Link href="/leagues" className="underline underline-offset-4">
-            leagues page
+            group page
           </Link>
           , then the owner needs to arrange members into divisions.
         </Empty>

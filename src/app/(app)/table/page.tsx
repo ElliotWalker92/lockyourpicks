@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { TableScopeToggle } from '@/components/TableScopeToggle';
 import { rank, type StandingRow } from '@/lib/standings';
 import { createClient } from '@/lib/supabase/server';
 
@@ -118,14 +119,9 @@ export default async function TablePage() {
         One point per correct result. Divisions run alongside the overall
         standings.
       </p>
-      {/* The phone's tab bar is full, so this is how the real tables are
-          reached on mobile. */}
-      <Link
-        href="/standings"
-        className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:text-lime-dark"
-      >
-        Looking for the real league tables? &rarr;
-      </Link>
+      <div className="mt-4">
+        <TableScopeToggle scope="league" />
+      </div>
     </div>
   );
 
