@@ -42,10 +42,10 @@ function Row({
   return (
     <li
       className={`flex items-center gap-3 border-b border-grey-100 px-4 py-3 last:border-0 ${
-        highlight ? 'bg-lime/10 font-medium' : ''
+        highlight ? 'bg-hot/5 font-semibold' : ''
       }`}
     >
-      <span className="w-8 shrink-0 font-display text-lg text-grey-400 tabular-nums">
+      <span className="numeric w-8 shrink-0 text-lg text-grey-400">
         {row.position}
       </span>
 
@@ -72,7 +72,7 @@ function Row({
         {row.gameweeks_played} gw
       </span>
 
-      <span className="w-12 shrink-0 text-right font-display text-lg tabular-nums">
+      <span className="numeric w-12 shrink-0 text-right text-lg">
         {row.points}
       </span>
     </li>

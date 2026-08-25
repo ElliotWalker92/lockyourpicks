@@ -65,7 +65,7 @@ function Table({
                     : ''
                 }`}
               >
-                <td className="py-2.5 tabular-nums text-grey-500">
+                <td className="numeric py-2.5 text-grey-400">
                   {row.position}
                   {row.tied && <span aria-label="tied">=</span>}
                 </td>
@@ -84,7 +84,7 @@ function Table({
                 <td className="py-2.5 text-right tabular-nums text-grey-500">
                   {row.gameweeksPlayed}
                 </td>
-                <td className="py-2.5 text-right font-medium tabular-nums">
+                <td className="numeric py-2.5 text-right text-base">
                   {row.points}
                 </td>
               </tr>
