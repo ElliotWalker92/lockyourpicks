@@ -10,7 +10,8 @@ import {
   type ApiTeam,
 } from '@/lib/api-football';
 import type { Database } from '@/lib/types';
-import { ensureGameweeks, syncGameweekKickoffs, weekStart } from './gameweeks';
+import { blocksFrom, draftWindows } from '@/lib/gameweek-blocks';
+import { syncGameweeks } from './gameweeks';
 
 export type IngestReport = {
   season: string;
@@ -49,25 +50,6 @@ export async function ingestFixtures(
     throw new Error('No active season. Run migration 0004 first.');
   }
 
-  const gameweekCount = await ensureGameweeks(
-    supabase,
-    season.id,
-    new Date(season.starts_on),
-    new Date(season.ends_on),
-  );
-
-  const { data: gameweeks } = await supabase
-    .from('gameweeks')
-    .select('id, number, draft_opens_at')
-    .eq('season_id', season.id)
-    .order('number', { ascending: true });
-
-  // Window start (a Tuesday, midnight UTC) → gameweek id.
-  const windowIndex = new Map<number, string>();
-  for (const gw of gameweeks ?? []) {
-    windowIndex.set(new Date(gw.draft_opens_at).getTime(), gw.id);
-  }
-
   const { data: competitions } = await supabase
     .from('competitions')
     .select('id, code, provider_league_id')
@@ -79,7 +61,7 @@ export async function ingestFixtures(
   const apiLeagues = await getEnglandLeagues();
   const report: IngestReport = {
     season: season.name,
-    gameweeks: gameweekCount,
+    gameweeks: 0,
     competitions: [],
     teamsUpserted: 0,
     fixturesUpserted: 0,
@@ -171,11 +153,67 @@ export async function ingestFixtures(
     if (t.provider_team_id !== null) teamIdOf.set(t.provider_team_id, t.id);
   }
 
+  // ---- Gameweeks ----
+  //
+  // A gameweek is a block of fixtures, so it can only be worked out once the
+  // fixtures are known. On a season that already has gameweeks the existing
+  // boundaries are used and syncGameweeks re-cuts the un-drafted ones at the
+  // end; on a fresh season they're created here so there is something to hang
+  // the fixtures on at all.
+  const { data: existing } = await supabase
+    .from('gameweeks')
+    .select('id, draft_closes_at')
+    .eq('season_id', season.id)
+    .order('draft_closes_at', { ascending: true });
+
+  let boundaries = (existing ?? []).map((g) => ({
+    id: g.id,
+    from: new Date(g.draft_closes_at).getTime(),
+  }));
+
+  if (!boundaries.length) {
+    const blocks = blocksFrom(allFixtures, (f) => new Date(f.fixture.fixture.date));
+    const windows = draftWindows(blocks);
+    const fresh: { id: string; from: number }[] = [];
+
+    for (const [i, block] of blocks.entries()) {
+      const { data: gw, error } = await supabase
+        .from('gameweeks')
+        .insert({
+          season_id: season.id,
+          number: i + 1,
+          name: `Gameweek ${i + 1}`,
+          draft_opens_at: windows[i].opensAt.toISOString(),
+          draft_closes_at: windows[i].closesAt.toISOString(),
+          first_kickoff_at: block.start.toISOString(),
+        })
+        .select('id')
+        .single();
+      if (error || !gw) throw new Error(`gameweeks: ${error?.message}`);
+      fresh.push({ id: gw.id, from: block.start.getTime() });
+    }
+    boundaries = fresh;
+  }
+
+  report.gameweeks = boundaries.length;
+
+  /** The block a kickoff falls in: the last one that had started by then. */
+  const gameweekFor = (kickoff: Date): string | null => {
+    if (!boundaries.length) return null;
+    const t = kickoff.getTime();
+    let chosen = boundaries[0].id;
+    for (const b of boundaries) {
+      if (b.from <= t) chosen = b.id;
+      else break;
+    }
+    return chosen;
+  };
+
   // ---- Fixtures ----
   const rows = allFixtures
     .map(({ competitionId, fixture }) => {
       const kickoff = new Date(fixture.fixture.date);
-      const gameweekId = windowIndex.get(weekStart(kickoff).getTime());
+      const gameweekId = gameweekFor(kickoff);
       const homeId = teamIdOf.get(fixture.teams.home.id);
       const awayId = teamIdOf.get(fixture.teams.away.id);
 
@@ -212,6 +250,9 @@ export async function ingestFixtures(
     report.fixturesUpserted = rows.length;
   }
 
-  report.kickoffsSynced = await syncGameweekKickoffs(supabase, season.id);
+  // Absorb postponements and newly-scheduled cup rounds. Gameweeks that have
+  // already started drafting are left exactly as they are.
+  const sync = await syncGameweeks(supabase, season.id);
+  report.kickoffsSynced = sync.recut;
   return report;
 }
