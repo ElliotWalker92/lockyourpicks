@@ -40,7 +40,7 @@ function Stat({
   return (
     <div className="card p-5">
       <p className="label">{label}</p>
-      <p className="mt-1 font-serif text-4xl leading-none">
+      <p className="mt-1 font-display text-4xl leading-none">
         {value}
         {suffix && (
           <span className="ml-1.5 text-base text-grey-500">{suffix}</span>

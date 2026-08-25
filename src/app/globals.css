@@ -2,8 +2,11 @@
 
 /* ============================================================
    Lock Your Picks — design system
-   Ink + lime, editorial serif on a light surface.
-   Carried over from the WC2026 app (legacy/css/style.css).
+
+   Broadcast-sports, not editorial. Three accents, each with a job:
+   lime is home and the brand, electric blue is away, hot pink is
+   live — anything demanding action right now. Grey is the draw.
+   Type is a heavy grotesk over a neutral UI face; no italics.
    ============================================================ */
 
 @theme {
@@ -27,8 +30,13 @@
   --color-away: #3b82f6;
   --color-away-dark: #2563eb;
 
-  --font-serif: var(--font-dm-serif), Georgia, serif;
-  --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+  /* Live / act-now. Pushed towards magenta so it never reads as the
+     loss red sitting next to it in a results table. */
+  --color-hot: #ff2d87;
+  --color-hot-dark: #e51e73;
+
+  --font-display: var(--font-archivo), system-ui, sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -52,34 +60,51 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-size: 15px;
+  font-variant-numeric: tabular-nums;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---- Editorial display type ---- */
+/* ---- Display type ----
+   Heavy and tightly tracked, the way a scoreboard or a matchday graphic
+   sets a headline. Italics are deliberately absent: the weight carries
+   the emphasis, so a slanted word would only soften it. */
 .display-xl {
-  font-family: var(--font-serif);
-  font-size: clamp(2.5rem, 8vw, 4.5rem);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.5rem, 8vw, 4.75rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
 
 .display-lg {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
+  font-weight: 800;
   font-size: clamp(1.75rem, 4vw, 2.75rem);
-  line-height: 1.1;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
 }
 
 .display-md {
-  font-family: var(--font-serif);
-  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.15rem, 3vw, 1.5rem);
   line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+/* Numbers that sit in a column — scores, positions, points. */
+.numeric {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .label {
   font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--color-grey-500);
 }
@@ -90,6 +115,17 @@ body {
   border: 1px solid var(--color-grey-300);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
+}
+
+/* Live state: something is happening and it is yours to act on. */
+.btn-hot {
+  background: var(--color-hot);
+  color: #fff;
+}
+.btn-hot:not(:disabled):hover {
+  background: var(--color-hot-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-raised);
 }
 
 .btn {

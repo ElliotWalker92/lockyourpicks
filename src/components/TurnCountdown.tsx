@@ -48,7 +48,7 @@ function Unit({
   return (
     <div className="flex flex-col items-center">
       <span
-        className={`font-serif text-5xl leading-none tabular-nums sm:text-6xl ${
+        className={`font-display text-5xl leading-none tabular-nums sm:text-6xl ${
           dim ? 'text-white/30' : ''
         }`}
       >
@@ -87,19 +87,19 @@ export function TurnCountdown({
   return (
     <section
       className={`relative isolate overflow-hidden rounded-xl border px-6 py-7 text-white sm:px-8 ${
-        isMyTurn ? 'border-lime bg-ink' : 'border-grey-300 bg-ink/95'
+        isMyTurn ? 'border-hot bg-ink' : 'border-grey-300 bg-ink/95'
       }`}
     >
       {isMyTurn && (
         <div
           aria-hidden
-          className="absolute inset-0 -z-10 bg-[radial-gradient(70%_120%_at_20%_0%,rgba(200,241,53,0.18),transparent_65%)]"
+          className="absolute inset-0 -z-10 bg-[radial-gradient(70%_120%_at_20%_0%,rgba(255,45,135,0.22),transparent_65%)]"
         />
       )}
 
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div className="min-w-56 flex-1">
-          <p className="label text-white/40">
+          <p className={`label ${isMyTurn ? 'text-hot' : 'text-white/40'}`}>
             {isMyTurn ? 'Your turn' : 'Turn in progress'}
           </p>
           <h2 className="display-lg mt-1.5">{heading}</h2>
@@ -111,27 +111,31 @@ export function TurnCountdown({
         {remaining && (
           <div className="shrink-0">
             {'expired' in remaining ? (
-              <p className="font-serif text-3xl text-lime">
+              <p className="font-display text-3xl text-hot">
                 Time&rsquo;s up &mdash; auto-picking
               </p>
             ) : 'pending' in remaining ? (
               <div className="flex items-start gap-3">
                 <Unit value="--" label="hrs" dim />
-                <span className="font-serif text-4xl text-white/20">:</span>
+                <span className="font-display text-4xl text-white/20">:</span>
                 <Unit value="--" label="min" dim />
-                <span className="font-serif text-4xl text-white/20">:</span>
+                <span className="font-display text-4xl text-white/20">:</span>
                 <Unit value="--" label="sec" dim />
               </div>
             ) : (
               <div
                 className={`flex items-start gap-3 ${
-                  remaining.urgent ? 'text-loss' : 'text-lime'
+                  remaining.urgent
+                    ? 'text-loss'
+                    : isMyTurn
+                      ? 'text-hot'
+                      : 'text-lime'
                 }`}
               >
                 <Unit value={pad(remaining.hours)} label="hrs" />
-                <span className="font-serif text-4xl text-white/20">:</span>
+                <span className="font-display text-4xl text-white/20">:</span>
                 <Unit value={pad(remaining.minutes)} label="min" />
-                <span className="font-serif text-4xl text-white/20">:</span>
+                <span className="font-display text-4xl text-white/20">:</span>
                 <Unit value={pad(remaining.seconds)} label="sec" />
               </div>
             )}

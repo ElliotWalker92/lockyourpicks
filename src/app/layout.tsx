@@ -1,24 +1,29 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Space_Grotesk } from "next/font/google";
+import { Archivo, Inter } from "next/font/google";
 import "./globals.css";
 
 /**
- * Same pairing as the WC2026 app: an editorial serif for display type against
- * a geometric sans for everything else.
+ * Broadcast-sports typography: a heavy grotesk for display against a neutral
+ * UI face, the way FotMob and the Premier League set their scoreboards. The
+ * editorial serif that came from the WC2026 app read as a magazine, not a
+ * results service, and its italic did most of the talking.
+ *
+ * Archivo goes to 800 and stays legible tightly tracked at large sizes; Inter
+ * carries the tables, where its tabular figures keep columns of scores from
+ * shifting as the digits change.
  *
  * Loaded through next/font rather than an @import in CSS — the fonts are then
  * self-hosted and preloaded, so headings don't reflow on first paint.
  */
-const dmSerif = DM_Serif_Display({
-  variable: "--font-dm-serif",
-  weight: "400",
-  style: ["normal", "italic"],
+const archivo = Archivo({
+  variable: "--font-archivo",
+  weight: ["600", "700", "800"],
   subsets: ["latin"],
   display: "swap",
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const inter = Inter({
+  variable: "--font-inter",
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   display: "swap",
@@ -57,7 +62,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${dmSerif.variable} ${spaceGrotesk.variable} h-full`}
+      className={`${archivo.variable} ${inter.variable} h-full`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

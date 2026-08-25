@@ -9,7 +9,7 @@ export default function AuthLayout({
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-14">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-8 block text-center">
-          <span className="font-serif text-xl italic">Lock Your Picks</span>
+          <span className="font-display text-xl font-extrabold tracking-tight">Lock Your Picks</span>
         </Link>
         <div className="card p-6">{children}</div>
       </div>

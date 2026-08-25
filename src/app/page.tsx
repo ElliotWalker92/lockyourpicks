@@ -54,7 +54,7 @@ export default async function Home() {
             <br />
             One draft.
             <br />
-            <span className="italic text-lime">No second chances.</span>
+            <span className="text-lime">No second chances.</span>
           </h1>
 
           <p className="mt-7 max-w-xl text-lg leading-relaxed text-white/70">
@@ -86,7 +86,7 @@ export default async function Home() {
               ['3', 'picks a week'],
             ].map(([value, label]) => (
               <div key={label} className="py-6">
-                <dt className="font-serif text-4xl text-lime">{value}</dt>
+                <dt className="font-display text-4xl text-lime">{value}</dt>
                 <dd className="label mt-1 text-white/50">{label}</dd>
               </div>
             ))}
@@ -102,7 +102,7 @@ export default async function Home() {
           <div className="mt-9 grid gap-9 sm:grid-cols-3">
             {RULES.map((rule) => (
               <div key={rule.n}>
-                <span className="font-serif text-3xl text-lime-dark">
+                <span className="font-display text-3xl text-lime-dark">
                   {rule.n}
                 </span>
                 <h3 className="display-md mt-2">{rule.title}</h3>
@@ -120,7 +120,7 @@ export default async function Home() {
             <h2 className="display-lg">
               Small divisions.
               <br />
-              <span className="italic">Real stakes.</span>
+              <span className="text-hot">Real stakes.</span>
             </h2>
             <p className="mt-4 text-grey-700">
               Your league splits into divisions of three. You draft against those
@@ -153,7 +153,7 @@ export default async function Home() {
                   key={row.pos}
                   className="flex items-center gap-3 border-b border-grey-100 px-5 py-3 text-sm last:border-0"
                 >
-                  <span className="w-5 font-serif text-lg text-grey-400">
+                  <span className="w-5 font-display text-lg text-grey-400">
                     {row.pos}
                   </span>
                   <span className="flex-1 font-medium">{row.label}</span>
@@ -177,7 +177,7 @@ export default async function Home() {
       <section className="border-t border-grey-300 bg-ink text-white">
         <div className="mx-auto w-full max-w-5xl px-6 py-14 text-center">
           <h2 className="display-lg">
-            Ready to <span className="italic text-lime">lock them in?</span>
+            Ready to <span className="text-lime">lock them in?</span>
           </h2>
           <div className="mt-7 flex justify-center">
             <Link href="/auth/sign-up" className="btn btn-lime">

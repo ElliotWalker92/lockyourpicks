@@ -34,7 +34,7 @@ export default async function AppLayout({
       <header className="sticky top-0 z-20 border-b border-grey-300 bg-card/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-3">
           <Link href="/dashboard" className="shrink-0">
-            <span className="font-serif text-lg italic">
+            <span className="font-display text-lg font-extrabold tracking-tight">
               Lock Your <span className="text-lime-dark">Picks</span>
             </span>
           </Link>

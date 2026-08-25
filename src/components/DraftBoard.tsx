@@ -7,7 +7,11 @@ import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
 import { LockIcon } from '@/components/LockIcon';
-import { SharePicks, type SharePick } from '@/components/SharePicks';
+import {
+  SharePicks,
+  type SharePick,
+  type SlipGroup,
+} from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
 import type { Outcome } from '@/lib/types';
 
@@ -209,26 +213,41 @@ export function DraftBoard({
 
   // The shared card has to say exactly what the list above it says, so the
   // call is derived once here rather than formatted again at the boundary.
+  const toSharePick = (pick: BoardPick): SharePick[] => {
+    const f = fixtures.find((x) => x.id === pick.fixture_id);
+    if (!f) return [];
+    return [
+      {
+        home: f.home.name,
+        away: f.away.name,
+        outcome: pick.predicted_outcome,
+        called:
+          pick.predicted_outcome === 'HOME'
+            ? f.home.name
+            : pick.predicted_outcome === 'AWAY'
+              ? f.away.name
+              : 'Draw',
+      },
+    ];
+  };
+
   const sharePicks: SharePick[] = myPicks
     .slice()
     .sort((a, b) => a.pick_number - b.pick_number)
-    .flatMap((pick) => {
-      const f = fixtures.find((x) => x.id === pick.fixture_id);
-      if (!f) return [];
-      return [
-        {
-          home: f.home.name,
-          away: f.away.name,
-          outcome: pick.predicted_outcome,
-          called:
-            pick.predicted_outcome === 'HOME'
-              ? f.home.name
-              : pick.predicted_outcome === 'AWAY'
-                ? f.away.name
-                : 'Draw',
-        },
-      ];
-    });
+    .flatMap(toSharePick);
+
+  // The whole division's slip, in drafting order — the accumulator the group
+  // actually talks about, rather than three separate lists of three.
+  const expectedPicks = draft.pick_order.length * draft.picks_per_player;
+  const everyoneIn = picks.length >= expectedPicks;
+
+  const divisionSlip: SlipGroup[] = order.map((userId) => ({
+    player: nameOf(userId),
+    picks: picks
+      .filter((p) => p.user_id === userId)
+      .sort((a, b) => a.pick_number - b.pick_number)
+      .flatMap(toSharePick),
+  }));
 
   const available = fixtures.filter((f) => !takenBy.has(f.id));
 
@@ -287,7 +306,7 @@ export function DraftBoard({
     <div className="flex flex-col gap-8">
       {/* ---- Turn state ---- */}
       <section
-        className={`card p-5 ${isMyTurn ? 'border-lime-dark bg-lime/10' : ''}`}
+        className={`card p-5 ${isMyTurn ? 'border-hot bg-hot/5' : ''}`}
       >
         {draft.status === 'complete' ? (
           <p className="font-medium">
@@ -299,7 +318,7 @@ export function DraftBoard({
               <h2 className="display-md">
                 {isMyTurn ? (
                   <>
-                    Your pick &mdash; <span className="italic">choose one</span>
+                    Your pick &mdash; <span className="font-semibold">choose one</span>
                   </>
                 ) : (
                   <>Waiting on {onTurn ? nameOf(onTurn) : '—'}</>
@@ -451,17 +470,71 @@ export function DraftBoard({
             group is worse than none. */}
         {myPicks.length >= draft.picks_per_player && (
           <SharePicks
-            picks={sharePicks}
+            groups={[{ player: nameOf(currentUserId), picks: sharePicks }]}
             gameweek={gameweekLabel}
-            player={
-              players.find((p) => p.id === currentUserId)?.display_name ??
-              'My picks'
-            }
-            division={divisionName}
+            subtitle={`${nameOf(currentUserId)} · ${divisionName}`}
             locked={!isMyTurn}
           />
         )}
       </section>
+
+      {/* ---- The whole division's slip ---- */}
+      {everyoneIn && (
+        <section>
+          <h2 className="label mb-1 flex items-center gap-1.5">
+            <LockIcon className="h-3 w-3" />
+            The week&rsquo;s slip
+          </h2>
+          <p className="mb-3 text-sm text-grey-700">
+            Everyone&rsquo;s in. All {expectedPicks} picks from{' '}
+            {divisionName}, in drafting order &mdash; one card for the group
+            chat.
+          </p>
+
+          <ol className="flex flex-col gap-4">
+            {divisionSlip.map((group) => (
+              <li key={group.player}>
+                <p className="mb-1.5 text-xs font-semibold tracking-wider text-hot uppercase">
+                  {group.player}
+                </p>
+                <ul className="flex flex-col divide-y divide-grey-100">
+                  {group.picks.map((p, i) => (
+                    <li
+                      key={i}
+                      className="flex items-baseline gap-3 py-1.5 text-sm"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-grey-700">
+                        {p.home} <span className="text-grey-400">v</span>{' '}
+                        {p.away}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          p.outcome === 'HOME'
+                            ? 'bg-lime text-ink'
+                            : p.outcome === 'AWAY'
+                              ? 'bg-away text-white'
+                              : 'bg-grey-300 text-ink'
+                        }`}
+                      >
+                        {p.called}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+
+          <SharePicks
+            groups={divisionSlip}
+            gameweek={gameweekLabel}
+            subtitle={divisionName}
+            locked
+            heading="Send the slip"
+            note={`All ${expectedPicks} picks on one card. Share sends the picture on a phone, or saves it to attach.`}
+          />
+        </section>
+      )}
 
       {/* ---- Taken ---- */}
       {picks.length > myPicks.length && (

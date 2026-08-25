@@ -45,7 +45,7 @@ function Row({
         highlight ? 'bg-lime/10 font-medium' : ''
       }`}
     >
-      <span className="w-8 shrink-0 font-serif text-lg text-grey-400 tabular-nums">
+      <span className="w-8 shrink-0 font-display text-lg text-grey-400 tabular-nums">
         {row.position}
       </span>
 
@@ -72,7 +72,7 @@ function Row({
         {row.gameweeks_played} gw
       </span>
 
-      <span className="w-12 shrink-0 text-right font-serif text-lg tabular-nums">
+      <span className="w-12 shrink-0 text-right font-display text-lg tabular-nums">
         {row.points}
       </span>
     </li>
