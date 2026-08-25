@@ -49,9 +49,10 @@ const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
 export default async function ResultsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ gw?: string }>;
+  searchParams: Promise<{ gw?: string; scope?: string }>;
 }) {
-  const { gw } = await searchParams;
+  const { gw, scope } = await searchParams;
+  const wholeGroup = scope === 'group';
   const supabase = await createClient();
   const {
     data: { user },
@@ -66,15 +67,71 @@ export default async function ResultsPage({
 
   const { data: membership } = await supabase
     .from('division_members')
-    .select('division_id, divisions(name)')
+    .select('division_id, league_id, divisions(name), leagues(name, owner_id)')
     .eq('user_id', user!.id)
     .eq('season_id', seasonId)
     .maybeSingle();
 
+  const league = one(membership?.leagues);
+  const isOwner = league?.owner_id === user!.id;
+
+  // Which divisions are in view. Your own by default: picks are drafted
+  // against your division-mates, so those are the ones your week was
+  // actually competing with. The whole group is a step back from that.
+  const { data: groupDivisions } = membership
+    ? await supabase
+        .from('divisions')
+        .select('id, name, tier')
+        .eq('league_id', membership.league_id)
+        .eq('season_id', seasonId)
+        .order('tier')
+    : { data: [] };
+
+  const divisionsInView = wholeGroup
+    ? (groupDivisions ?? [])
+    : (groupDivisions ?? []).filter((d) => d.id === membership?.division_id);
+
+  const scopeToggle = membership ? (
+    <div
+      role="tablist"
+      aria-label="Results scope"
+      className="mt-4 inline-flex rounded-lg border border-grey-300 bg-card p-0.5"
+    >
+      {[
+        { key: 'division', label: one(membership.divisions)?.name ?? 'Your division' },
+        { key: 'group', label: 'Whole group' },
+      ].map((option) => {
+        const active = (option.key === 'group') === wholeGroup;
+        return (
+          <Link
+            key={option.key}
+            href={
+              option.key === 'group'
+                ? `/results?scope=group${gw ? `&gw=${gw}` : ''}`
+                : `/results${gw ? `?gw=${gw}` : ''}`
+            }
+            role="tab"
+            aria-selected={active}
+            className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition ${
+              active ? 'bg-panel text-white' : 'text-grey-500 hover:text-ink'
+            }`}
+          >
+            {option.label}
+          </Link>
+        );
+      })}
+    </div>
+  ) : null;
+
   const heading = (
     <div>
-      <p className="label">{membership?.divisions?.name ?? 'Results'}</p>
+      <p className="label">
+        {wholeGroup
+          ? (league?.name ?? 'Results')
+          : (one(membership?.divisions)?.name ?? 'Results')}
+      </p>
       <h1 className="display-lg mt-1">Results</h1>
+      {scopeToggle}
     </div>
   );
 
@@ -97,20 +154,29 @@ export default async function ResultsPage({
     );
   }
 
-  // Gameweeks this division has actually drafted.
+  // Gameweeks the divisions in view have actually drafted.
   const { data: drafts } = await supabase
     .from('drafts')
-    .select('id, gameweek_id, gameweeks(number, status)')
-    .eq('division_id', membership.division_id);
+    .select('id, division_id, gameweek_id, gameweeks(number, status)')
+    .in('division_id', divisionsInView.map((d) => d.id));
 
-  const played = (drafts ?? [])
-    .map((d) => ({
-      draftId: d.id,
+  const roundOf = new Map<
+    string,
+    { gameweekId: string; number: number; status: string; draftIds: string[] }
+  >();
+  for (const d of drafts ?? []) {
+    const gwRow = one(d.gameweeks) as { number: number; status: string } | null;
+    const entry = roundOf.get(d.gameweek_id) ?? {
       gameweekId: d.gameweek_id,
-      number: d.gameweeks?.number ?? 0,
-      status: d.gameweeks?.status ?? 'upcoming',
-    }))
-    .sort((a, b) => b.number - a.number);
+      number: gwRow?.number ?? 0,
+      status: gwRow?.status ?? 'upcoming',
+      draftIds: [],
+    };
+    entry.draftIds.push(d.id);
+    roundOf.set(d.gameweek_id, entry);
+  }
+
+  const played = [...roundOf.values()].sort((a, b) => b.number - a.number);
 
   if (!played.length) {
     return (
@@ -141,12 +207,12 @@ export default async function ResultsPage({
            competition:competitions(code)
          )`,
       )
-      .eq('draft_id', selected.draftId)
+      .in('draft_id', selected.draftIds)
       .order('pick_number'),
     supabase
       .from('division_members')
-      .select('user_id')
-      .eq('division_id', membership.division_id),
+      .select('user_id, division_id')
+      .in('division_id', divisionsInView.map((d) => d.id)),
   ]);
 
   const memberIds = (members ?? []).map((m) => m.user_id);
@@ -177,14 +243,36 @@ export default async function ResultsPage({
   };
 
   const rows = (picks ?? []) as unknown as Row[];
+  const divisionOf = new Map(
+    (members ?? []).map((m) => [m.user_id, m.division_id]),
+  );
+  const divisionName = new Map(divisionsInView.map((d) => [d.id, d.name]));
+
   const byPlayer = memberIds.map((id) => ({
     id,
+    divisionId: divisionOf.get(id) ?? '',
     picks: rows.filter((r) => r.user_id === id),
     points: rows
       .filter((r) => r.user_id === id)
       .reduce((sum, r) => sum + (r.points_awarded ?? 0), 0),
   }));
   byPlayer.sort((a, b) => b.points - a.points);
+
+  // Grouped by division when the whole group is in view, so a run of nine
+  // names isn't presented as one table it never competed in.
+  const sections = wholeGroup
+    ? divisionsInView.map((d) => ({
+        id: d.id,
+        name: d.name,
+        players: byPlayer.filter((p) => p.divisionId === d.id),
+      }))
+    : [
+        {
+          id: membership.division_id,
+          name: divisionName.get(membership.division_id) ?? '',
+          players: byPlayer,
+        },
+      ];
 
   const anyScored = rows.some((r) => r.points_awarded !== null);
 
@@ -193,6 +281,7 @@ export default async function ResultsPage({
   // a conversation; this is the other half, and it works mid-gameweek because
   // a fixture that has a score has one whether or not the week has settled.
   const slip: SlipGroup[] = byPlayer.map((player) => ({
+    section: wholeGroup ? divisionName.get(player.divisionId) : undefined,
     player: nameOf(player.id),
     points: anyScored ? player.points : null,
     picks: player.picks.map((r) => {
@@ -249,9 +338,22 @@ export default async function ResultsPage({
         </p>
       )}
 
-      {/* ---- Each player's card ---- */}
-      <div className="flex flex-col gap-5">
-        {byPlayer.map((player) => {
+      {/* ---- Each player's card, under its division when the whole group
+              is in view ---- */}
+      <div className="flex flex-col gap-8">
+        {sections.map((section) => (
+          <div key={section.id} className="flex flex-col gap-5">
+            {wholeGroup && (
+              <h2 className="label border-b border-grey-300 pb-2">
+                {section.name}
+              </h2>
+            )}
+            {section.players.length === 0 ? (
+              <p className="text-sm text-grey-500">
+                No picks from this division for gameweek {selected.number}.
+              </p>
+            ) : (
+              section.players.map((player) => {
           const p = profileOf(player.id);
           return (
             <section key={player.id} className="card overflow-hidden">
@@ -389,28 +491,46 @@ export default async function ResultsPage({
               </ul>
             </section>
           );
-        })}
+              })
+            )}
+          </div>
+        ))}
       </div>
 
-      {rows.length > 0 && (
+      {/* The whole group's card is the owner's to send — it's the one that
+          goes in the group chat, and it covers divisions the reader isn't in.
+          Your own division's slip is anyone's. */}
+      {rows.length > 0 && (!wholeGroup || isOwner) && (
         <section>
           <h2 className="label mb-1 flex items-center gap-1.5">
             <LockIcon className="h-3 w-3" />
             {finished ? 'How it finished' : kickedOff ? 'How it stands' : 'The slip'}
           </h2>
           <p className="mb-1 text-sm text-grey-700">
-            {finished
-              ? `All ${rows.length} picks from gameweek ${selected.number}, with the results and what they scored.`
-              : kickedOff
-                ? `All ${rows.length} picks with the scores as they stand right now.`
-                : `All ${rows.length} picks from gameweek ${selected.number}.`}
+            {wholeGroup
+              ? `Every pick in ${league?.name ?? 'the group'} for gameweek ${selected.number}, division by division, on one card.`
+              : finished
+                ? `All ${rows.length} picks from gameweek ${selected.number}, with the results and what they scored.`
+                : kickedOff
+                  ? `All ${rows.length} picks with the scores as they stand right now.`
+                  : `All ${rows.length} picks from gameweek ${selected.number}.`}
           </p>
           <SharePicks
             groups={slip}
             gameweek={`Gameweek ${selected.number}`}
-            subtitle={membership.divisions?.name ?? 'Your division'}
+            subtitle={
+              wholeGroup
+                ? (league?.name ?? 'Your group')
+                : (one(membership.divisions)?.name ?? 'Your division')
+            }
             locked
-            heading={finished ? 'Send the final slip' : 'Send the slip'}
+            heading={
+              wholeGroup
+                ? "Send every division's slip"
+                : finished
+                  ? 'Send the final slip'
+                  : 'Send the slip'
+            }
           />
         </section>
       )}
