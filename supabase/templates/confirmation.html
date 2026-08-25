@@ -1,0 +1,107 @@
+<!--
+  Lock Your Picks — confirm your email.
+
+  Paste into Supabase → Authentication → Email Templates → Confirm signup.
+
+  Same construction as recovery.html and for the same reasons: inline
+  styles because Gmail strips <style>, tables because Outlook renders with
+  Word, a system font stack because a webfont falls back silently, and a
+  padlock drawn from table cells so a client blocking remote images still
+  shows it.
+-->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+  Confirm your email and take your first three picks.
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background-color:#f9f9f8;margin:0;padding:24px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+             style="width:100%;max-width:600px;border-collapse:collapse;">
+
+        <tr>
+          <td style="background-color:#0d0d0d;padding:28px 32px;border-radius:16px 16px 0 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding-right:10px;font-size:0;line-height:0;vertical-align:middle;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="width:14px;height:8px;border:2px solid #c8f135;border-bottom:0;border-radius:7px 7px 0 0;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                      <td style="width:18px;height:12px;background-color:#c8f135;border-radius:3px;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+                  </table>
+                </td>
+                <td style="vertical-align:middle;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:2.5px;color:#c8f135;text-transform:uppercase;">
+                  Lock Your Picks
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="background-color:#ffffff;padding:36px 32px 32px;border-left:1px solid #e6e6e4;border-right:1px solid #e6e6e4;">
+
+            <h1 style="margin:0 0 14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:30px;line-height:1.15;font-weight:800;letter-spacing:-0.6px;color:#0d0d0d;">
+              Three picks. One draft.<br />No second chances.
+            </h1>
+
+            <p style="margin:0 0 22px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#374151;">
+              Confirm <span style="color:#0d0d0d;font-weight:600;">{{ .Email }}</span>
+              and you&rsquo;re in. Every gameweek you take three fixtures from
+              across the Premier League, the Championship, League One, League
+              Two and the cups &mdash; and once one&rsquo;s gone in your
+              division, nobody else can have it.
+            </p>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
+              <tr>
+                <td align="center" bgcolor="#c8f135" style="border-radius:10px;">
+                  <a href="{{ .ConfirmationURL }}"
+                     style="display:inline-block;padding:14px 28px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#0d0d0d;text-decoration:none;border-radius:10px;">
+                    Confirm and start picking
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="margin:0 0 22px;background-color:#f9f9f8;border:1px solid #e6e6e4;border-radius:10px;">
+              <tr>
+                <td style="padding:14px 16px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#374151;">
+                  <strong style="color:#0d0d0d;">Got a join code?</strong>
+                  Enter it once you&rsquo;re in and you&rsquo;ll land in your
+                  mates&rsquo; group. No code? Take a place in the open league
+                  and we&rsquo;ll put you in a division of three.
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#6b7280;">
+              Or paste this into your browser:
+            </p>
+            <p style="margin:0 0 24px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;word-break:break-all;">
+              <a href="{{ .ConfirmationURL }}" style="color:#3b82f6;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+            </p>
+
+            <p style="margin:0;padding-top:20px;border-top:1px solid #e6e6e4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#6b7280;">
+              Didn&rsquo;t sign up? Ignore this and no account is created.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="background-color:#ffffff;padding:20px 32px 26px;border:1px solid #e6e6e4;border-top:0;border-radius:0 0 16px 16px;">
+            <p style="margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#9ca3af;">
+              Lock Your Picks &mdash; a prediction league for people who take it too seriously.<br />
+              <a href="https://lockyourpicks.com" style="color:#9ca3af;text-decoration:underline;">lockyourpicks.com</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

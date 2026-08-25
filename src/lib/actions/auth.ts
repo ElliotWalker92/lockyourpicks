@@ -7,6 +7,16 @@ import { createClient } from '@/lib/supabase/server';
 
 export type AuthState = { error: string | null };
 
+/**
+ * Where emailed links come back to.
+ *
+ * Must match a Redirect URL allowed in the auth project, or Supabase
+ * silently substitutes the site URL and drops the query with it.
+ */
+function siteOrigin(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? 'https://lockyourpicks.com';
+}
+
 function readCredentials(formData: FormData) {
   return {
     email: String(formData.get('email') ?? '').trim(),
@@ -55,6 +65,11 @@ export async function signUp(
     password,
     options: {
       data: { display_name: displayName || email.split('@')[0] },
+      // Without this the link lands on the site root — the marketing page,
+      // asking someone who has just confirmed their email to sign in again.
+      // Sending it through the callback exchanges the code for a session, so
+      // confirming drops them straight onto the dashboard.
+      emailRedirectTo: `${siteOrigin()}/auth/callback?next=/dashboard`,
     },
   });
 
@@ -94,11 +109,9 @@ export async function requestPasswordReset(
   if (!email) return { error: 'Enter your email address.' };
 
   const supabase = await createClient();
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://lockyourpicks.com';
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/auth/new-password`,
+    redirectTo: `${siteOrigin()}/auth/callback?next=/auth/new-password`,
   });
 
   // Log the real failure, but don't surface it — see above.

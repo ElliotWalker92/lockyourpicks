@@ -8,6 +8,7 @@ has somewhere obvious to land.
 | File | Template |
 | --- | --- |
 | `recovery.html` | Reset Password |
+| `confirmation.html` | Confirm signup |
 
 Paste the file's contents into the template's HTML body. Supabase substitutes
 `{{ .ConfirmationURL }}` and `{{ .Email }}` when it sends.
