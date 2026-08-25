@@ -40,6 +40,9 @@
   "vars": {
     // Non-secret. Secrets are set with `wrangler secret put` and never live here:
     //   SUPABASE_SERVICE_ROLE_KEY, API_FOOTBALL_KEY, CRON_SECRET
-    "NEXT_PUBLIC_SUPABASE_URL": "https://itxdvbfjpyszcwnwbbyt.supabase.co"
+    "NEXT_PUBLIC_SUPABASE_URL": "https://itxdvbfjpyszcwnwbbyt.supabase.co",
+    // Where emailed auth links come back to. Must match a Redirect URL
+    // allowed in the Supabase project, or the link silently loses its code.
+    "NEXT_PUBLIC_SITE_URL": "https://lockyourpicks.com"
   }
 }

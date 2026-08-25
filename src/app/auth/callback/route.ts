@@ -19,7 +19,12 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`);
     }
+    // Nearly always a link that has already been used or has expired.
+    return NextResponse.redirect(`${origin}/auth/sign-in?error=expired`);
   }
 
-  return NextResponse.redirect(`${origin}/auth/sign-in?error=callback`);
+  // Arriving with no code at all means the link never carried one — the
+  // usual cause is the redirect URL not being allowed by the auth project,
+  // which silently replaces it with the site URL and drops the query.
+  return NextResponse.redirect(`${origin}/auth/sign-in?error=link`);
 }

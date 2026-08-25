@@ -95,7 +95,7 @@ export async function requestPasswordReset(
 
   const supabase = await createClient();
   const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.lockyourpicks.com';
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://lockyourpicks.com';
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/callback?next=/auth/new-password`,
