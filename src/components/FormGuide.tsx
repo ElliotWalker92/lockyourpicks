@@ -49,7 +49,7 @@ export function FormGuide({
 
   const tone = (pts: number) =>
     pts >= perfect
-      ? 'bg-lime text-ink'
+      ? 'bg-lime text-on-accent'
       : pts === 0
         ? 'bg-loss/15 text-loss'
         : pts >= perfect / 2
@@ -67,7 +67,7 @@ export function FormGuide({
         >
           <span
             aria-hidden
-            className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-ink"
+            className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-on-accent"
             style={{ background: p.colour }}
           >
             {p.avatarUrl ? (

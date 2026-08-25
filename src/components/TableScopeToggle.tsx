@@ -30,7 +30,7 @@ export function TableScopeToggle({ scope }: { scope: 'league' | 'global' }) {
             aria-selected={active}
             className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition ${
               active
-                ? 'bg-ink text-white'
+                ? 'bg-panel text-white'
                 : 'text-grey-500 hover:text-ink'
             }`}
           >

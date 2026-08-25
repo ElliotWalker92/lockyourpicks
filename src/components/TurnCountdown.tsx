@@ -87,7 +87,7 @@ export function TurnCountdown({
   return (
     <section
       className={`relative isolate overflow-hidden rounded-xl border px-6 py-7 text-white sm:px-8 ${
-        isMyTurn ? 'border-hot bg-ink' : 'border-grey-300 bg-ink/95'
+        isMyTurn ? 'border-hot bg-panel' : 'border-grey-300 bg-panel/95'
       }`}
     >
       {isMyTurn && (

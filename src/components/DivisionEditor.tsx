@@ -134,7 +134,7 @@ export function DivisionEditor({
 
                     <span
                       aria-hidden
-                      className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-ink"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-on-accent"
                       style={{ background: p?.colour ?? '#c8f135' }}
                     >
                       {p?.avatarUrl ? (

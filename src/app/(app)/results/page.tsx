@@ -258,7 +258,7 @@ export default async function ResultsPage({
               <div className="flex items-center gap-3 border-b border-grey-300 px-5 py-3.5">
                 <span
                   aria-hidden
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[11px] font-semibold text-ink"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[11px] font-semibold text-on-accent"
                   style={{ background: p?.avatar_color ?? '#c8f135' }}
                 >
                   {p?.avatar_url ? (

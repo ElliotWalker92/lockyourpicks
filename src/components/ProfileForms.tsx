@@ -152,7 +152,7 @@ export function AvatarUploader({
         ) : (
           <span
             aria-hidden
-            className="flex h-18 w-18 items-center justify-center rounded-full font-display text-2xl text-ink"
+            className="flex h-18 w-18 items-center justify-center rounded-full font-display text-2xl text-on-accent"
             style={{ background: avatarColor }}
           >
             {initials}

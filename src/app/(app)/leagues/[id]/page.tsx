@@ -118,7 +118,7 @@ export default async function LeaguePage({
                       >
                         <span
                           aria-hidden
-                          className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold text-ink"
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold text-on-accent"
                           style={{ background: colourOf(dm.user_id) }}
                         >
                           {nameOf(dm.user_id).charAt(0).toUpperCase()}
@@ -194,7 +194,7 @@ export default async function LeaguePage({
             <li key={m.user_id} className="flex items-center gap-2.5 text-sm">
               <span
                 aria-hidden
-                className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold text-ink"
+                className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold text-on-accent"
                 style={{ background: colourOf(m.user_id) }}
               >
                 {nameOf(m.user_id).charAt(0).toUpperCase()}

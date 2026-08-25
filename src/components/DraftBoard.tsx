@@ -519,10 +519,10 @@ export function DraftBoard({
                       <span
                         className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                           p.outcome === 'HOME'
-                            ? 'bg-lime text-ink'
+                            ? 'bg-lime text-on-accent'
                             : p.outcome === 'AWAY'
                               ? 'bg-away text-white'
-                              : 'bg-grey-300 text-ink'
+                              : 'bg-grey-300 text-on-accent'
                         }`}
                       >
                         {p.called}
@@ -563,7 +563,7 @@ export function DraftBoard({
                         left edge, however long the previous name was. */}
                     <span
                       aria-hidden
-                      className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-ink"
+                      className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent"
                       style={{ background: colourOf(pick.user_id) }}
                     >
                       {initialsOf(pick.user_id)}

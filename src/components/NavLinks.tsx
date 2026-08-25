@@ -43,7 +43,7 @@ export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
             aria-current={active ? 'page' : undefined}
             className={`rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition ${
               active
-                ? 'bg-lime text-ink'
+                ? 'bg-lime text-on-accent'
                 : 'text-grey-500 hover:bg-grey-100 hover:text-ink'
             }`}
           >

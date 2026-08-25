@@ -459,7 +459,7 @@ export default async function DashboardPage() {
                   </span>
                   <span
                     aria-hidden
-                    className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-ink"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-on-accent"
                     style={{ background: p?.avatar_color ?? '#c8f135' }}
                   >
                     {p?.avatar_url ? (

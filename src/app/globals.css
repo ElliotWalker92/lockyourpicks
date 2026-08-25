@@ -10,20 +10,35 @@
    ============================================================ */
 
 @theme {
-  --color-ink: #0d0d0d;
+  /* Each token carries both palettes. light-dark() resolves against the
+     computed color-scheme, so switching theme is a one-line change on the
+     root rather than a second copy of the palette that drifts out of step. */
+
+  /* Primary text on the page surface. Flips with the theme. */
+  --color-ink: light-dark(#0d0d0d, #f2f2f0);
+  /* Text sitting on lime, grey pills or a coloured avatar. Always dark,
+     because those backgrounds don't change with the theme. */
+  --color-on-accent: #0d0d0d;
+  /* Deliberately dark panels — the countdown, the hero, a selected tab.
+     Lifts rather than inverts in the dark, so it still reads as raised. */
+  --color-panel: light-dark(#0d0d0d, #232327);
+
+  /* The brand. Lime, electric blue and hot pink mean the same thing on
+     either background, so they don't move. */
   --color-lime: #c8f135;
   --color-lime-dark: #b8e020;
-  --color-surface: #f9f9f8;
-  --color-card: #ffffff;
 
-  --color-grey-700: #374151;
-  --color-grey-500: #6b7280;
-  --color-grey-400: #9ca3af;
-  --color-grey-300: #d1d5db;
-  --color-grey-100: #f3f4f6;
+  --color-surface: light-dark(#f9f9f8, #101012);
+  --color-card: light-dark(#ffffff, #1a1a1d);
 
-  --color-win: #22c55e;
-  --color-loss: #ef4444;
+  --color-grey-700: light-dark(#374151, #d4d4d8);
+  --color-grey-500: light-dark(#6b7280, #a1a1aa);
+  --color-grey-400: light-dark(#9ca3af, #71717a);
+  --color-grey-300: light-dark(#d1d5db, #3f3f46);
+  --color-grey-100: light-dark(#f3f4f6, #27272a);
+
+  --color-win: light-dark(#22c55e, #4ade80);
+  --color-loss: light-dark(#ef4444, #f87171);
 
   /* The away side in a probability bar. Carried over from the WC2026 app,
      where .prob-seg.away used exactly this. */
@@ -48,11 +63,38 @@
   --shadow-float: 0 12px 32px rgb(0 0 0 / 0.1);
 }
 
-/* The game is a light-surface design. A half-derived dark mode looked worse
-   than none, so the palette is committed to rather than duplicated. */
+/* ---- Choosing a theme ----
+   With no preference recorded the root accepts both schemes, so the browser
+   follows the operating system. A recorded choice pins it, and because the
+   attribute is rendered by the server from a cookie there is no script to
+   run and no frame of the wrong palette before it does. */
 html {
   scroll-behavior: smooth;
+  color-scheme: light dark;
+}
+
+html[data-theme='light'] {
   color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* Shadows are the one thing light-dark() can't carry: they aren't colours.
+   On a dark surface they do nothing anyway — the borders do that work. */
+html[data-theme='dark'] {
+  --shadow-card: none;
+  --shadow-raised: 0 4px 12px rgb(0 0 0 / 0.5);
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) {
+    --shadow-card: none;
+    --shadow-raised: 0 4px 12px rgb(0 0 0 / 0.5);
+    --shadow-float: 0 12px 32px rgb(0 0 0 / 0.6);
+  }
 }
 
 body {
@@ -153,7 +195,7 @@ body {
 
 .btn-lime {
   background: var(--color-lime);
-  color: var(--color-ink);
+  color: var(--color-on-accent);
 }
 .btn-lime:not(:disabled):hover {
   background: var(--color-lime-dark);
@@ -167,7 +209,7 @@ body {
    doesn't have to be relearned as a second colour language. */
 .btn-draw {
   background: var(--color-grey-300);
-  color: var(--color-ink);
+  color: var(--color-on-accent);
 }
 .btn-draw:not(:disabled):hover {
   background: var(--color-grey-400);
@@ -186,7 +228,7 @@ body {
 }
 
 .btn-ink {
-  background: var(--color-ink);
+  background: var(--color-panel);
   color: #fff;
 }
 .btn-ink:not(:disabled):hover {

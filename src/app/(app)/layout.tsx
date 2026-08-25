@@ -52,7 +52,7 @@ export default async function AppLayout({
             >
               <span
                 aria-hidden
-                className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-ink"
+                className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-on-accent"
                 style={{ background: profile?.avatar_color ?? '#c8f135' }}
               >
                 {profile?.avatar_url ? (

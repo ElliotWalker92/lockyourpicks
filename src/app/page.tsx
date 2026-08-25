@@ -34,7 +34,7 @@ export default async function Home() {
   return (
     <main className="flex flex-1 flex-col">
       {/* ---- Hero ---- */}
-      <section className="relative isolate overflow-hidden bg-ink text-white">
+      <section className="relative isolate overflow-hidden bg-panel text-white">
         <PitchBackdrop className="absolute inset-0 h-full w-full text-lime/25" />
 
         {/* Warms the centre so the headline has something to sit against. */}
@@ -174,7 +174,7 @@ export default async function Home() {
       </section>
 
       {/* ---- Closing call to action ---- */}
-      <section className="border-t border-grey-300 bg-ink text-white">
+      <section className="border-t border-grey-300 bg-panel text-white">
         <div className="mx-auto w-full max-w-5xl px-6 py-14 text-center">
           <h2 className="display-lg">
             Ready to <span className="text-lime">lock them in?</span>

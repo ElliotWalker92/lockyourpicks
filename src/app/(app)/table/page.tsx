@@ -87,7 +87,7 @@ function Table({
                   <span className="flex items-center gap-2.5">
                     <span
                       aria-hidden
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-ink"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-on-accent"
                       style={{ background: PALETTE[index % PALETTE.length] }}
                     >
                       {initials(row.displayName)}
@@ -114,7 +114,7 @@ function Table({
                             <span
                               key={i}
                               title={p.label}
-                              className="flex h-5 w-5 items-center justify-center rounded-full bg-grey-300 text-[9px] font-bold text-ink"
+                              className="flex h-5 w-5 items-center justify-center rounded-full bg-grey-300 text-[9px] font-bold text-on-accent"
                             >
                               D
                             </span>

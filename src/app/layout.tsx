@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Archivo, Inter } from "next/font/google";
 import "./globals.css";
 
@@ -58,13 +59,31 @@ export const viewport = {
   themeColor: "#0d0d0d",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+/**
+ * The theme is rendered, not scripted.
+ *
+ * Reading a cookie on the server and stamping `data-theme` into the HTML
+ * means the first paint is already the right palette. The usual alternative
+ * — an inline script that reads localStorage — cannot be placed in an App
+ * Router layout without either being a script tag React refuses to execute
+ * on navigation, or being hoisted somewhere `<script>` isn't legal.
+ *
+ * No cookie means no attribute, and the root's `color-scheme: light dark`
+ * hands the decision to the operating system with no JavaScript at all.
+ */
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = (await cookies()).get("theme")?.value;
+  const pinned = theme === "light" || theme === "dark" ? theme : undefined;
+
   return (
     <html
       lang="en"
+      data-theme={pinned}
       className={`${archivo.variable} ${inter.variable} h-full`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {children}
+      </body>
     </html>
   );
 }

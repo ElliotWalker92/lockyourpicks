@@ -55,7 +55,7 @@ export default async function LeaguesPage() {
                 >
                   <span className="flex-1 font-medium">{league.name}</span>
                   {league.owner_id === user!.id && (
-                    <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-medium text-ink">
+                    <span className="rounded-full bg-lime px-2 py-0.5 text-xs font-medium text-on-accent">
                       Owner
                     </span>
                   )}

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { Crest } from '@/components/Crest';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Leagues' };
@@ -138,7 +139,7 @@ export default async function StandingsPage({
               aria-current={active ? 'page' : undefined}
               className={`rounded-md border px-3 py-1.5 text-sm font-medium transition ${
                 active
-                  ? 'border-ink bg-ink text-white'
+                  ? 'border-panel bg-panel text-white'
                   : 'border-grey-300 text-grey-700 hover:border-ink hover:text-ink'
               }`}
             >
@@ -212,17 +213,10 @@ export default async function StandingsPage({
 
                       <td className="w-full max-w-0 py-2.5 pr-2">
                         <span className="flex items-center gap-2.5">
-                          {row.team?.crest_url && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={row.team.crest_url}
-                              alt=""
-                              width={24}
-                              height={24}
-                              className="h-6 w-6 shrink-0 object-contain"
-                              loading="lazy"
-                            />
-                          )}
+                          <Crest
+                            url={row.team?.crest_url}
+                            className="h-6 w-6"
+                          />
                           <span
                             className="truncate font-medium"
                             title={row.team?.name ?? undefined}

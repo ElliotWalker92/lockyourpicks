@@ -5,6 +5,7 @@ import {
   PasswordForm,
 } from '@/components/ProfileForms';
 import { signOut } from '@/lib/actions/auth';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Profile' };
@@ -69,6 +70,13 @@ export default async function ProfilePage() {
             avatarColor={colour}
             initials={initialsOf(name)}
           />
+        </Section>
+
+        <Section
+          title="Appearance"
+          description="Kept on this device, so it won't follow you to another one."
+        >
+          <ThemeToggle />
         </Section>
 
         <Section title="Details">

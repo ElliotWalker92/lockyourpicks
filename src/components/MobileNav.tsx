@@ -94,7 +94,7 @@ export function MobileNav() {
               >
                 <span
                   className={`flex h-7 w-10 items-center justify-center rounded-full transition ${
-                    active ? 'bg-lime' : ''
+                    active ? 'bg-lime text-on-accent' : ''
                   }`}
                 >
                   <svg
