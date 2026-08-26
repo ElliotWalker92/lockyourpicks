@@ -381,67 +381,121 @@ export function DraftBoard({
         </p>
       )}
 
-      {/* ---- Your picks ---- */}
-      <section>
-        <h2 className="label mb-3">
-          Your picks ({myPicks.length}/{draft.picks_per_player})
-          {isMyTurn && myPicks.length > 0 && (
-            <span className="ml-2 inline-flex items-center gap-1 font-normal normal-case tracking-normal text-grey-400">
-              <LockIcon open className="h-3 w-3" />
-              not locked in yet
-            </span>
-          )}
-        </h2>
-        {myPicks.length === 0 ? (
-          <p className="text-sm text-grey-500">
-            {isMyTurn
-              ? `Pick ${draft.picks_per_player} fixtures below. You can change them until you lock in.`
-              : 'Nothing drafted yet.'}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {myPicks
-              .sort((a, b) => a.pick_number - b.pick_number)
-              .map((pick) => {
-                const f = fixtures.find((x) => x.id === pick.fixture_id);
-                if (!f) return null;
-                return (
-                  <li
-                    key={pick.id}
-                    className="card flex items-center gap-2 px-3 py-2.5 text-sm"
-                  >
-                    <FixtureLine
-                      home={f.home.name}
-                      away={f.away.name}
-                      homeCrest={f.home.crest_url}
-                      awayCrest={f.away.crest_url}
-                      outcome={pick.predicted_outcome}
-                      className="flex-1 text-grey-700"
-                    />
-                    {pick.is_auto_pick && (
-                      <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
-                        auto
-                      </span>
-                    )}
-                    <OutcomeChip outcome={pick.predicted_outcome} />
+      {/* ---- The slip ----
+              One list, not three. "Your picks", "The week's slip" and "Gone"
+              were the same nine picks sliced three ways: your own, then
+              everyone's once the last player finished, then everyone else's
+              struck through. So the same fixture appeared twice under two
+              framings, the slip stayed hidden for most of the week, and a
+              rival's pick read as a loss rather than as their call.
 
-                    {/* Pinned right on its own so it never reflows into the
-                        middle of the row as names change length. */}
-                    {isMyTurn && (
-                      <button
-                        type="button"
-                        onClick={() => drop(pick.id)}
-                        disabled={pending}
-                        className="shrink-0 text-xs text-grey-500 underline underline-offset-2 transition hover:text-loss"
+              This is the slip from the first pick, filling as the division
+              drafts. Yours is the card that's lit. */}
+      <section>
+        <h2 className="label mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <LockIcon open={!everyoneIn} className="h-3 w-3" />
+          The slip
+          <span className="font-normal normal-case tracking-normal text-grey-400">
+            {picks.length}/{expectedPicks} in
+          </span>
+        </h2>
+        <p className="mb-3 text-sm text-grey-700">
+          {everyoneIn
+            ? `Everyone's in — all ${expectedPicks} picks from ${divisionName}, in drafting order.`
+            : `${divisionName}, in drafting order. Once a fixture is on here it's gone.`}
+        </p>
+
+        <ol className="flex flex-col gap-2">
+          {order.map((userId) => {
+            const mine = userId === currentUserId;
+            const theirs = picks
+              .filter((p) => p.user_id === userId)
+              .sort((a, b) => a.pick_number - b.pick_number);
+            const owed = draft.picks_per_player - theirs.length;
+            const picking = draft.status === 'active' && onTurn === userId;
+
+            return (
+              <li
+                key={userId}
+                className={`overflow-hidden rounded-lg border ${
+                  mine ? 'border-hot bg-hot/5' : 'border-grey-300 bg-card'
+                }`}
+              >
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <span
+                    aria-hidden
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent"
+                    style={{ background: colourOf(userId) }}
+                  >
+                    {initialsOf(userId)}
+                  </span>
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    {nameOf(userId)}
+                  </span>
+                  {mine && (
+                    <span className="shrink-0 text-xs text-grey-500">you</span>
+                  )}
+                  {picking && (
+                    <span className="shrink-0 rounded-full bg-hot px-2 py-0.5 text-[10px] font-semibold text-white">
+                      picking
+                    </span>
+                  )}
+                  <span className="ml-auto shrink-0 font-mono text-xs text-grey-500">
+                    {theirs.length}/{draft.picks_per_player}
+                  </span>
+                </div>
+
+                <ul className="divide-y divide-grey-100 border-t border-grey-100">
+                  {theirs.map((pick) => {
+                    const f = fixtures.find((x) => x.id === pick.fixture_id);
+                    if (!f) return null;
+                    return (
+                      <li
+                        key={pick.id}
+                        className="flex items-center gap-2 px-3 py-2 text-sm"
                       >
-                        Remove
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-          </ul>
-        )}
+                        <FixtureLine
+                          home={f.home.name}
+                          away={f.away.name}
+                          homeCrest={f.home.crest_url}
+                          awayCrest={f.away.crest_url}
+                          outcome={pick.predicted_outcome}
+                          className="flex-1 text-grey-700"
+                        />
+                        {pick.is_auto_pick && (
+                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
+                            auto
+                          </span>
+                        )}
+                        <OutcomeChip outcome={pick.predicted_outcome} />
+
+                        {/* Only your own, and only while the turn is yours. */}
+                        {mine && isMyTurn && (
+                          <button
+                            type="button"
+                            onClick={() => drop(pick.id)}
+                            disabled={pending}
+                            className="shrink-0 text-xs text-grey-500 underline underline-offset-2 transition hover:text-loss"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+
+                  {owed > 0 && (
+                    <li className="px-3 py-2 text-sm text-grey-400">
+                      {mine && isMyTurn
+                        ? `${owed} more to pick — choose below.`
+                        : `${owed} still to come.`}
+                    </li>
+                  )}
+                </ul>
+              </li>
+            );
+          })}
+        </ol>
 
         {isMyTurn && (
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -462,59 +516,10 @@ export function DraftBoard({
           </div>
         )}
 
-        {/* Only once the set is complete: a half-finished slip sent to the
-            group is worse than none. */}
-        {myPicks.length >= draft.picks_per_player && (
-          <SharePicks
-            groups={[{ player: nameOf(currentUserId), picks: sharePicks }]}
-            gameweek={gameweekLabel}
-            subtitle={`${nameOf(currentUserId)} · ${divisionName}`}
-            locked={!isMyTurn}
-          />
-        )}
-      </section>
-
-      {/* ---- The whole division's slip ---- */}
-      {everyoneIn && (
-        <section>
-          <h2 className="label mb-1 flex items-center gap-1.5">
-            <LockIcon className="h-3 w-3" />
-            The week&rsquo;s slip
-          </h2>
-          <p className="mb-3 text-sm text-grey-700">
-            Everyone&rsquo;s in. All {expectedPicks} picks from{' '}
-            {divisionName}, in drafting order &mdash; one card for the group
-            chat.
-          </p>
-
-          <ol className="flex flex-col gap-4">
-            {divisionSlip.map((group) => (
-              <li key={group.player}>
-                <p className="mb-1.5 text-xs font-semibold tracking-wider text-hot uppercase">
-                  {group.player}
-                </p>
-                <ul className="flex flex-col divide-y divide-grey-100">
-                  {group.picks.map((p, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2 py-1.5 text-sm"
-                    >
-                      <FixtureLine
-                        home={p.home}
-                        away={p.away}
-                        homeCrest={p.homeCrest}
-                        awayCrest={p.awayCrest}
-                        outcome={p.outcome}
-                        className="flex-1 text-grey-700"
-                      />
-                      <OutcomeChip outcome={p.outcome} />
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
-
+        {/* One card at a time. Until the division is finished the only
+            complete thing to send is your own set; after that it's the
+            slip, which contains yours anyway. */}
+        {everyoneIn ? (
           <SharePicks
             groups={divisionSlip}
             gameweek={gameweekLabel}
@@ -523,55 +528,17 @@ export function DraftBoard({
             heading="Send the slip"
             note={`All ${expectedPicks} picks on one card. Share sends the picture on a phone, or saves it to attach.`}
           />
-        </section>
-      )}
-
-      {/* ---- Taken ---- */}
-      {picks.length > myPicks.length && (
-        <section>
-          <h2 className="label mb-3">
-            Gone
-          </h2>
-          <ul className="flex flex-col divide-y divide-grey-100">
-            {picks
-              .filter((p) => p.user_id !== currentUserId)
-              .map((pick) => {
-                const f = fixtures.find((x) => x.id === pick.fixture_id);
-                if (!f) return null;
-                return (
-                  <li key={pick.id} className="flex gap-2.5 py-2 text-sm">
-                    {/* Fixed-width avatar so every fixture starts on the same
-                        left edge, however long the previous name was. */}
-                    <span
-                      aria-hidden
-                      className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent"
-                      style={{ background: colourOf(pick.user_id) }}
-                    >
-                      {initialsOf(pick.user_id)}
-                    </span>
-
-                    {/* Stacks on a phone — attribution sits under the fixture
-                        rather than colliding with it — and sits inline once
-                        there's room. */}
-                    <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                      <FixtureLine
-                        home={f.home.name}
-                        away={f.away.name}
-                        homeCrest={f.home.crest_url}
-                        awayCrest={f.away.crest_url}
-                        crestClass="h-4 w-4 opacity-50"
-                        className="text-grey-500 line-through"
-                      />
-                      <span className="text-xs text-grey-400">
-                        picked by {nameOf(pick.user_id)}
-                      </span>
-                    </span>
-                  </li>
-                );
-              })}
-          </ul>
-        </section>
-      )}
+        ) : (
+          myPicks.length >= draft.picks_per_player && (
+            <SharePicks
+              groups={[{ player: nameOf(currentUserId), picks: sharePicks }]}
+              gameweek={gameweekLabel}
+              subtitle={`${nameOf(currentUserId)} · ${divisionName}`}
+              locked={!isMyTurn}
+            />
+          )
+        )}
+      </section>
 
       {/* ---- Available ---- */}
       <section>

@@ -27,7 +27,13 @@ function ordinal(n: number) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-/** Big number + caption, used for the three headline stats. */
+/**
+ * Big number + caption, used for the headline stats.
+ *
+ * Tighter below `sm`: at full width a box held one short number and a
+ * caption, and the rest of the screen. Two to a row halves the dead space,
+ * and the padding and type come down to suit the narrower box.
+ */
 function Stat({
   label,
   value,
@@ -40,15 +46,21 @@ function Stat({
   note?: string;
 }) {
   return (
-    <div className="card p-5">
-      <p className="label">{label}</p>
-      <p className="numeric mt-1 text-4xl leading-none">
+    <div className="card p-4 sm:p-5">
+      <p className="label text-[10px] sm:text-xs">{label}</p>
+      <p className="numeric mt-1 text-3xl leading-none sm:text-4xl">
         {value}
         {suffix && (
-          <span className="ml-1.5 text-base text-grey-500">{suffix}</span>
+          <span className="ml-1.5 text-sm text-grey-500 sm:text-base">
+            {suffix}
+          </span>
         )}
       </p>
-      {note && <p className="mt-1.5 text-xs text-grey-500">{note}</p>}
+      {note && (
+        <p className="mt-1.5 text-[11px] leading-snug text-grey-500 sm:text-xs">
+          {note}
+        </p>
+      )}
     </div>
   );
 }
@@ -212,6 +224,19 @@ export default async function DashboardPage() {
   });
   formPlayers.sort((a, b) => b.total - a.total);
 
+  // Your score in the most recent gameweek you actually played — not simply
+  // the last one settled, which your division may not have drafted.
+  const lastRound =
+    [...recent]
+      .reverse()
+      .map((w) => {
+        const s = (scores ?? []).find(
+          (x) => x.user_id === user!.id && x.gameweek_id === w.id,
+        );
+        return s ? { number: w.number, points: s.points ?? 0 } : null;
+      })
+      .find((x) => x !== null) ?? null;
+
   const onTurn = draft ? userAtTurn(draft.pick_order, draft.current_turn) : null;
   const isMyTurn = draft?.status === 'active' && onTurn === user!.id;
 
@@ -318,8 +343,9 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* ---- Standings at a glance ---- */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* ---- Standings at a glance ----
+              Two to a row on a phone, four across once there's room. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat
           label={membership.divisions?.name ?? 'Division'}
           value={meDiv ? ordinal(meDiv.position) : '—'}
@@ -344,6 +370,14 @@ export default async function DashboardPage() {
           note={`${meDiv?.gameweeksPlayed ?? 0} gameweek${
             (meDiv?.gameweeksPlayed ?? 0) === 1 ? '' : 's'
           } scored`}
+        />
+        <Stat
+          label="Last round"
+          value={lastRound ? lastRound.points : '—'}
+          suffix={
+            lastRound ? `of ${draft?.picks_per_player ?? 3}` : undefined
+          }
+          note={lastRound ? `Gameweek ${lastRound.number}` : 'Nothing scored yet'}
         />
       </div>
 
