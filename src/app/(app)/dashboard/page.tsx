@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { FixtureLine, OutcomeChip } from '@/components/Fixture';
+import { LiveScores } from '@/components/LiveScores';
 import { FormGuide, FormGuideHeading } from '@/components/FormGuide';
 import { JoinOpenLeagueForm } from '@/components/LeagueForms';
 import { LockIcon } from '@/components/LockIcon';
@@ -245,9 +246,9 @@ export default async function DashboardPage() {
     ? await supabase
         .from('picks')
         .select(
-          `id, predicted_outcome, is_auto_pick,
+          `id, predicted_outcome, is_auto_pick, points_awarded,
            fixtures(
-             kickoff_at,
+             kickoff_at, home_score, away_score, result, status,
              home:teams!fixtures_home_team_id_fkey(name, crest_url),
              away:teams!fixtures_away_team_id_fkey(name, crest_url)
            )`,
@@ -262,16 +263,51 @@ export default async function DashboardPage() {
     id: string;
     predicted_outcome: 'HOME' | 'DRAW' | 'AWAY';
     is_auto_pick: boolean;
+    points_awarded: number | null;
     fixtures: {
       kickoff_at: string;
+      home_score: number | null;
+      away_score: number | null;
+      result: 'HOME' | 'DRAW' | 'AWAY' | null;
+      status: string;
       home: TeamRow | TeamRow[];
       away: TeamRow | TeamRow[];
     };
   };
   const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
 
+  /**
+   * How a pick is doing.
+   *
+   * `points_awarded` is the authority, but it isn't written until the whole
+   * gameweek settles — so waiting for it means watching a 2–1 sit on screen
+   * all Saturday with no idea whether you'd got it. Once a fixture has a
+   * result the answer is already known: the rule is one point per correct
+   * call, so applying it early isn't a guess, just the same arithmetic
+   * sooner. The settled value still wins wherever it exists.
+   */
+  const verdictOf = (p: PickRow) => {
+    if (p.points_awarded !== null) {
+      return { decided: true, correct: p.points_awarded === 1 };
+    }
+    if (p.fixtures.result !== null) {
+      return { decided: true, correct: p.fixtures.result === p.predicted_outcome };
+    }
+    return { decided: false, correct: false };
+  };
+
+  const myPickRows = (myPicks ?? []) as unknown as PickRow[];
+  const decided = myPickRows.filter((p) => verdictOf(p).decided);
+  const landed = decided.filter((p) => verdictOf(p).correct).length;
+  const allSettled =
+    myPickRows.length > 0 && myPickRows.every((p) => p.points_awarded !== null);
+
   return (
     <div className="flex flex-col gap-8">
+      {/* Scores, ticks, the running total, the last-round stat and the
+          division table all move as results land — see migration 0021. */}
+      {gameweek && <LiveScores gameweekId={gameweek.id} />}
+
       {/* ---- Heading ---- */}
       <div>
         <p className="label">
@@ -399,13 +435,26 @@ export default async function DashboardPage() {
               <LockIcon open={isMyTurn} className="h-3 w-3" />
               Your picks ({myPicks?.length ?? 0}/{draft?.picks_per_player ?? 3})
             </h2>
-            {draft?.status === 'active' && (
-              <Link
-                href="/draft"
-                className="text-sm text-grey-500 underline underline-offset-4 hover:text-ink"
-              >
-                {isMyTurn ? 'Edit' : 'View board'}
-              </Link>
+            {decided.length > 0 ? (
+              // Once anything has finished, the running total is the thing
+              // worth reading here — not a link to a board you've left.
+              <span className="flex items-baseline gap-1.5 text-sm">
+                <span className="numeric text-lg">{landed}</span>
+                <span className="text-grey-500">
+                  {allSettled
+                    ? `pt${landed === 1 ? '' : 's'}`
+                    : `from ${decided.length} so far`}
+                </span>
+              </span>
+            ) : (
+              draft?.status === 'active' && (
+                <Link
+                  href="/draft"
+                  className="text-sm text-grey-500 underline underline-offset-4 hover:text-ink"
+                >
+                  {isMyTurn ? 'Edit' : 'View board'}
+                </Link>
+              )
             )}
           </div>
 
@@ -417,9 +466,12 @@ export default async function DashboardPage() {
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {(myPicks as unknown as PickRow[]).map((p) => {
+              {myPickRows.map((p) => {
                 const homeTeam = one(p.fixtures.home);
                 const awayTeam = one(p.fixtures.away);
+                const verdict = verdictOf(p);
+                const live = p.fixtures.status === 'live';
+                const hasScore = p.fixtures.home_score !== null;
                 return (
                   <li
                     key={p.id}
@@ -438,7 +490,36 @@ export default async function DashboardPage() {
                         auto
                       </span>
                     )}
+
+                    {/* The score as it stands, hot while the game is on. */}
+                    {hasScore && (
+                      <span
+                        className={`shrink-0 font-mono text-xs tabular-nums ${
+                          live ? 'font-semibold text-hot' : 'text-grey-500'
+                        }`}
+                      >
+                        {p.fixtures.home_score}&ndash;{p.fixtures.away_score}
+                      </span>
+                    )}
+
                     <OutcomeChip outcome={p.predicted_outcome} />
+
+                    {/* Fixed width whether or not it's there, so the chips
+                        stay in a column while a weekend resolves. */}
+                    <span
+                      className={`w-4 shrink-0 text-right font-medium ${
+                        verdict.correct ? 'text-win' : 'text-loss'
+                      }`}
+                      title={
+                        verdict.decided
+                          ? verdict.correct
+                            ? 'Correct'
+                            : 'Wrong'
+                          : undefined
+                      }
+                    >
+                      {verdict.decided ? (verdict.correct ? '✓' : '✕') : ''}
+                    </span>
                   </li>
                 );
               })}
