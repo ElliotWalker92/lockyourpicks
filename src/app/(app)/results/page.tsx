@@ -1,7 +1,8 @@
 import Link from 'next/link';
 
-import { Crest } from '@/components/Crest';
+import { FixtureLine, OutcomeChip } from '@/components/Fixture';
 import { LockIcon } from '@/components/LockIcon';
+import { RoundStrip } from '@/components/RoundStrip';
 import { SLIP_ACCENTS } from '@/lib/slip-accents';
 import {
   SharePicks,
@@ -9,9 +10,11 @@ import {
   type SlipGroup,
   type SlipSection,
 } from '@/components/SharePicks';
+import { currentDraftFor } from '@/lib/current-draft';
+import { loadRounds } from '@/lib/rounds';
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'Results' };
+export const metadata = { title: 'Picks' };
 
 const NOBODY = '00000000-0000-0000-0000-000000000000';
 
@@ -47,6 +50,11 @@ const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
  * and that was most of the point — you want to see what everyone called, not
  * just the total it produced. Once a gameweek settled here the picks
  * disappeared from the interface entirely.
+ *
+ * This is the Picks tab a week later, not a destination of its own — the
+ * round strip is the only way in, and the live round sits on the same strip.
+ * It keeps its own route because it's a different screen: a table you read
+ * rather than a board you act on.
  *
  * Shows your own division. Other divisions draft from the same slate but
  * against different rivals, so mixing them together would compare picks that
@@ -129,22 +137,23 @@ export default async function ResultsPage({
     </div>
   ) : null;
 
-  const heading = (
+  const heading = (strip?: React.ReactNode) => (
     <div>
       <p className="label">
         {wholeGroup
-          ? (league?.name ?? 'Results')
-          : (one(membership?.divisions)?.name ?? 'Results')}
+          ? (league?.name ?? 'Picks')
+          : (one(membership?.divisions)?.name ?? 'Picks')}
       </p>
-      <h1 className="display-lg mt-1">Results</h1>
+      <h1 className="display-lg mt-1">Picks</h1>
       {scopeToggle}
+      {strip && <div className="mt-4">{strip}</div>}
     </div>
   );
 
   if (!membership) {
     return (
       <div className="flex flex-col gap-8">
-        {heading}
+        {heading()}
         <div className="card p-6">
           <h2 className="display-md">Nothing to show yet</h2>
           <p className="mt-2 text-grey-700">
@@ -160,34 +169,32 @@ export default async function ResultsPage({
     );
   }
 
-  // Gameweeks the divisions in view have actually drafted.
-  const { data: drafts } = await supabase
-    .from('drafts')
-    .select('id, division_id, gameweek_id, gameweeks(number, status)')
-    .in('division_id', divisionsInView.map((d) => d.id));
+  // Gameweeks the divisions in view have actually drafted, and the one being
+  // drafted right now — which is a chip on the same strip, back on /draft.
+  const [played, { gameweek: live }] = await Promise.all([
+    loadRounds(
+      supabase,
+      divisionsInView.map((d) => d.id),
+    ),
+    currentDraftFor(supabase, membership.division_id),
+  ]);
 
-  const roundOf = new Map<
-    string,
-    { gameweekId: string; number: number; status: string; draftIds: string[] }
-  >();
-  for (const d of drafts ?? []) {
-    const gwRow = one(d.gameweeks) as { number: number; status: string } | null;
-    const entry = roundOf.get(d.gameweek_id) ?? {
-      gameweekId: d.gameweek_id,
-      number: gwRow?.number ?? 0,
-      status: gwRow?.status ?? 'upcoming',
-      draftIds: [],
-    };
-    entry.draftIds.push(d.id);
-    roundOf.set(d.gameweek_id, entry);
-  }
+  const selected =
+    played.find((p) => String(p.number) === gw) ?? played[0];
 
-  const played = [...roundOf.values()].sort((a, b) => b.number - a.number);
+  const strip = (
+    <RoundStrip
+      rounds={played}
+      live={live?.number ?? null}
+      selected={selected?.number ?? 'live'}
+      scope={wholeGroup ? 'group' : 'division'}
+    />
+  );
 
-  if (!played.length) {
+  if (!selected) {
     return (
       <div className="flex flex-col gap-8">
-        {heading}
+        {heading(strip)}
         <div className="card p-6">
           <h2 className="display-md">No gameweeks drafted yet</h2>
           <p className="mt-2 text-grey-700">
@@ -197,9 +204,6 @@ export default async function ResultsPage({
       </div>
     );
   }
-
-  const selected =
-    played.find((p) => String(p.number) === gw) ?? played[0];
 
   const [{ data: picks }, { data: members }] = await Promise.all([
     supabase
@@ -328,22 +332,7 @@ export default async function ResultsPage({
 
   return (
     <div className="flex flex-col gap-8">
-      {heading}
-
-      {/* ---- Gameweek picker ---- */}
-      <div className="flex flex-wrap gap-2">
-        {played.map((p) => (
-          <Link
-            key={p.number}
-            href={`/results?gw=${p.number}`}
-            className={`btn btn-sm ${
-              p.number === selected.number ? 'btn-lime' : 'btn-outline'
-            }`}
-          >
-            GW{p.number}
-          </Link>
-        ))}
-      </div>
+      {heading(strip)}
 
       {!anyScored && (
         <p className="card px-4 py-3 text-sm text-grey-700">
@@ -419,78 +408,57 @@ export default async function ResultsPage({
                     const comp = row.fixtures.competition
                       ? one(row.fixtures.competition).code
                       : null;
-                    const called =
-                      row.predicted_outcome === 'HOME'
-                        ? home
-                        : row.predicted_outcome === 'AWAY'
-                          ? away
-                          : 'Draw';
                     const finished = row.fixtures.status === 'finished';
                     const correct = row.points_awarded === 1;
 
                     return (
                       <li
                         key={row.id}
-                        className="grid grid-cols-[minmax(0,1fr)_1rem] items-baseline gap-x-3 gap-y-1 border-b border-grey-100 px-5 py-2.5 text-sm last:border-0 sm:grid-cols-[minmax(0,1fr)_3.5rem_5.5rem_10rem_1rem] sm:gap-x-4"
+                        className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-grey-100 px-4 py-2.5 text-sm last:border-0 sm:gap-x-4 sm:px-5"
                       >
-                        {/* Explicit placement: on a phone the fixture and tick
-                            share row 1 and the rest wraps to row 2; on desktop
-                            the wrapper dissolves via `contents` so every field
-                            becomes its own aligned column. */}
-                        <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
-                          <Crest url={homeTeam.crest_url} className="h-4 w-4" />
-                          <span className="truncate">{home}</span>
-                          <span className="text-grey-400">v</span>
-                          <Crest url={awayTeam.crest_url} className="h-4 w-4" />
-                          <span className="truncate">{away}</span>
+                        {/* The fixture is the only elastic thing in the row;
+                            everything to its right is fixed, so the columns
+                            hold whoever is playing. The call is the bolded
+                            side rather than the club's name a second time. */}
+                        <FixtureLine
+                          home={home}
+                          away={away}
+                          homeCrest={homeTeam.crest_url}
+                          awayCrest={awayTeam.crest_url}
+                          outcome={row.predicted_outcome}
+                          className="min-w-0 flex-1"
+                        />
+
+                        {/* The competition is the one thing here a phone can
+                            do without: the crests already say who's playing,
+                            and the 34px it costs is the difference between
+                            the fixture fitting and being clipped. */}
+                        {comp && (
+                          <span className="hidden shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] font-medium text-grey-500 sm:inline">
+                            {comp}
+                          </span>
+                        )}
+
+                        <span className="min-w-10 shrink-0 text-right font-mono text-xs text-grey-500 sm:min-w-12">
+                          {finished
+                            ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
+                            : (STATUS_LABEL[row.fixtures.status] ??
+                              row.fixtures.status)}
                         </span>
 
-                        <span className="col-span-2 row-start-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:contents">
-                          <span className="text-xs font-medium text-grey-500">
-                            {comp && (
-                              <span className="rounded bg-grey-100 px-1.5 py-0.5">
-                                {comp}
-                              </span>
-                            )}
+                        {row.is_auto_pick && (
+                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
+                            auto
                           </span>
+                        )}
 
-                          <span className="font-mono text-xs text-grey-500">
-                            {finished
-                              ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
-                              : (STATUS_LABEL[row.fixtures.status] ??
-                                row.fixtures.status)}
-                          </span>
+                        <OutcomeChip outcome={row.predicted_outcome} />
 
-                          {/* auto sits with the call rather than in its own
-                              column — it qualifies the pick, and giving it a
-                              column would leave a gap on every manual pick. */}
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            {/* A called draw has no single club, so the badge
-                                is simply absent rather than guessed at. */}
-                            <Crest
-                              url={
-                                row.predicted_outcome === 'HOME'
-                                  ? homeTeam.crest_url
-                                  : row.predicted_outcome === 'AWAY'
-                                    ? awayTeam.crest_url
-                                    : null
-                              }
-                              className="h-4 w-4"
-                            />
-                            <span className="truncate font-medium">{called}</span>
-                            {row.is_auto_pick && (
-                              <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
-                                auto
-                              </span>
-                            )}
-                          </span>
-                        </span>
-
-                        {/* Pinned right at a fixed width so the ticks form a
-                            column you can scan down. */}
+                        {/* Fixed width so the ticks form a column you can
+                            scan down. */}
                         {row.points_awarded !== null && (
                           <span
-                            className={`col-start-2 row-start-1 w-4 text-right font-medium sm:col-start-5 sm:row-start-1 ${
+                            className={`w-4 shrink-0 text-right font-medium ${
                               correct ? 'text-win' : 'text-loss'
                             }`}
                             title={correct ? 'Correct' : 'Wrong'}

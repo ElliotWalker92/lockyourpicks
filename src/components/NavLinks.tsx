@@ -10,14 +10,17 @@ import { usePathname } from 'next/navigation';
  * two scales and share a tab, with a toggle between them. Without this the
  * nav would go dark the moment you switched view.
  *
+ * Picks owns the results the same way. A past gameweek is the same screen
+ * as this one, a week later, so it's a step through the round strip rather
+ * than a separate destination — and one fewer tab to fit on a phone.
+ *
  * "Leagues" now means the real ones: the Premier League and the divisions
  * below it. Your own set of players is a Group, which keeps the two apart
  * in the one place a player has to tell them apart.
  */
 const LINKS: { href: string; label: string; also?: string[] }[] = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/draft', label: 'Picks' },
-  { href: '/results', label: 'Results' },
+  { href: '/draft', label: 'Picks', also: ['/results'] },
   { href: '/table', label: 'Table', also: ['/leaderboard'] },
   { href: '/standings', label: 'Leagues' },
   { href: '/leagues', label: 'Group' },

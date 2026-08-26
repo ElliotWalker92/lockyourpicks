@@ -2,10 +2,12 @@ import Link from 'next/link';
 
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
-import { Crest } from '@/components/Crest';
+import { FixtureLine, OutcomeChip } from '@/components/Fixture';
 import { LockIcon } from '@/components/LockIcon';
+import { RoundStrip } from '@/components/RoundStrip';
 import { SlipSet } from '@/components/SharePicks';
 import { currentDraftFor } from '@/lib/current-draft';
+import { loadRounds } from '@/lib/rounds';
 import { SLIP_ACCENTS } from '@/lib/slip-accents';
 import {
   loadCrowdCounts,
@@ -99,22 +101,25 @@ export default async function DraftPage({
     </div>
   ) : null;
 
-  const heading = (
+  // Takes the round strip, which can't be built until we know what gameweek
+  // is live — and the empty states below render before we do.
+  const heading = (strip?: React.ReactNode) => (
     <div>
       <h1 className="display-lg">Picks</h1>
       <p className="mt-2 text-grey-700">
         {wholeGroup
           ? `Every division in ${leagueRow?.name ?? 'your group'}, this gameweek.`
-          : 'Three fixtures a week. Once one’s gone in your division, it’s gone.'}
+          : 'Three fixtures a round. Once one’s gone in your division, it’s gone.'}
       </p>
       {scopeToggle}
+      {strip && <div className="mt-4">{strip}</div>}
     </div>
   );
 
   if (!membership) {
     return (
       <div className="flex flex-col gap-8">
-        {heading}
+        {heading()}
         <Empty title="You're not in a division yet">
           Drafting happens inside a division, not across a whole group. Join
           or create one on the{' '}
@@ -136,10 +141,22 @@ export default async function DraftPage({
     membership.division_id,
   );
 
+  // Your own division's rounds, whichever scope is in view: the drafted
+  // gameweeks are the same across a group, and yours is the honest basis.
+  const rounds = await loadRounds(supabase, [membership.division_id]);
+  const roundStrip = (
+    <RoundStrip
+      rounds={rounds}
+      live={gameweek?.number ?? null}
+      selected="live"
+      scope={wholeGroup ? 'group' : 'division'}
+    />
+  );
+
   if (!gameweek) {
     return (
       <div className="flex flex-col gap-8">
-        {heading}
+        {heading(roundStrip)}
         <Empty title="No gameweek scheduled">
           The season has no upcoming gameweeks. Run fixture ingestion, or check
           the season dates.
@@ -272,7 +289,7 @@ export default async function DraftPage({
 
     return (
       <div className="flex flex-col gap-8">
-        {heading}
+        {heading(roundStrip)}
         <p className="text-sm text-grey-500">
           {gameweek.name ?? `Gameweek ${gameweek.number}`} &middot; closes{' '}
           {new Date(gameweek.draft_closes_at).toLocaleString('en-GB', {
@@ -328,26 +345,15 @@ export default async function DraftPage({
                             key={index}
                             className="flex items-center gap-2 py-1.5 text-sm"
                           >
-                            <Crest url={pick.homeCrest} className="h-4 w-4" />
-                            <span className="min-w-0 truncate text-grey-700">
-                              {pick.home}
-                            </span>
-                            <span className="text-grey-400">v</span>
-                            <Crest url={pick.awayCrest} className="h-4 w-4" />
-                            <span className="min-w-0 flex-1 truncate text-grey-700">
-                              {pick.away}
-                            </span>
-                            <span
-                              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                pick.outcome === 'HOME'
-                                  ? 'bg-lime text-on-accent'
-                                  : pick.outcome === 'AWAY'
-                                    ? 'bg-away text-white'
-                                    : 'bg-grey-300 text-on-accent'
-                              }`}
-                            >
-                              {pick.called}
-                            </span>
+                            <FixtureLine
+                              home={pick.home}
+                              away={pick.away}
+                              homeCrest={pick.homeCrest}
+                              awayCrest={pick.awayCrest}
+                              outcome={pick.outcome}
+                              className="flex-1 text-grey-700"
+                            />
+                            <OutcomeChip outcome={pick.outcome} />
                           </li>
                         ))}
                       </ul>
@@ -403,7 +409,7 @@ export default async function DraftPage({
   if (!draft) {
     return (
       <div className="flex flex-col gap-8">
-        {heading}
+        {heading(roundStrip)}
         {gameweekLabel}
         <Empty title="Picks aren’t open yet">
           <p>
@@ -426,8 +432,8 @@ export default async function DraftPage({
         .from('fixtures')
         .select(
           `id, kickoff_at,
-           home:teams!fixtures_home_team_id_fkey(id, name, short_name, crest_url, elo_rating),
-           away:teams!fixtures_away_team_id_fkey(id, name, short_name, crest_url, elo_rating),
+           home:teams!fixtures_home_team_id_fkey(id, name, crest_url, elo_rating),
+           away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating),
            competition:competitions(code, name, tier)`,
         )
         .eq('gameweek_id', gameweek.id)
@@ -558,7 +564,7 @@ export default async function DraftPage({
 
   return (
     <div className="flex flex-col gap-8">
-      {heading}
+      {heading(roundStrip)}
       {gameweekLabel}
       <DraftBoard
         draft={draft}

@@ -35,12 +35,6 @@ const ICONS = {
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
     </>
   ),
-  results: (
-    <>
-      <path d="M4 6h16M4 12h16M4 18h10" />
-      <path d="M17.5 17.5 19 19l3-3" />
-    </>
-  ),
   football: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -60,8 +54,8 @@ const ICONS = {
 
 const TABS: { href: string; label: string; icon: React.ReactNode; also?: string[] }[] = [
   { href: '/dashboard', label: 'Home', icon: ICONS.dashboard },
-  { href: '/draft', label: 'Picks', icon: ICONS.draft },
-  { href: '/results', label: 'Results', icon: ICONS.results },
+  // Picks owns past gameweeks too — the round strip steps back through them.
+  { href: '/draft', label: 'Picks', icon: ICONS.draft, also: ['/results'] },
   // Table owns the global leaderboard too; they share a toggle.
   { href: '/table', label: 'Table', icon: ICONS.table, also: ['/leaderboard'] },
   { href: '/standings', label: 'Leagues', icon: ICONS.football },

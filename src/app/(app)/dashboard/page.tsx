@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { Crest } from '@/components/Crest';
+import { FixtureLine, OutcomeChip } from '@/components/Fixture';
 import { FormGuide, FormGuideHeading } from '@/components/FormGuide';
 import { JoinOpenLeagueForm } from '@/components/LeagueForms';
 import { LockIcon } from '@/components/LockIcon';
@@ -386,45 +386,25 @@ export default async function DashboardPage() {
               {(myPicks as unknown as PickRow[]).map((p) => {
                 const homeTeam = one(p.fixtures.home);
                 const awayTeam = one(p.fixtures.away);
-                const home = homeTeam.name;
-                const away = awayTeam.name;
-                const called =
-                  p.predicted_outcome === 'HOME'
-                    ? home
-                    : p.predicted_outcome === 'AWAY'
-                      ? away
-                      : 'Draw';
                 return (
                   <li
                     key={p.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-grey-100 pb-2 text-sm last:border-0 last:pb-0"
+                    className="flex items-center gap-2 border-b border-grey-100 pb-2 text-sm last:border-0 last:pb-0"
                   >
-                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                      <Crest url={homeTeam.crest_url} className="h-4 w-4" />
-                      <span className="truncate">{home}</span>
-                      <span className="text-grey-400">v</span>
-                      <Crest url={awayTeam.crest_url} className="h-4 w-4" />
-                      <span className="truncate">{away}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      {/* A called draw has no single club to badge. */}
-                      <Crest
-                        url={
-                          p.predicted_outcome === 'HOME'
-                            ? homeTeam.crest_url
-                            : p.predicted_outcome === 'AWAY'
-                              ? awayTeam.crest_url
-                              : null
-                        }
-                        className="h-4 w-4"
-                      />
-                      {called}
-                    </span>
+                    <FixtureLine
+                      home={homeTeam.name}
+                      away={awayTeam.name}
+                      homeCrest={homeTeam.crest_url}
+                      awayCrest={awayTeam.crest_url}
+                      outcome={p.predicted_outcome}
+                      className="min-w-0 flex-1"
+                    />
                     {p.is_auto_pick && (
-                      <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
+                      <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
                         auto
                       </span>
                     )}
+                    <OutcomeChip outcome={p.predicted_outcome} />
                   </li>
                 );
               })}

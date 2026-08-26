@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
-import { Crest } from '@/components/Crest';
+import { FixtureLine, OutcomeChip, TeamName } from '@/components/Fixture';
 import { LockIcon } from '@/components/LockIcon';
 import {
   SharePicks,
@@ -27,7 +27,6 @@ const OUTCOME_BTN: Record<Outcome, string> = {
 export type BoardTeam = {
   id: string;
   name: string;
-  short_name: string | null;
   crest_url: string | null;
   elo_rating: number;
   form: ('W' | 'D' | 'L')[];
@@ -406,37 +405,25 @@ export function DraftBoard({
               .map((pick) => {
                 const f = fixtures.find((x) => x.id === pick.fixture_id);
                 if (!f) return null;
-                const called =
-                  pick.predicted_outcome === 'HOME'
-                    ? f.home.name
-                    : pick.predicted_outcome === 'AWAY'
-                      ? f.away.name
-                      : 'Draw';
                 return (
                   <li
                     key={pick.id}
-                    className="card flex items-start gap-3 px-3 py-2.5 text-sm"
+                    className="card flex items-center gap-2 px-3 py-2.5 text-sm"
                   >
-                    {/* Fixture and call stack on a phone so a long fixture
-                        wraps into its own space instead of squeezing the
-                        call and the tags against the right edge. */}
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-grey-700">
-                        <Crest url={f.home.crest_url} className="h-4 w-4" />
-                        {f.home.name}
-                        <span className="text-grey-400">v</span>
-                        <Crest url={f.away.crest_url} className="h-4 w-4" />
-                        {f.away.name}
+                    <FixtureLine
+                      home={f.home.name}
+                      away={f.away.name}
+                      homeCrest={f.home.crest_url}
+                      awayCrest={f.away.crest_url}
+                      outcome={pick.predicted_outcome}
+                      className="flex-1 text-grey-700"
+                    />
+                    {pick.is_auto_pick && (
+                      <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
+                        auto
                       </span>
-                      <span className="flex items-center gap-2">
-                        <span className="font-medium">{called}</span>
-                        {pick.is_auto_pick && (
-                          <span className="rounded bg-grey-100 px-1.5 py-0.5 text-xs text-grey-500">
-                            auto
-                          </span>
-                        )}
-                      </span>
-                    </span>
+                    )}
+                    <OutcomeChip outcome={pick.predicted_outcome} />
 
                     {/* Pinned right on its own so it never reflows into the
                         middle of the row as names change length. */}
@@ -510,23 +497,17 @@ export function DraftBoard({
                   {group.picks.map((p, i) => (
                     <li
                       key={i}
-                      className="flex items-baseline gap-3 py-1.5 text-sm"
+                      className="flex items-center gap-2 py-1.5 text-sm"
                     >
-                      <span className="min-w-0 flex-1 truncate text-grey-700">
-                        {p.home} <span className="text-grey-400">v</span>{' '}
-                        {p.away}
-                      </span>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          p.outcome === 'HOME'
-                            ? 'bg-lime text-on-accent'
-                            : p.outcome === 'AWAY'
-                              ? 'bg-away text-white'
-                              : 'bg-grey-300 text-on-accent'
-                        }`}
-                      >
-                        {p.called}
-                      </span>
+                      <FixtureLine
+                        home={p.home}
+                        away={p.away}
+                        homeCrest={p.homeCrest}
+                        awayCrest={p.awayCrest}
+                        outcome={p.outcome}
+                        className="flex-1 text-grey-700"
+                      />
+                      <OutcomeChip outcome={p.outcome} />
                     </li>
                   ))}
                 </ul>
@@ -573,13 +554,14 @@ export function DraftBoard({
                         rather than colliding with it — and sits inline once
                         there's room. */}
                     <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                      <span className="flex items-center gap-1.5 text-grey-500">
-                        <Crest url={f.home.crest_url} className="h-4 w-4 opacity-50" />
-                        <span className="line-through">{f.home.name}</span>
-                        <span className="line-through">v</span>
-                        <Crest url={f.away.crest_url} className="h-4 w-4 opacity-50" />
-                        <span className="line-through">{f.away.name}</span>
-                      </span>
+                      <FixtureLine
+                        home={f.home.name}
+                        away={f.away.name}
+                        homeCrest={f.home.crest_url}
+                        awayCrest={f.away.crest_url}
+                        crestClass="h-4 w-4 opacity-50"
+                        className="text-grey-500 line-through"
+                      />
                       <span className="text-xs text-grey-400">
                         picked by {nameOf(pick.user_id)}
                       </span>
@@ -617,45 +599,50 @@ export function DraftBoard({
                       key={f.id}
                       className="overflow-hidden rounded-lg border border-grey-300 bg-card text-sm"
                     >
-                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
-                      <span className="w-12 shrink-0 font-mono text-xs text-grey-500">
-                        {time(f.kickoff_at)}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setOpenModel(openModel === f.id ? null : f.id)
-                        }
-                        aria-expanded={openModel === f.id}
-                        className="min-w-40 flex-1 text-left transition hover:text-lime-dark"
-                        title="Show the model's read on this fixture"
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <Crest url={f.home.crest_url} />
-                          {f.home.name}
+                     {/* On a phone the fixture takes the first line and the
+                         three buttons take the second as equal thirds, so
+                         they can't be squeezed however long the clubs are.
+                         Once there's room it all sits on one line. */}
+                     <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="w-11 shrink-0 font-mono text-xs text-grey-500">
+                          {time(f.kickoff_at)}
                         </span>
-                        <span className="mx-1.5 text-grey-400">v</span>
-                        <span className="inline-flex items-center gap-1.5">
-                          <Crest url={f.away.crest_url} />
-                          {f.away.name}
-                        </span>
-                      </button>
 
-                      {f.competition && (
-                        <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
-                          {f.competition.code}
-                        </span>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenModel(openModel === f.id ? null : f.id)
+                          }
+                          aria-expanded={openModel === f.id}
+                          className="min-w-0 flex-1 text-left transition hover:text-lime-dark"
+                          title="Show the model's read on this fixture"
+                        >
+                          <FixtureLine
+                            home={f.home.name}
+                            away={f.away.name}
+                            homeCrest={f.home.crest_url}
+                            awayCrest={f.away.crest_url}
+                            crestClass="h-5 w-5"
+                          />
+                        </button>
 
-                      {/* Outcome buttons sit inline: one tap to pick, rather
-                          than opening the row first and then choosing. */}
-                      <span className="flex shrink-0 gap-1.5">
+                        {f.competition && (
+                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
+                            {f.competition.code}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Outcome buttons sit with the fixture: one tap to
+                          pick, rather than opening the row first and then
+                          choosing. */}
+                      <span className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0">
                         {(
                           [
-                            ['HOME', f.home.short_name || f.home.name],
+                            ['HOME', f.home.name],
                             ['DRAW', 'Draw'],
-                            ['AWAY', f.away.short_name || f.away.name],
+                            ['AWAY', f.away.name],
                           ] as [Outcome, string][]
                         ).map(([outcome, label]) => (
                           <button
@@ -672,7 +659,11 @@ export function DraftBoard({
                               busy ? 'opacity-60' : ''
                             }`}
                           >
-                            {label}
+                            {outcome === 'DRAW' ? (
+                              label
+                            ) : (
+                              <TeamName name={label} />
+                            )}
                           </button>
                         ))}
                       </span>
