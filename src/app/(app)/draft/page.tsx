@@ -4,6 +4,7 @@ import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
 import { FixtureLine, OutcomeChip } from '@/components/Fixture';
 import { LiveScores } from '@/components/LiveScores';
+import { tallyOf, verdictOf } from '@/lib/scoring';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
 import { SlipSet } from '@/components/SharePicks';
@@ -193,7 +194,7 @@ export default async function DraftPage({
           .select(
             `draft_id, user_id, predicted_outcome, pick_number, points_awarded,
              fixtures(
-               home_score, away_score,
+               home_score, away_score, result, status,
                home:teams!fixtures_home_team_id_fkey(name, crest_url),
                away:teams!fixtures_away_team_id_fkey(name, crest_url)
              )`,
@@ -231,6 +232,8 @@ export default async function DraftPage({
       const fixture = one(row.fixtures) as {
         home_score: number | null;
         away_score: number | null;
+        result: 'HOME' | 'DRAW' | 'AWAY' | null;
+        status: string;
         home: { name: string; crest_url: string | null };
         away: { name: string; crest_url: string | null };
       };
@@ -250,6 +253,8 @@ export default async function DraftPage({
               : 'Draw',
         homeScore: fixture.home_score,
         awayScore: fixture.away_score,
+        result: fixture.result,
+        status: fixture.status,
         points: row.points_awarded,
       };
     };
@@ -265,13 +270,20 @@ export default async function DraftPage({
         .filter((m) => m.division_id === division.id)
         .map((m) => {
           const theirs = rows.filter((r) => r.user_id === m.user_id);
-          const scored = theirs.some((r) => r.points_awarded !== null);
+          const picks = theirs.map(toPick);
+          const tally = tallyOf(
+            picks.map((pick) => ({
+              predicted_outcome: pick.outcome,
+              points_awarded: pick.points,
+              result: pick.result,
+            })),
+          );
           return {
             player: groupNameOf(m.user_id),
-            points: scored
-              ? theirs.reduce((n, r) => n + (r.points_awarded ?? 0), 0)
-              : null,
-            picks: theirs.map(toPick),
+            points: tally.decided > 0 ? tally.landed : null,
+            provisional: tally.decided > 0 && !tally.settled,
+            decided: tally.decided,
+            picks,
           };
         });
       return {
@@ -331,8 +343,15 @@ export default async function DraftPage({
                     <p className="mb-1.5 flex items-baseline justify-between gap-3">
                       <span className="font-medium">{player.player}</span>
                       {player.points !== null && (
-                        <span className="numeric text-sm">
-                          {player.points} pt{player.points === 1 ? '' : 's'}
+                        <span className="flex items-baseline gap-1.5">
+                          <span className="numeric text-sm">
+                            {player.points}
+                          </span>
+                          <span className="text-xs text-grey-500">
+                            {player.provisional
+                              ? `from ${player.decided}`
+                              : `pt${player.points === 1 ? '' : 's'}`}
+                          </span>
                         </span>
                       )}
                     </p>
@@ -342,22 +361,50 @@ export default async function DraftPage({
                       </p>
                     ) : (
                       <ul className="flex flex-col divide-y divide-grey-100">
-                        {player.picks.map((pick, index) => (
-                          <li
-                            key={index}
-                            className="flex items-center gap-2 py-1.5 text-sm"
-                          >
-                            <FixtureLine
-                              home={pick.home}
-                              away={pick.away}
-                              homeCrest={pick.homeCrest}
-                              awayCrest={pick.awayCrest}
-                              outcome={pick.outcome}
-                              className="flex-1 text-grey-700"
-                            />
-                            <OutcomeChip outcome={pick.outcome} />
-                          </li>
-                        ))}
+                        {player.picks.map((pick, index) => {
+                          const verdict = verdictOf({
+                            predicted_outcome: pick.outcome,
+                            points_awarded: pick.points,
+                            result: pick.result,
+                          });
+                          return (
+                            <li
+                              key={index}
+                              className="flex items-center gap-2 py-1.5 text-sm"
+                            >
+                              <FixtureLine
+                                home={pick.home}
+                                away={pick.away}
+                                homeCrest={pick.homeCrest}
+                                awayCrest={pick.awayCrest}
+                                outcome={pick.outcome}
+                                className="flex-1 text-grey-700"
+                              />
+                              {pick.homeScore !== null && (
+                                <span
+                                  className={`shrink-0 font-mono text-xs tabular-nums ${
+                                    pick.status === 'live'
+                                      ? 'font-semibold text-hot'
+                                      : 'text-grey-500'
+                                  }`}
+                                >
+                                  {pick.homeScore}&ndash;{pick.awayScore}
+                                </span>
+                              )}
+                              <OutcomeChip outcome={pick.outcome} />
+                              {verdict.decided && (
+                                <span
+                                  className={`w-4 shrink-0 text-right font-medium ${
+                                    verdict.correct ? 'text-win' : 'text-loss'
+                                  }`}
+                                  title={verdict.correct ? 'Correct' : 'Wrong'}
+                                >
+                                  {verdict.correct ? '✓' : '✕'}
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>
@@ -430,22 +477,31 @@ export default async function DraftPage({
 
   const [{ data: fixtureRows }, { data: picks }, { data: members }] =
     await Promise.all([
+      // Every fixture in the gameweek, not just the pickable ones.
+      //
+      // This used to filter to `scheduled` with a kickoff still ahead, which
+      // is right for the board — you can't take a match that has started —
+      // and quite wrong for the slip, which looks its picks up in this same
+      // list. The moment a match kicked off its fixture left the result set,
+      // the lookup returned undefined, and the pick rendered as nothing: your
+      // own slip quietly lost a row exactly when it got interesting, while
+      // the counter above it still said 3/3.
+      //
+      // The board now narrows this list itself instead.
       supabase
         .from('fixtures')
         .select(
-          `id, kickoff_at,
+          `id, kickoff_at, status, home_score, away_score, result,
            home:teams!fixtures_home_team_id_fkey(id, name, crest_url, elo_rating),
            away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating),
            competition:competitions(code, name, tier)`,
         )
         .eq('gameweek_id', gameweek.id)
-        .eq('status', 'scheduled')
-        .gt('kickoff_at', nowIso)
         .order('kickoff_at', { ascending: true }),
       supabase
         .from('picks')
         .select(
-          'id, user_id, fixture_id, predicted_outcome, pick_number, is_auto_pick',
+          'id, user_id, fixture_id, predicted_outcome, pick_number, is_auto_pick, points_awarded',
         )
         .eq('draft_id', draft.id),
       supabase
@@ -478,6 +534,10 @@ export default async function DraftPage({
     const row = f as unknown as {
       id: string;
       kickoff_at: string;
+      status: BoardFixture['status'];
+      home_score: number | null;
+      away_score: number | null;
+      result: BoardFixture['result'];
       home: BoardFixture['home'] | BoardFixture['home'][];
       away: BoardFixture['away'] | BoardFixture['away'][];
       competition:
@@ -490,6 +550,10 @@ export default async function DraftPage({
       return {
         id: row.id,
         kickoff_at: row.kickoff_at,
+        status: row.status,
+        home_score: row.home_score,
+        away_score: row.away_score,
+        result: row.result,
         home: {
           ...homeTeam,
           form: teamForm[homeTeam.id] ?? [],
@@ -566,6 +630,8 @@ export default async function DraftPage({
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Scores and ticks reach the slip without a reload — see 0021. */}
+      <LiveScores gameweekId={gameweek.id} />
       {heading(roundStrip)}
       {gameweekLabel}
       <DraftBoard

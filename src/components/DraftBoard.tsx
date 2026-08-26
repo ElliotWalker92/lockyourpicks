@@ -15,6 +15,7 @@ import {
 } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
 import { formatDeadline, turnDeadlines } from '@/lib/turn-windows';
+import { tallyOf, verdictOf } from '@/lib/scoring';
 import type { TeamTable } from '@/lib/ingest/form';
 import type { Outcome } from '@/lib/types';
 
@@ -38,6 +39,10 @@ export type BoardTeam = {
 export type BoardFixture = {
   id: string;
   kickoff_at: string;
+  status: string;
+  home_score: number | null;
+  away_score: number | null;
+  result: Outcome | null;
   home: BoardTeam;
   away: BoardTeam;
   competition: { code: string; name: string; tier: number | null } | null;
@@ -50,6 +55,8 @@ export type BoardPick = {
   predicted_outcome: Outcome;
   pick_number: number;
   is_auto_pick: boolean;
+  /** null until the gameweek settles; 0 or 1 after. */
+  points_awarded: number | null;
 };
 
 export type BoardPlayer = {
@@ -270,6 +277,10 @@ export function DraftBoard({
             : pick.predicted_outcome === 'AWAY'
               ? f.away.name
               : 'Draw',
+        homeScore: f.home_score,
+        awayScore: f.away_score,
+        result: f.result,
+        points: pick.points_awarded,
       },
     ];
   };
@@ -292,7 +303,15 @@ export function DraftBoard({
       .flatMap(toSharePick),
   }));
 
-  const available = fixtures.filter((f) => !takenBy.has(f.id));
+  // Pickable: not already taken, not started. The list this comes from now
+  // holds the whole gameweek, because the slip has to find its picks in it
+  // long after their matches have kicked off.
+  const available = fixtures.filter(
+    (f) =>
+      !takenBy.has(f.id) &&
+      f.status === 'scheduled' &&
+      new Date(f.kickoff_at).getTime() > new Date(now).getTime(),
+  );
 
   function submit(fixtureId: string, outcome: Outcome) {
     setError(null);
@@ -453,6 +472,15 @@ export function DraftBoard({
             const picking = draft.status === 'active' && onTurn === userId;
             const due = deadlines[seat];
 
+            // Same rule the dashboard and the results page use, from one place.
+            const tally = tallyOf(
+              theirs.map((p) => ({
+                predicted_outcome: p.predicted_outcome,
+                points_awarded: p.points_awarded,
+                result: fixtures.find((f) => f.id === p.fixture_id)?.result,
+              })),
+            );
+
             return (
               <li
                 key={userId}
@@ -479,15 +507,35 @@ export function DraftBoard({
                       picking
                     </span>
                   )}
-                  <span className="ml-auto shrink-0 font-mono text-xs text-grey-500">
-                    {theirs.length}/{draft.picks_per_player}
-                  </span>
+
+                  {/* Once anything has finished, what they've landed matters
+                      more than how many they've taken. */}
+                  {tally.decided > 0 ? (
+                    <span className="ml-auto flex shrink-0 items-baseline gap-1.5">
+                      <span className="numeric text-base">{tally.landed}</span>
+                      <span className="text-xs text-grey-500">
+                        {tally.settled
+                          ? `pt${tally.landed === 1 ? '' : 's'}`
+                          : `from ${tally.decided}`}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="ml-auto shrink-0 font-mono text-xs text-grey-500">
+                      {theirs.length}/{draft.picks_per_player}
+                    </span>
+                  )}
                 </div>
 
                 <ul className="divide-y divide-grey-100 border-t border-grey-100">
                   {theirs.map((pick) => {
                     const f = fixtures.find((x) => x.id === pick.fixture_id);
                     if (!f) return null;
+                    const verdict = verdictOf({
+                      predicted_outcome: pick.predicted_outcome,
+                      points_awarded: pick.points_awarded,
+                      result: f.result,
+                    });
+                    const live = f.status === 'live';
                     return (
                       <li
                         key={pick.id}
@@ -506,10 +554,23 @@ export function DraftBoard({
                             auto
                           </span>
                         )}
+
+                        {/* The score as it stands, hot while the game is on. */}
+                        {f.home_score !== null && (
+                          <span
+                            className={`shrink-0 font-mono text-xs tabular-nums ${
+                              live ? 'font-semibold text-hot' : 'text-grey-500'
+                            }`}
+                          >
+                            {f.home_score}&ndash;{f.away_score}
+                          </span>
+                        )}
+
                         <OutcomeChip outcome={pick.predicted_outcome} />
 
-                        {/* Only your own, and only while the turn is yours. */}
-                        {mine && isMyTurn && (
+                        {/* Only your own, and only while the turn is yours —
+                            and never once a match has started. */}
+                        {mine && isMyTurn && !verdict.decided && (
                           <button
                             type="button"
                             onClick={() => drop(pick.id)}
@@ -518,6 +579,17 @@ export function DraftBoard({
                           >
                             Remove
                           </button>
+                        )}
+
+                        {verdict.decided && (
+                          <span
+                            className={`w-4 shrink-0 text-right font-medium ${
+                              verdict.correct ? 'text-win' : 'text-loss'
+                            }`}
+                            title={verdict.correct ? 'Correct' : 'Wrong'}
+                          >
+                            {verdict.correct ? '✓' : '✕'}
+                          </span>
                         )}
                       </li>
                     );
