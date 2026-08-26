@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { FixtureLine, OutcomeChip } from '@/components/Fixture';
+import { LiveScores } from '@/components/LiveScores';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
 import { SLIP_ACCENTS } from '@/lib/slip-accents';
@@ -332,6 +333,8 @@ export default async function ResultsPage({
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Scores and points land here without a reload — see 0021. */}
+      <LiveScores gameweekId={selected.gameweekId} />
       {heading(strip)}
 
       {!anyScored && (

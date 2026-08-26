@@ -14,6 +14,7 @@ import {
   type SlipGroup,
 } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
+import { formatDeadline, turnDeadlines } from '@/lib/turn-windows';
 import type { TeamTable } from '@/lib/ingest/form';
 import type { Outcome } from '@/lib/types';
 
@@ -108,6 +109,8 @@ export function DraftBoard({
   crowd,
   gameweekLabel,
   divisionName,
+  hardDeadline,
+  now,
 }: {
   draft: BoardDraft;
   fixtures: BoardFixture[];
@@ -121,6 +124,16 @@ export function DraftBoard({
   /** For the shareable card — 'Gameweek 2'. */
   gameweekLabel: string;
   divisionName: string;
+  /** Five minutes before the first kickoff, ISO. Nobody picks past it. */
+  hardDeadline: string;
+  /**
+   * Render time, from the server.
+   *
+   * The projection needs a clock, and taking one here would give a different
+   * answer on the server than at hydration a moment later — a mismatch on
+   * every deadline shown. One timestamp, agreed by both.
+   */
+  now: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -213,6 +226,31 @@ export function DraftBoard({
   const isMyTurn = draft.status === 'active' && onTurn === currentUserId;
   const order = fullOrder(draft.pick_order);
   const myPicks = picks.filter((p) => p.user_id === currentUserId);
+
+  // When each seat still to pick is due. Exact for whoever is on the clock,
+  // a projection for the rest — see turn-windows.
+  const deadlines = useMemo(
+    () =>
+      draft.status === 'complete'
+        ? order.map(() => null)
+        : turnDeadlines({
+            seats: order.length,
+            currentTurn: draft.current_turn,
+            currentExpiry: draft.turn_expires_at
+              ? new Date(draft.turn_expires_at)
+              : null,
+            hardDeadline: new Date(hardDeadline),
+            now: new Date(now),
+          }),
+    [
+      draft.status,
+      draft.current_turn,
+      draft.turn_expires_at,
+      hardDeadline,
+      now,
+      order,
+    ],
+  );
 
   // The shared card has to say exactly what the list above it says, so the
   // call is derived once here rather than formatted again at the boundary.
@@ -406,13 +444,14 @@ export function DraftBoard({
         </p>
 
         <ol className="flex flex-col gap-2">
-          {order.map((userId) => {
+          {order.map((userId, seat) => {
             const mine = userId === currentUserId;
             const theirs = picks
               .filter((p) => p.user_id === userId)
               .sort((a, b) => a.pick_number - b.pick_number);
             const owed = draft.picks_per_player - theirs.length;
             const picking = draft.status === 'active' && onTurn === userId;
+            const due = deadlines[seat];
 
             return (
               <li
@@ -485,10 +524,28 @@ export function DraftBoard({
                   })}
 
                   {owed > 0 && (
-                    <li className="px-3 py-2 text-sm text-grey-400">
-                      {mine && isMyTurn
-                        ? `${owed} more to pick — choose below.`
-                        : `${owed} still to come.`}
+                    <li className="flex flex-wrap items-baseline gap-x-2 px-3 py-2 text-sm text-grey-400">
+                      <span>
+                        {mine && isMyTurn
+                          ? `${owed} more to pick — choose below.`
+                          : `${owed} still to come.`}
+                      </span>
+
+                      {/* The deadline belongs on the seat waiting on it. For
+                          whoever is on the clock it's their real expiry; for
+                          the rest it's what they'd get if everyone ahead used
+                          their turn in full, and it says so rather than
+                          presenting a guess as a promise. */}
+                      {due && (
+                        <span
+                          className={
+                            picking ? 'font-medium text-ink' : undefined
+                          }
+                        >
+                          {due.projected ? 'about ' : 'by '}
+                          {formatDeadline(due.at)}
+                        </span>
+                      )}
                     </li>
                   )}
                 </ul>

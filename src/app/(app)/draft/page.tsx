@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
 import { FixtureLine, OutcomeChip } from '@/components/Fixture';
+import { LiveScores } from '@/components/LiveScores';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
 import { SlipSet } from '@/components/SharePicks';
@@ -289,6 +290,7 @@ export default async function DraftPage({
 
     return (
       <div className="flex flex-col gap-8">
+        <LiveScores gameweekId={gameweek.id} />
         {heading(roundStrip)}
         <p className="text-sm text-grey-500">
           {gameweek.name ?? `Gameweek ${gameweek.number}`} &middot; closes{' '}
@@ -576,6 +578,12 @@ export default async function DraftPage({
         crowd={crowd}
         gameweekLabel={gameweek.name ?? `Gameweek ${gameweek.number}`}
         divisionName={division?.name ?? 'Your division'}
+        // Five minutes before the first kickoff — draft_hard_deadline in
+        // migration 0015, mirrored so the board can say when a seat is due.
+        hardDeadline={new Date(
+          new Date(gameweek.draft_closes_at).getTime() - 5 * 60_000,
+        ).toISOString()}
+        now={nowIso}
       />
     </div>
   );
