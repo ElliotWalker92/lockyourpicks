@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { LockIcon } from '@/components/LockIcon';
+import { Identity, StandingsTable } from '@/components/StandingsTable';
 import { TableScopeToggle } from '@/components/TableScopeToggle';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,14 +15,6 @@ function initialsOf(name: string) {
   return (w[0].charAt(0) + w[w.length - 1].charAt(0)).toUpperCase();
 }
 
-type StandingRow = {
-  user_id: string | null;
-  points: number | null;
-  gameweeks_played: number | null;
-  correct_count: number | null;
-  position: number | null;
-};
-
 type PlayerRow = {
   id: string;
   display_name: string | null;
@@ -30,53 +22,24 @@ type PlayerRow = {
   avatar_url: string | null;
 };
 
-function Row({
-  row,
-  player,
-  highlight,
-}: {
-  row: StandingRow;
-  player: PlayerRow | null;
-  highlight: boolean;
-}) {
-  const name = player?.display_name ?? 'Player';
+function Avatar({ player, name }: { player: PlayerRow | null; name: string }) {
   return (
-    <li
-      className={`flex items-center gap-3 border-b border-grey-100 px-4 py-3 last:border-0 ${
-        highlight ? 'bg-hot/5 font-semibold' : ''
-      }`}
+    <span
+      aria-hidden
+      className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-on-accent"
+      style={{ background: player?.avatar_color ?? '#c8f135' }}
     >
-      <span className="numeric w-8 shrink-0 text-lg text-grey-400">
-        {row.position}
-      </span>
-
-      <span
-        aria-hidden
-        className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-on-accent"
-        style={{ background: player?.avatar_color ?? '#c8f135' }}
-      >
-        {player?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={player.avatar_url}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          initialsOf(name)
-        )}
-      </span>
-
-      <span className="min-w-0 flex-1 truncate">{name}</span>
-
-      <span className="hidden w-24 shrink-0 text-right text-sm text-grey-500 tabular-nums sm:block">
-        {row.gameweeks_played} gw
-      </span>
-
-      <span className="numeric w-12 shrink-0 text-right text-lg">
-        {row.points}
-      </span>
-    </li>
+      {player?.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={player.avatar_url}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initialsOf(name)
+      )}
+    </span>
   );
 }
 
@@ -112,13 +75,20 @@ export default async function LeaderboardPage() {
 
   const standings = rows ?? [];
 
+  // The reader's own id goes in whether or not they made the cut. Without it
+  // a player ranked below the top 100 was looked up in a map built only from
+  // the top 100, missed, and shown on their own row as "Player".
   const { data: players } = await supabase
     .from('profiles')
     .select('id, display_name, avatar_color, avatar_url')
-    .in(
-      'id',
-      standings.map((r) => r.user_id).filter((id): id is string => Boolean(id)),
-    );
+    .in('id', [
+      ...new Set([
+        ...standings
+          .map((r) => r.user_id)
+          .filter((id): id is string => Boolean(id)),
+        user!.id,
+      ]),
+    ]);
 
   const playerById = new Map((players ?? []).map((p) => [p.id, p]));
 
@@ -136,6 +106,23 @@ export default async function LeaderboardPage() {
           .eq('user_id', user!.id)
           .maybeSingle()
       ).data;
+
+  // One shape for both tables below — the top page and the reader's own row
+  // are the same table cut in two places, so they render identically.
+  type Row = (typeof standings)[number];
+
+  const identity = (row: Row) => {
+    const player = row.user_id ? (playerById.get(row.user_id) ?? null) : null;
+    const name = player?.display_name ?? 'Player';
+    return (
+      <Identity badge={<Avatar player={player} name={name} />} name={name} />
+    );
+  };
+
+  const columns = [
+    { label: 'P', from: 'sm' as const, value: (row: Row) => row.gameweeks_played },
+    { label: 'Pts', emphasis: true, value: (row: Row) => row.points },
+  ];
 
   if (!standings.length) {
     return (
@@ -165,7 +152,7 @@ export default async function LeaderboardPage() {
         <h1 className="display-lg mt-1">Global leaderboard</h1>
         <p className="mt-2 max-w-xl text-grey-700">
           Every player, every group, one table. You each get three picks a
-          week worth a point apiece &mdash; so the totals compare, even though
+          round worth a point apiece &mdash; so the totals compare, even though
           no two of you were choosing from the same board.
         </p>
         <div className="mt-4">
@@ -173,45 +160,30 @@ export default async function LeaderboardPage() {
         </div>
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-grey-300 px-4 py-3">
-          <LockIcon className="h-3 w-3" />
-          <span className="label flex-1">
-            Top {Math.min(PAGE_SIZE, standings.length)}
-          </span>
-          <span className="hidden w-24 text-right text-xs text-grey-500 sm:block">
-            played
-          </span>
-          <span className="w-12 text-right text-xs text-grey-500">pts</span>
-        </div>
+      <StandingsTable
+        rows={standings}
+        title={`Top ${Math.min(PAGE_SIZE, standings.length)}`}
+        keyOf={(row) => row.user_id ?? String(row.position)}
+        rank={(row) => row.position}
+        identityLabel="Player"
+        identity={identity}
+        highlight={(row) => row.user_id === user!.id}
+        columns={columns}
+      />
 
-        <ul>
-          {standings.map((row) => (
-            <Row
-              key={row.user_id}
-              row={row}
-              player={row.user_id ? (playerById.get(row.user_id) ?? null) : null}
-              highlight={row.user_id === user!.id}
-            />
-          ))}
-        </ul>
-
-        {myRow && (
-          <div className="border-t-2 border-grey-300">
-            <ul>
-              <Row
-                row={myRow}
-                player={
-                  myRow.user_id
-                    ? (playerById.get(myRow.user_id) ?? null)
-                    : null
-                }
-                highlight
-              />
-            </ul>
-          </div>
-        )}
-      </div>
+      {/* Below the cut and still on the page. */}
+      {myRow && (
+        <StandingsTable
+          rows={[myRow]}
+          title="You"
+          keyOf={(row) => row.user_id ?? 'me'}
+          rank={(row) => row.position}
+          identityLabel="Player"
+          identity={identity}
+          highlight={() => true}
+          columns={columns}
+        />
+      )}
 
       <p className="text-sm text-grey-500">
         Not playing yet?{' '}

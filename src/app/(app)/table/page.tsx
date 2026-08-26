@@ -2,10 +2,43 @@ import Link from 'next/link';
 
 import { TableScopeToggle } from '@/components/TableScopeToggle';
 import { Crest } from '@/components/Crest';
+import {
+  Identity,
+  StandingsTable,
+  ZoneLegend,
+  type Zone,
+} from '@/components/StandingsTable';
 import { rank, type StandingRow } from '@/lib/standings';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Table' };
+
+/**
+ * Promotion and relegation, the same colours the real tables use.
+ *
+ * Top goes up and bottom goes down, except where there is nowhere to go:
+ * the top division has nothing above it and the bottom nothing below. A
+ * one-player division has no movement at all, and a tie for a place isn't
+ * a claim on it — the spreadsheet this game comes from has no tiebreak,
+ * so nobody is marked as going anywhere on a shared position.
+ */
+function divisionZone(
+  row: StandingRow,
+  size: number,
+  tier: number,
+  tierCount: number,
+): Zone | null {
+  if (size < 2 || row.tied) return null;
+  if (row.position === 1 && tier > 1) return 'promotion';
+  if (row.position === size && tier < tierCount) return 'relegation';
+  return null;
+}
+
+const GROUP_ZONE_LABEL: Record<Zone, string> = {
+  promotion: 'Promoted next season',
+  playoff: 'Play-offs',
+  relegation: 'Relegated next season',
+};
 
 const PALETTE = [
   '#c8f135',
@@ -27,6 +60,31 @@ function initials(name: string) {
 
 export type WeekPick = { crest: string | null; label: string };
 
+/** This round's calls, as club badges. */
+function WeekPicks({ picks }: { picks: WeekPick[] }) {
+  if (picks.length === 0) {
+    return <span className="text-xs text-grey-400">&mdash;</span>;
+  }
+  return (
+    <span className="flex items-center gap-1">
+      {picks.map((p, i) =>
+        p.crest ? (
+          <Crest key={i} url={p.crest} alt={p.label} className="h-5 w-5" />
+        ) : (
+          // A called draw has no single club to show.
+          <span
+            key={i}
+            title={p.label}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-grey-300 text-[9px] font-bold text-on-accent"
+          >
+            D
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
 function Table({
   title,
   subtitle,
@@ -34,6 +92,7 @@ function Table({
   highlightUserId,
   picksOf,
   weekLabel,
+  zoneOf,
 }: {
   title: string;
   subtitle?: string;
@@ -42,100 +101,61 @@ function Table({
   /** This round's picks per player, as badges. */
   picksOf: (userId: string) => WeekPick[];
   weekLabel: string | null;
+  zoneOf?: (row: StandingRow) => Zone | null;
 }) {
-  return (
-    <section>
-      <div className="mb-3">
-        <h2 className="label">
-          {title}
-        </h2>
-        {subtitle && (
-          <p className="mt-0.5 text-xs text-grey-500">{subtitle}</p>
-        )}
-      </div>
+  // Colours are by finishing order rather than from the profile, the same
+  // reason the draft board does it: avatar_color carries one default for
+  // everybody, which makes a column of identical dots.
+  const colourOf = new Map(
+    rows.map((row, i) => [row.userId, PALETTE[i % PALETTE.length]]),
+  );
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[22rem] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-grey-300 text-left text-xs uppercase tracking-wider text-grey-500">
-              <th className="w-10 py-2 font-medium">Pos</th>
-              <th className="py-2 font-medium">Player</th>
-              {weekLabel && (
-                <th className="hidden w-28 py-2 font-medium sm:table-cell">
-                  {weekLabel} picks
-                </th>
-              )}
-              <th className="w-16 py-2 text-right font-medium">Played</th>
-              <th className="w-16 py-2 text-right font-medium">Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr
-                key={row.userId}
-                className={`border-b border-grey-100 ${
-                  row.userId === highlightUserId
-                    ? 'bg-lime/10'
-                    : ''
-                }`}
-              >
-                <td className="numeric py-2.5 text-grey-400">
-                  {row.position}
-                  {row.tied && <span aria-label="tied">=</span>}
-                </td>
-                <td className="py-2.5">
-                  <span className="flex items-center gap-2.5">
-                    <span
-                      aria-hidden
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-on-accent"
-                      style={{ background: PALETTE[index % PALETTE.length] }}
-                    >
-                      {initials(row.displayName)}
-                    </span>
-                    {row.displayName}
-                  </span>
-                </td>
-                {weekLabel && (
-                  <td className="hidden py-2.5 sm:table-cell">
-                    <span className="flex items-center gap-1">
-                      {picksOf(row.userId).length === 0 ? (
-                        <span className="text-xs text-grey-400">&mdash;</span>
-                      ) : (
-                        picksOf(row.userId).map((p, i) =>
-                          p.crest ? (
-                            <Crest
-                              key={i}
-                              url={p.crest}
-                              alt={p.label}
-                              className="h-5 w-5"
-                            />
-                          ) : (
-                            // A called draw has no single club to show.
-                            <span
-                              key={i}
-                              title={p.label}
-                              className="flex h-5 w-5 items-center justify-center rounded-full bg-grey-300 text-[9px] font-bold text-on-accent"
-                            >
-                              D
-                            </span>
-                          ),
-                        )
-                      )}
-                    </span>
-                  </td>
-                )}
-                <td className="py-2.5 text-right tabular-nums text-grey-500">
-                  {row.gameweeksPlayed}
-                </td>
-                <td className="numeric py-2.5 text-right text-base">
-                  {row.points}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+  return (
+    <StandingsTable
+      rows={rows}
+      title={title}
+      subtitle={subtitle}
+      keyOf={(row) => row.userId}
+      rank={(row) => (
+        <>
+          {row.position}
+          {row.tied && <span aria-label="tied">=</span>}
+        </>
+      )}
+      zoneOf={zoneOf}
+      identityLabel="Player"
+      identity={(row) => (
+        <Identity
+          badge={
+            <span
+              aria-hidden
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-on-accent"
+              style={{ background: colourOf.get(row.userId) }}
+            >
+              {initials(row.displayName)}
+            </span>
+          }
+          name={row.displayName}
+        />
+      )}
+      highlight={(row) => row.userId === highlightUserId}
+      columns={[
+        ...(weekLabel
+          ? [
+              {
+                label: `${weekLabel} picks`,
+                from: 'sm' as const,
+                wide: true,
+                value: (row: StandingRow) => (
+                  <WeekPicks picks={picksOf(row.userId)} />
+                ),
+              },
+            ]
+          : []),
+        { label: 'P', value: (row: StandingRow) => row.gameweeksPlayed },
+        { label: 'Pts', emphasis: true, value: (row: StandingRow) => row.points },
+      ]}
+    />
   );
 }
 
@@ -145,10 +165,19 @@ export default async function TablePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: memberships } = await supabase
-    .from('league_members')
-    .select('league_id, leagues(id, name)')
-    .eq('user_id', user!.id);
+  // Fetched before the heading rather than after it: the season names the
+  // page, the same way it does on the league tables and the global board.
+  const [{ data: memberships }, { data: season }] = await Promise.all([
+    supabase
+      .from('league_members')
+      .select('league_id, leagues(id, name)')
+      .eq('user_id', user!.id),
+    supabase
+      .from('seasons')
+      .select('id, name')
+      .eq('is_active', true)
+      .maybeSingle(),
+  ]);
 
   const league = (memberships ?? [])
     .map((m) => m.leagues)
@@ -156,8 +185,9 @@ export default async function TablePage() {
 
   const heading = (
     <div>
-      <h1 className="display-lg">Table</h1>
-      <p className="mt-2 text-grey-700">
+      <p className="label">{season?.name ?? 'Season'}</p>
+      <h1 className="display-lg mt-1">Table</h1>
+      <p className="mt-2 max-w-xl text-grey-700">
         One point per correct result. Divisions run alongside the overall
         standings.
       </p>
@@ -184,12 +214,6 @@ export default async function TablePage() {
       </div>
     );
   }
-
-  const { data: season } = await supabase
-    .from('seasons')
-    .select('id, name')
-    .eq('is_active', true)
-    .maybeSingle();
 
   const seasonId = season?.id ?? '00000000-0000-0000-0000-000000000000';
 
@@ -329,6 +353,7 @@ export default async function TablePage() {
   const picksOf = (userId: string) => picksOfUser.get(userId) ?? [];
 
   const overall = rank(totalsFor(userIds));
+  const tierCount = (divisions ?? []).length;
 
   if (userIds.length === 0) {
     return (
@@ -376,18 +401,29 @@ export default async function TablePage() {
         const ids = (divisionMembers ?? [])
           .filter((m) => m.division_id === division.id)
           .map((m) => m.user_id);
+        const rows = rank(totalsFor(ids));
         return (
           <Table
             key={division.id}
             title={division.name}
             subtitle={`Tier ${division.tier}`}
-            rows={rank(totalsFor(ids))}
+            rows={rows}
             highlightUserId={user!.id}
             picksOf={picksOf}
             weekLabel={weekLabel}
+            zoneOf={(row) =>
+              divisionZone(row, rows.length, division.tier, tierCount)
+            }
           />
         );
       })}
+
+      {/* Only where movement is actually possible — a single division has
+          nowhere to send anyone. */}
+      <ZoneLegend
+        zones={tierCount > 1 ? ['promotion', 'relegation'] : []}
+        labels={GROUP_ZONE_LABEL}
+      />
 
       <p className="text-xs leading-relaxed text-grey-500">
         Players level on points share a position, shown with{' '}

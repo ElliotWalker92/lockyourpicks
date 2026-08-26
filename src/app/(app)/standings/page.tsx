@@ -1,11 +1,15 @@
 import Link from 'next/link';
 
 import { Crest } from '@/components/Crest';
+import {
+  Identity,
+  StandingsTable,
+  ZoneLegend,
+  type Zone,
+} from '@/components/StandingsTable';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Leagues' };
-
-type Zone = 'promotion' | 'playoff' | 'relegation' | null;
 
 /**
  * Which zone a row sits in, from the provider's own wording.
@@ -14,7 +18,7 @@ type Zone = 'promotion' | 'playoff' | 'relegation' | null;
  * so testing for promotion first would paint the whole play-off pack as
  * going up.
  */
-function zoneOf(description: string | null): Zone {
+function zoneOf(description: string | null): Zone | null {
   if (!description) return null;
   if (/play off/i.test(description)) return 'playoff';
   if (/relegation/i.test(description)) return 'relegation';
@@ -22,18 +26,6 @@ function zoneOf(description: string | null): Zone {
     return 'promotion';
   return null;
 }
-
-const ZONE_BAR: Record<NonNullable<Zone>, string> = {
-  promotion: 'bg-lime',
-  playoff: 'bg-away',
-  relegation: 'bg-loss',
-};
-
-const ZONE_LABEL: Record<NonNullable<Zone>, string> = {
-  promotion: 'Promotion / Europe',
-  playoff: 'Play-offs',
-  relegation: 'Relegation',
-};
 
 /** W/D/L pills, most recent last — same key as the fixture model. */
 function Form({ run }: { run: string | null }) {
@@ -115,7 +107,7 @@ export default async function StandingsPage({
 
   const zonesPresent = [
     ...new Set(table.map((r) => zoneOf(r.description)).filter(Boolean)),
-  ] as NonNullable<Zone>[];
+  ] as Zone[];
 
   return (
     <div className="flex flex-col gap-6">
@@ -159,120 +151,40 @@ export default async function StandingsPage({
         </div>
       ) : (
         <>
-          <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="label border-b border-grey-300 text-left">
-                  <th className="py-3 pr-2 pl-4 font-bold">#</th>
-                  <th className="py-3 font-bold">Team</th>
-                  <th className="py-3 pl-3 text-right font-bold">P</th>
-                  <th className="hidden py-3 pl-3 text-right font-bold sm:table-cell">
-                    W
-                  </th>
-                  <th className="hidden py-3 pl-3 text-right font-bold sm:table-cell">
-                    D
-                  </th>
-                  <th className="hidden py-3 pl-3 text-right font-bold sm:table-cell">
-                    L
-                  </th>
-                  <th className="hidden py-3 pl-3 text-right font-bold md:table-cell">
-                    GF
-                  </th>
-                  <th className="hidden py-3 pl-3 text-right font-bold md:table-cell">
-                    GA
-                  </th>
-                  <th className="py-3 pl-3 text-right font-bold">GD</th>
-                  <th className="py-3 pr-4 pl-3 text-right font-bold">Pts</th>
-                  <th className="hidden py-3 pr-4 text-right font-bold lg:table-cell">
-                    Form
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.map((row) => {
-                  const zone = zoneOf(row.description);
-                  return (
-                    <tr
-                      key={row.rank}
-                      title={row.description ?? undefined}
-                      className="border-b border-grey-100 last:border-0"
-                    >
-                      <td className="relative py-2.5 pr-2 pl-4">
-                        {/* Zone bar rather than a tinted row: it reads at a
-                            glance without washing out the text. */}
-                        {zone && (
-                          <span
-                            aria-hidden
-                            className={`absolute top-0 bottom-0 left-0 w-1 ${ZONE_BAR[zone]}`}
-                          />
-                        )}
-                        <span className="numeric text-grey-400">
-                          {row.rank}
-                        </span>
-                      </td>
+          <StandingsTable
+            rows={table}
+            keyOf={(row) => String(row.rank)}
+            rank={(row) => row.rank}
+            zoneOf={(row) => zoneOf(row.description)}
+            identityLabel="Team"
+            identity={(row) => (
+              <Identity
+                badge={<Crest url={row.team?.crest_url} className="h-6 w-6" />}
+                name={row.team?.name ?? 'Unknown'}
+              />
+            )}
+            columns={[
+              { label: 'P', value: (row) => row.played },
+              { label: 'W', from: 'sm', value: (row) => row.win },
+              { label: 'D', from: 'sm', value: (row) => row.draw },
+              { label: 'L', from: 'sm', value: (row) => row.lose },
+              { label: 'GF', from: 'md', value: (row) => row.goals_for },
+              { label: 'GA', from: 'md', value: (row) => row.goals_against },
+              {
+                label: 'GD',
+                value: (row) =>
+                  row.goals_diff > 0 ? `+${row.goals_diff}` : row.goals_diff,
+              },
+              { label: 'Pts', emphasis: true, value: (row) => row.points },
+              {
+                label: 'Form',
+                from: 'lg',
+                value: (row) => <Form run={row.form} />,
+              },
+            ]}
+          />
 
-                      <td className="w-full max-w-0 py-2.5 pr-2">
-                        <span className="flex items-center gap-2.5">
-                          <Crest
-                            url={row.team?.crest_url}
-                            className="h-6 w-6"
-                          />
-                          <span
-                            className="truncate font-medium"
-                            title={row.team?.name ?? undefined}
-                          >
-                            {row.team?.name ?? 'Unknown'}
-                          </span>
-                        </span>
-                      </td>
-
-                      <td className="py-2.5 pl-3 text-right text-grey-500 tabular-nums">
-                        {row.played}
-                      </td>
-                      <td className="hidden py-2.5 pl-3 text-right text-grey-500 tabular-nums sm:table-cell">
-                        {row.win}
-                      </td>
-                      <td className="hidden py-2.5 pl-3 text-right text-grey-500 tabular-nums sm:table-cell">
-                        {row.draw}
-                      </td>
-                      <td className="hidden py-2.5 pl-3 text-right text-grey-500 tabular-nums sm:table-cell">
-                        {row.lose}
-                      </td>
-                      <td className="hidden py-2.5 pl-3 text-right text-grey-500 tabular-nums md:table-cell">
-                        {row.goals_for}
-                      </td>
-                      <td className="hidden py-2.5 pl-3 text-right text-grey-500 tabular-nums md:table-cell">
-                        {row.goals_against}
-                      </td>
-                      <td className="py-2.5 pl-3 text-right text-grey-700 tabular-nums">
-                        {row.goals_diff > 0 ? `+${row.goals_diff}` : row.goals_diff}
-                      </td>
-                      <td className="numeric py-2.5 pr-4 pl-3 text-right text-base">
-                        {row.points}
-                      </td>
-                      <td className="hidden py-2.5 pr-4 lg:table-cell">
-                        <Form run={row.form} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {zonesPresent.length > 0 && (
-            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-grey-500">
-              {zonesPresent.map((zone) => (
-                <span key={zone} className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden
-                    className={`h-3 w-1 rounded-full ${ZONE_BAR[zone]}`}
-                  />
-                  {ZONE_LABEL[zone]}
-                </span>
-              ))}
-            </div>
-          )}
+          <ZoneLegend zones={zonesPresent} />
         </>
       )}
     </div>
