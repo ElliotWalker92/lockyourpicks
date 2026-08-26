@@ -72,6 +72,63 @@ const SHOW_FROM = {
   lg: 'hidden lg:table-cell',
 } as const;
 
+/**
+ * The right-hand gutter, on whichever column is last *at this width*.
+ *
+ * `last:pr-4` looks like the answer and isn't: `:last-child` counts the last
+ * element, not the last visible one, so on the league table it landed on
+ * Form — which is hidden below `lg` — and Pts was left jammed against the
+ * card border with no gutter at all.
+ *
+ * Hidden columns change which one is last at every breakpoint, so the gutter
+ * has to move with them: switched on where a column becomes last, and off
+ * again where a wider screen reveals another behind it.
+ *
+ * Written as whole literal class names on purpose. Tailwind scans source
+ * text, so a composed `${bp}:pr-4` would never be generated.
+ */
+const BREAKPOINTS = ['base', 'sm', 'md', 'lg'] as const;
+type Breakpoint = (typeof BREAKPOINTS)[number];
+
+const GUTTER_ON: Record<Breakpoint, string> = {
+  base: 'pr-4',
+  sm: 'sm:pr-4',
+  md: 'md:pr-4',
+  lg: 'lg:pr-4',
+};
+
+const GUTTER_OFF: Record<Breakpoint, string> = {
+  base: 'pr-0',
+  sm: 'sm:pr-0',
+  md: 'md:pr-0',
+  lg: 'lg:pr-0',
+};
+
+const WIDTH_RANK: Record<Breakpoint, number> = { base: 0, sm: 1, md: 2, lg: 3 };
+
+function gutterFor<T>(columns: Column<T>[], index: number): string {
+  const classes: string[] = [];
+  let wasLast = false;
+
+  for (const breakpoint of BREAKPOINTS) {
+    const lastVisible = columns.reduce(
+      (last, column, i) =>
+        !column.from || WIDTH_RANK[column.from] <= WIDTH_RANK[breakpoint]
+          ? i
+          : last,
+      -1,
+    );
+    const isLast = lastVisible === index;
+    if (isLast === wasLast) continue;
+    // At `base` there is nothing to turn off — no gutter is the default.
+    if (isLast) classes.push(GUTTER_ON[breakpoint]);
+    else if (breakpoint !== 'base') classes.push(GUTTER_OFF[breakpoint]);
+    wasLast = isLast;
+  }
+
+  return classes.join(' ');
+}
+
 export function StandingsTable<T>({
   rows,
   keyOf,
@@ -116,12 +173,15 @@ export function StandingsTable<T>({
           <tr className="label border-b border-grey-300 text-left">
             <th className="py-3 pr-2 pl-4 font-bold">#</th>
             <th className="py-3 font-bold">{identityLabel}</th>
-            {columns.map((column) => (
+            {columns.map((column, i) => (
               <th
                 key={column.label}
-                className={`py-3 pl-3 font-bold last:pr-4 ${
+                className={`py-3 pl-3 font-bold ${
                   column.wide ? 'text-left' : 'text-right'
-                } ${column.from ? SHOW_FROM[column.from] : ''}`}
+                } ${column.from ? SHOW_FROM[column.from] : ''} ${gutterFor(
+                  columns,
+                  i,
+                )}`}
               >
                 {column.label}
               </th>
@@ -155,16 +215,17 @@ export function StandingsTable<T>({
                     table: the cell takes the slack, then clips. */}
                 <td className="w-full max-w-0 py-2.5 pr-2">{identity(row)}</td>
 
-                {columns.map((column) => (
+                {columns.map((column, i) => (
                   <td
                     key={column.label}
-                    className={`py-2.5 pl-3 last:pr-4 ${
+                    className={`py-2.5 pl-3 ${
                       column.wide ? '' : 'text-right tabular-nums'
                     } ${
-                      column.emphasis
-                        ? 'numeric text-base'
-                        : 'text-grey-500'
-                    } ${column.from ? SHOW_FROM[column.from] : ''}`}
+                      column.emphasis ? 'numeric text-base' : 'text-grey-500'
+                    } ${column.from ? SHOW_FROM[column.from] : ''} ${gutterFor(
+                      columns,
+                      i,
+                    )}`}
                   >
                     {column.value(row)}
                   </td>
