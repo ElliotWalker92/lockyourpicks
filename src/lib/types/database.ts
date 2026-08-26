@@ -349,16 +349,19 @@ export type Database = {
       league_members: {
         Row: {
           joined_at: string
+          role: string
           league_id: string
           user_id: string
         }
         Insert: {
           joined_at?: string
+          role?: string
           league_id: string
           user_id: string
         }
         Update: {
           joined_at?: string
+          role?: string
           league_id?: string
           user_id?: string
         }

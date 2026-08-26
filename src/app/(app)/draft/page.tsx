@@ -17,6 +17,7 @@ import {
   loadTeamForm,
 } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
+import { viewingFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Picks' };
 
@@ -57,13 +58,12 @@ export default async function DraftPage({
 
   // Scoped to the active season: a player has a division per season, so
   // without this a returning player matches several rows.
-  const [{ data: membership }, { data: profile }] = await Promise.all([
-    supabase
-      .from('division_members')
-      .select('division_id, league_id, divisions(id, name, tier), leagues(name, owner_id)')
-      .eq('user_id', user!.id)
-      .eq('season_id', season?.id ?? '00000000-0000-0000-0000-000000000000')
-      .maybeSingle(),
+  const [view, { data: profile }] = await Promise.all([
+    viewingFor(
+      supabase,
+      user!.id,
+      season?.id ?? '00000000-0000-0000-0000-000000000000',
+    ),
     supabase
       .from('profiles')
       .select('is_admin')
@@ -72,17 +72,20 @@ export default async function DraftPage({
   ]);
 
   const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
-  const leagueRow = one(membership?.leagues);
-  const isOwner = leagueRow?.owner_id === user!.id;
+  const isOwner = view?.isOwner ?? false;
 
-  const scopeToggle = membership ? (
+  // A viewer has no division to draft in, so the whole group is the only
+  // view that means anything to them — and it's read-only for everyone.
+  const wholeGroupOnly = view?.viewer ?? false;
+
+  const scopeToggle = view && !wholeGroupOnly ? (
     <div
       role="tablist"
       aria-label="Picks scope"
       className="mt-4 inline-flex rounded-lg border border-grey-300 bg-card p-0.5"
     >
       {[
-        { key: 'division', label: one(membership.divisions)?.name ?? 'Your division' },
+        { key: 'division', label: view?.divisionName ?? 'Your division' },
         { key: 'group', label: 'Whole group' },
       ].map((option) => {
         const active = (option.key === 'group') === wholeGroup;
@@ -110,7 +113,7 @@ export default async function DraftPage({
       <h1 className="display-lg">Picks</h1>
       <p className="mt-2 text-grey-700">
         {wholeGroup
-          ? `Every division in ${leagueRow?.name ?? 'your group'}, this gameweek.`
+          ? `Every division in ${view?.leagueName ?? 'your group'}, this gameweek.`
           : 'Three fixtures a round. Once one’s gone in your division, it’s gone.'}
       </p>
       {scopeToggle}
@@ -118,7 +121,7 @@ export default async function DraftPage({
     </div>
   );
 
-  if (!membership) {
+  if (!view) {
     return (
       <div className="flex flex-col gap-8">
         {heading()}
@@ -134,24 +137,21 @@ export default async function DraftPage({
     );
   }
 
-  const division = membership.divisions;
-
-  // Shared with the dashboard, so the two agree on what's running.
+  // Shared with the dashboard, so the two agree on what's running. A viewer
+  // has no division, so any division in the group anchors the same answer.
   const nowIso = new Date().toISOString();
   const { gameweek, draft } = await currentDraftFor(
     supabase,
-    membership.division_id,
+    view.anchorDivisionId,
   );
 
-  // Your own division's rounds, whichever scope is in view: the drafted
-  // gameweeks are the same across a group, and yours is the honest basis.
-  const rounds = await loadRounds(supabase, [membership.division_id]);
+  const rounds = await loadRounds(supabase, [view.anchorDivisionId]);
   const roundStrip = (
     <RoundStrip
       rounds={rounds}
       live={gameweek?.number ?? null}
       selected="live"
-      scope={wholeGroup ? 'group' : 'division'}
+      scope={wholeGroup || wholeGroupOnly ? 'group' : 'division'}
     />
   );
 
@@ -173,11 +173,11 @@ export default async function DraftPage({
   // rivals a fixture is taken from. Stepping back shows what every division
   // has taken this gameweek, which is also where the owner sends the slips
   // out from: it's the screen you're on once everybody has finished.
-  if (wholeGroup) {
+  if (wholeGroup || wholeGroupOnly) {
     const { data: divisions } = await supabase
       .from('divisions')
       .select('id, name, tier')
-      .eq('league_id', membership.league_id)
+      .eq('league_id', view.leagueId)
       .eq('season_id', season?.id ?? '00000000-0000-0000-0000-000000000000')
       .order('tier');
 
@@ -430,7 +430,7 @@ export default async function DraftPage({
                     groups,
                   }))}
                   gameweek={`Gameweek ${gameweek.number}`}
-                  subtitle={leagueRow?.name ?? 'Your group'}
+                  subtitle={view.leagueName}
                 />
               </section>
             )}
@@ -442,7 +442,7 @@ export default async function DraftPage({
 
   const gameweekLabel = (
     <p className="text-sm text-grey-500">
-      {division?.name} &middot; {gameweek.name ?? `Gameweek ${gameweek.number}`}{' '}
+      {view.divisionName} &middot; {gameweek.name ?? `Gameweek ${gameweek.number}`}{' '}
       &middot; closes{' '}
       {new Date(gameweek.draft_closes_at).toLocaleString('en-GB', {
         weekday: 'short',
@@ -507,7 +507,7 @@ export default async function DraftPage({
       supabase
         .from('division_members')
         .select('user_id')
-        .eq('division_id', membership.division_id),
+        .eq('division_id', view.divisionId!),
     ]);
 
   const { data: players } = await supabase
@@ -590,8 +590,8 @@ export default async function DraftPage({
   const { data: siblingDivisions } = await supabase
     .from('divisions')
     .select('id, name')
-    .eq('league_id', membership.league_id)
-    .neq('id', membership.division_id);
+    .eq('league_id', view.leagueId)
+    .neq('id', view.divisionId!);
 
   const siblingIds = (siblingDivisions ?? []).map((d) => d.id);
   const { data: siblingDrafts } = siblingIds.length
@@ -643,7 +643,7 @@ export default async function DraftPage({
         elsewhere={elsewhere}
         crowd={crowd}
         gameweekLabel={gameweek.name ?? `Gameweek ${gameweek.number}`}
-        divisionName={division?.name ?? 'Your division'}
+        divisionName={view.divisionName ?? 'Your division'}
         // Five minutes before the first kickoff — draft_hard_deadline in
         // migration 0015, mirrored so the board can say when a seat is due.
         hardDeadline={new Date(

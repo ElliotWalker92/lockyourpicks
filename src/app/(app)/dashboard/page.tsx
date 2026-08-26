@@ -11,6 +11,7 @@ import { userAtTurn } from '@/lib/draft-order';
 import { rank } from '@/lib/standings';
 import { currentDraftFor } from '@/lib/current-draft';
 import { createClient } from '@/lib/supabase/server';
+import { viewingFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -89,10 +90,58 @@ export default async function DashboardPage() {
 
   // ---- Not in a division: say what's missing, not "0 points" ----
   if (!membership) {
-    const { count: leagueCount } = await supabase
-      .from('league_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user!.id);
+    const [{ count: leagueCount }, view] = await Promise.all([
+      supabase
+        .from('league_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user!.id),
+      viewingFor(supabase, user!.id, seasonId),
+    ]);
+
+    // ---- Watching rather than playing ----
+    //
+    // Everything a viewer wants is already on the other tabs — the group's
+    // picks, the tables, the results — so this points at them rather than
+    // rebuilding a dashboard out of somebody else's numbers.
+    if (view?.viewer) {
+      const { count: players } = await supabase
+        .from('division_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('league_id', view.leagueId)
+        .eq('season_id', seasonId);
+
+      return (
+        <div className="flex flex-col gap-6">
+          <div>
+            <p className="label">
+              {view.leagueName}
+              {season && <> &middot; {season.name}</>}
+            </p>
+            <h1 className="display-lg mt-1">Watching</h1>
+          </div>
+          <div className="card p-6">
+            <h2 className="display-md">
+              {players
+                ? `${players} player${players === 1 ? '' : 's'} drafting`
+                : 'Nobody is drafting yet'}
+            </h2>
+            <p className="mt-2 max-w-lg text-grey-700">
+              {players
+                ? `You can see everything ${view.leagueName} is doing — every division's picks as they're made, the slips, and the tables — without holding a place in it.`
+                : `You're watching ${view.leagueName}, but nobody has been arranged into a division yet. Once the owner does that, their picks show up here.`}
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link href="/draft" className="btn btn-lime">
+                See the picks
+              </Link>
+              <Link href="/table" className="btn btn-outline">
+                Table
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="flex flex-col gap-6">

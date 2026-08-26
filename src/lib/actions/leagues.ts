@@ -181,10 +181,13 @@ export async function buildDivisions(
     return { error: 'Only the league owner can arrange divisions.' };
   }
 
+  // Players only. A viewer is in the group to watch it, and putting them in
+  // a division would hand them picks to owe and a turn to miss.
   const { data: members } = await supabase
     .from('league_members')
     .select('user_id, joined_at')
     .eq('league_id', leagueId)
+    .eq('role', 'player')
     .order('joined_at', { ascending: true });
 
   if (!members?.length) return { error: 'This league has no members yet.' };

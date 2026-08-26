@@ -14,6 +14,7 @@ import {
 import { currentDraftFor } from '@/lib/current-draft';
 import { loadRounds } from '@/lib/rounds';
 import { createClient } from '@/lib/supabase/server';
+import { viewingFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Picks' };
 
@@ -80,40 +81,36 @@ export default async function ResultsPage({
     .maybeSingle();
   const seasonId = season?.id ?? NOBODY;
 
-  const { data: membership } = await supabase
-    .from('division_members')
-    .select('division_id, league_id, divisions(name), leagues(name, owner_id)')
-    .eq('user_id', user!.id)
-    .eq('season_id', seasonId)
-    .maybeSingle();
+  const view = await viewingFor(supabase, user!.id, seasonId);
 
-  const league = one(membership?.leagues);
-  const isOwner = league?.owner_id === user!.id;
+  // Watching rather than playing: there is no "your division" to narrow to.
+  const wholeGroupOnly = view?.viewer ?? false;
+  const isOwner = view?.isOwner ?? false;
 
   // Which divisions are in view. Your own by default: picks are drafted
   // against your division-mates, so those are the ones your week was
   // actually competing with. The whole group is a step back from that.
-  const { data: groupDivisions } = membership
+  const { data: groupDivisions } = view
     ? await supabase
         .from('divisions')
         .select('id, name, tier')
-        .eq('league_id', membership.league_id)
+        .eq('league_id', view.leagueId)
         .eq('season_id', seasonId)
         .order('tier')
     : { data: [] };
 
-  const divisionsInView = wholeGroup
+  const divisionsInView = wholeGroup || wholeGroupOnly
     ? (groupDivisions ?? [])
-    : (groupDivisions ?? []).filter((d) => d.id === membership?.division_id);
+    : (groupDivisions ?? []).filter((d) => d.id === view?.divisionId);
 
-  const scopeToggle = membership ? (
+  const scopeToggle = view && !wholeGroupOnly ? (
     <div
       role="tablist"
       aria-label="Results scope"
       className="mt-4 inline-flex rounded-lg border border-grey-300 bg-card p-0.5"
     >
       {[
-        { key: 'division', label: one(membership.divisions)?.name ?? 'Your division' },
+        { key: 'division', label: view.divisionName ?? 'Your division' },
         { key: 'group', label: 'Whole group' },
       ].map((option) => {
         const active = (option.key === 'group') === wholeGroup;
@@ -141,9 +138,9 @@ export default async function ResultsPage({
   const heading = (strip?: React.ReactNode) => (
     <div>
       <p className="label">
-        {wholeGroup
-          ? (league?.name ?? 'Picks')
-          : (one(membership?.divisions)?.name ?? 'Picks')}
+        {wholeGroup || wholeGroupOnly
+          ? (view?.leagueName ?? 'Picks')
+          : (view?.divisionName ?? 'Picks')}
       </p>
       <h1 className="display-lg mt-1">Picks</h1>
       {scopeToggle}
@@ -151,7 +148,7 @@ export default async function ResultsPage({
     </div>
   );
 
-  if (!membership) {
+  if (!view) {
     return (
       <div className="flex flex-col gap-8">
         {heading()}
@@ -177,7 +174,7 @@ export default async function ResultsPage({
       supabase,
       divisionsInView.map((d) => d.id),
     ),
-    currentDraftFor(supabase, membership.division_id),
+    currentDraftFor(supabase, view.anchorDivisionId),
   ]);
 
   const selected =
@@ -188,7 +185,7 @@ export default async function ResultsPage({
       rounds={played}
       live={live?.number ?? null}
       selected={selected?.number ?? 'live'}
-      scope={wholeGroup ? 'group' : 'division'}
+      scope={wholeGroup || wholeGroupOnly ? 'group' : 'division'}
     />
   );
 
@@ -271,7 +268,7 @@ export default async function ResultsPage({
 
   // Grouped by division when the whole group is in view, so a run of nine
   // names isn't presented as one table it never competed in.
-  const sections = wholeGroup
+  const sections = wholeGroup || wholeGroupOnly
     ? divisionsInView.map((d) => ({
         id: d.id,
         name: d.name,
@@ -279,8 +276,8 @@ export default async function ResultsPage({
       }))
     : [
         {
-          id: membership.division_id,
-          name: divisionName.get(membership.division_id) ?? '',
+          id: view.divisionId!,
+          name: divisionName.get(view.divisionId!) ?? '',
           players: byPlayer,
         },
       ];
@@ -485,32 +482,32 @@ export default async function ResultsPage({
       {/* The whole group's card is the owner's to send — it's the one that
           goes in the group chat, and it covers divisions the reader isn't in.
           Your own division's slip is anyone's. */}
-      {rows.length > 0 && (!wholeGroup || isOwner) && (
+      {rows.length > 0 && (!(wholeGroup || wholeGroupOnly) || isOwner) && (
         <section>
           <h2 className="label mb-1 flex items-center gap-1.5">
             <LockIcon className="h-3 w-3" />
             {finished ? 'How it finished' : kickedOff ? 'How it stands' : 'The slip'}
           </h2>
           <p className="mb-1 text-sm text-grey-700">
-            {wholeGroup
-              ? `Every pick in ${league?.name ?? 'the group'} for gameweek ${selected.number} — one card per division.`
+            {wholeGroup || wholeGroupOnly
+              ? `Every pick in ${view.leagueName} for gameweek ${selected.number} — one card per division.`
               : finished
                 ? `All ${rows.length} picks from gameweek ${selected.number}, with the results and what they scored.`
                 : kickedOff
                   ? `All ${rows.length} picks with the scores as they stand right now.`
                   : `All ${rows.length} picks from gameweek ${selected.number}.`}
           </p>
-          {wholeGroup ? (
+          {wholeGroup || wholeGroupOnly ? (
             <SlipSet
               sections={slipSections}
               gameweek={`Gameweek ${selected.number}`}
-              subtitle={league?.name ?? 'Your group'}
+              subtitle={view.leagueName}
             />
           ) : (
             <SharePicks
               groups={slip}
               gameweek={`Gameweek ${selected.number}`}
-              subtitle={one(membership.divisions)?.name ?? 'Your division'}
+              subtitle={view.divisionName ?? 'Your division'}
               locked
               heading={finished ? 'Send the final slip' : 'Send the slip'}
             />
