@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { sendEmail } from '@/lib/notify/resend';
+import { isPlaceholderEmail, sendEmail } from '@/lib/notify/resend';
 import { turnEmail } from '@/lib/notify/turn-email';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
@@ -48,6 +48,16 @@ export async function notifyTurns(
 
   for (const turn of pending) {
     try {
+      // A player with no real address yet: marked as notified so it isn't
+      // retried every ten minutes, and counted as skipped, not sent.
+      if (isPlaceholderEmail(turn.email)) {
+        await callRpc(supabase, 'mark_turn_notified', {
+          p_draft_id: turn.draft_id,
+        });
+        report.skipped++;
+        continue;
+      }
+
       const email = turnEmail({
         name: turn.display_name ?? 'there',
         division: turn.division_name,

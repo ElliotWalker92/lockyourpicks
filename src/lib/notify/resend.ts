@@ -19,6 +19,19 @@ export type Email = {
 const FROM = 'Lock Your Picks <noreply@lockyourpicks.com>';
 
 /**
+ * A stand-in address for a player who hasn't signed up yet.
+ *
+ * `.invalid` is reserved (RFC 2606) and can never be delivered, so it's the
+ * one way to give someone an account before they have an email without
+ * pointing it at a real mailbox. Mail to it is never attempted: a send that
+ * bounces counts against the sending account's reputation, and enough of
+ * them gets it paused.
+ */
+export function isPlaceholderEmail(email: string): boolean {
+  return /\.invalid$/i.test(email.trim());
+}
+
+/**
  * Returns false when no key is configured rather than throwing, so a
  * deployment without notifications set up degrades to silence instead of
  * failing the cron that calls it.

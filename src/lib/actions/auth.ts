@@ -97,9 +97,15 @@ export async function signOut() {
 /**
  * Send a password-reset link.
  *
- * Always reports success, even when no account exists for that address.
- * Saying "no account found" turns the form into a way to test whether
- * someone is a member of the league.
+ * An address with no account gets the same "check your inbox" as one with
+ * an account — saying "no account found" would turn the form into a way to
+ * test who is in the league. Supabase already does that for us: it answers
+ * success for an unknown address.
+ *
+ * So an error from here is never "no such account". It's a real failure —
+ * the mail server refusing, or the send rate limit — and it has to be said.
+ * This used to swallow it and report success regardless, which is how
+ * resets failed for everyone while each of them was told it had worked.
  */
 export async function requestPasswordReset(
   _prev: AuthState,
@@ -114,8 +120,15 @@ export async function requestPasswordReset(
     redirectTo: `${siteOrigin()}/auth/callback?next=/auth/new-password`,
   });
 
-  // Log the real failure, but don't surface it — see above.
-  if (error) console.error('resetPasswordForEmail:', error.message);
+  if (error) {
+    console.error('resetPasswordForEmail:', error.status, error.message);
+    return {
+      error:
+        error.status === 429
+          ? 'Too many reset emails have gone out in the last hour. Try again in a little while.'
+          : 'We couldn’t send the reset email just now. Try again shortly — if it keeps happening, let the league admin know.',
+    };
+  }
 
   return { error: null, sent: true };
 }
