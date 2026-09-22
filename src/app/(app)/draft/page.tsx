@@ -462,10 +462,11 @@ export default async function DraftPage({
         {gameweekLabel}
         <Empty title="Picks aren’t open yet">
           <p>
-            No draft has been opened for this gameweek. In a running season this
-            happens automatically when the previous gameweek settles.
+            {view.paused
+              ? `${view.leagueName} is still picking outside the app this round. Your earlier weeks are all in the tables here — drafting opens in the app once the switch is made.`
+              : 'No draft has been opened for this gameweek. In a running season this happens automatically when the previous gameweek settles.'}
           </p>
-          {profile?.is_admin && (
+          {profile?.is_admin && !view.paused && (
             <div className="mt-4">
               <OpenDraftButton gameweekId={gameweek.id} />
             </div>

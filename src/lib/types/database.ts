@@ -377,6 +377,7 @@ export type Database = {
       }
       leagues: {
         Row: {
+          drafting_paused: boolean
           created_at: string
           division_size: number
           id: string
@@ -386,6 +387,7 @@ export type Database = {
           owner_id: string | null
         }
         Insert: {
+          drafting_paused?: boolean
           created_at?: string
           division_size?: number
           id?: string
@@ -395,6 +397,7 @@ export type Database = {
           owner_id?: string | null
         }
         Update: {
+          drafting_paused?: boolean
           created_at?: string
           division_size?: number
           id?: string

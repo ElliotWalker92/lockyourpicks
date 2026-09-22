@@ -19,6 +19,8 @@ export type Viewing = {
    */
   anchorDivisionId: string;
   viewer: boolean;
+  /** The group is still playing elsewhere: history here, no drafting yet. */
+  paused: boolean;
 };
 
 const one = <T,>(v: T | T[]): T => (Array.isArray(v) ? v[0] : v);
@@ -37,7 +39,7 @@ export async function viewingFor(
   const { data: playing } = await supabase
     .from('division_members')
     .select(
-      'division_id, league_id, divisions(id, name, tier), leagues(name, owner_id)',
+      'division_id, league_id, divisions(id, name, tier), leagues(name, owner_id, drafting_paused)',
     )
     .eq('user_id', userId)
     .eq('season_id', seasonId)
@@ -47,6 +49,7 @@ export async function viewingFor(
     const league = one(playing.leagues) as {
       name: string;
       owner_id: string;
+      drafting_paused?: boolean;
     } | null;
     const division = one(playing.divisions) as { name: string } | null;
     return {
@@ -57,12 +60,13 @@ export async function viewingFor(
       divisionName: division?.name ?? null,
       anchorDivisionId: playing.division_id,
       viewer: false,
+      paused: league?.drafting_paused ?? false,
     };
   }
 
   const { data: watching } = await supabase
     .from('league_members')
-    .select('league_id, role, leagues(name, owner_id)')
+    .select('league_id, role, leagues(name, owner_id, drafting_paused)')
     .eq('user_id', userId)
     .eq('role', 'viewer')
     .maybeSingle();
@@ -72,6 +76,7 @@ export async function viewingFor(
   const league = one(watching.leagues) as {
     name: string;
     owner_id: string;
+    drafting_paused?: boolean;
   } | null;
 
   // Lowest tier first, so the anchor is stable as divisions come and go.
@@ -92,5 +97,6 @@ export async function viewingFor(
     divisionName: null,
     anchorDivisionId: anchor?.id ?? NOBODY,
     viewer: true,
+    paused: league?.drafting_paused ?? false,
   };
 }
