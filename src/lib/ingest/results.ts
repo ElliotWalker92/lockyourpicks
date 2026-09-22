@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getFixturesByDate, mapStatus } from '@/lib/api-football';
+import { ingestStandings } from '@/lib/ingest/standings';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
@@ -10,6 +11,8 @@ export type ResultsReport = {
   updated: number;
   finished: number;
   gameweeksSettled: number;
+  /** League tables refreshed because one of their fixtures just finished. */
+  tablesRefreshed: string[];
   errors: string[];
 };
 
@@ -72,8 +75,21 @@ export async function ingestResults(
     updated: 0,
     finished: 0,
     gameweeksSettled: 0,
+    tablesRefreshed: [],
     errors: [],
   };
+
+  // Only our six competitions. The date feed is worldwide — a Saturday is
+  // several thousand fixtures — and filtering here keeps the write small.
+  const { data: competitions } = await supabase
+    .from('competitions')
+    .select('provider_league_id')
+    .eq('is_active', true);
+  const ours = new Set(
+    (competitions ?? [])
+      .map((c) => c.provider_league_id)
+      .filter((id): id is number => id !== null),
+  );
 
   // provider fixture id → our row
   const updates = new Map<
@@ -87,6 +103,7 @@ export async function ingestResults(
       report.providerFixtures += fixtures.length;
 
       for (const f of fixtures) {
+        if (!ours.has(f.league.id)) continue;
         updates.set(f.fixture.id, {
           home_score: f.goals.home,
           away_score: f.goals.away,
@@ -100,41 +117,27 @@ export async function ingestResults(
     }
   }
 
+  // One statement for the lot. This used to be an UPDATE per fixture, and
+  // Workers Free stops a job at 50 outbound requests — a full Saturday went
+  // past that, and the rest of the afternoon's results simply didn't land.
+  let finishedIn: string[] = [];
   if (updates.size > 0) {
-    // Only touch fixtures we actually hold — the date feed is worldwide, and
-    // most of it belongs to competitions we don't run.
-    const ids = Array.from(updates.keys());
-    const ours: { id: string; provider_fixture_id: number }[] = [];
+    const { data, error } = await callRpc<{
+      updated: number;
+      finished: number;
+      finished_competitions: string[];
+    }>(supabase, 'apply_fixture_results', {
+      p_updates: Array.from(updates, ([provider_fixture_id, u]) => ({
+        provider_fixture_id,
+        ...u,
+      })),
+    });
 
-    for (let i = 0; i < ids.length; i += 500) {
-      const { data } = await supabase
-        .from('fixtures')
-        .select('id, provider_fixture_id')
-        .in('provider_fixture_id', ids.slice(i, i + 500));
-      ours.push(
-        ...((data ?? []) as { id: string; provider_fixture_id: number }[]),
-      );
-    }
-
-    for (const row of ours) {
-      const update = updates.get(row.provider_fixture_id);
-      if (!update) continue;
-
-      const { error } = await supabase
-        .from('fixtures')
-        .update({
-          home_score: update.home_score,
-          away_score: update.away_score,
-          status: update.status as Database['public']['Enums']['fixture_status'],
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', row.id);
-
-      if (error) report.errors.push(`fixture ${row.id}: ${error.message}`);
-      else {
-        report.updated++;
-        if (update.status === 'finished') report.finished++;
-      }
+    if (error) report.errors.push(`apply results: ${error.message}`);
+    else if (data) {
+      report.updated = data.updated;
+      report.finished = data.finished;
+      finishedIn = data.finished_competitions;
     }
   }
 
@@ -147,6 +150,23 @@ export async function ingestResults(
 
   if (settleError) report.errors.push(`settle: ${settleError.message}`);
   else report.gameweeksSettled = settled ?? 0;
+
+  // A table only moves when a match in it finishes, so refresh exactly
+  // those — within one results run of full time, rather than waiting for
+  // the next of three scheduled table pulls a day.
+  if (finishedIn.length) {
+    try {
+      const tables = await ingestStandings(supabase, {
+        competitionIds: finishedIn,
+      });
+      report.tablesRefreshed = tables.competitions.map((c) => c.code);
+      report.errors.push(...tables.errors.map((e) => `standings ${e}`));
+    } catch (err) {
+      report.errors.push(
+        `standings: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   return report;
 }

@@ -5,6 +5,7 @@ import {
   draftWindows,
   MIN_FIXTURES_PER_GAMEWEEK,
 } from '@/lib/gameweek-blocks';
+import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
 /**
@@ -29,7 +30,18 @@ export type FixtureLike = {
 };
 
 /** Numbers are reassigned through this offset so the unique index never collides. */
-const RENUMBER_OFFSET = 10_000;
+/** What apply_recut needs: each block's window and the fixtures in it. */
+function planOf(
+  blocks: { start: Date; items: { id: string }[] }[],
+  windows: { opensAt: Date; closesAt: Date }[],
+) {
+  return blocks.map((block, i) => ({
+    opens_at: windows[i].opensAt.toISOString(),
+    closes_at: windows[i].closesAt.toISOString(),
+    first_kickoff_at: block.start.toISOString(),
+    fixture_ids: block.items.map((f) => f.id),
+  }));
+}
 
 async function allSeasonFixtures(
   supabase: SupabaseClient<Database>,
@@ -98,65 +110,21 @@ export async function recutSeason(
     .from('gameweeks')
     .select('id')
     .eq('season_id', seasonId);
-  const oldIds = (oldGameweeks ?? []).map((g) => g.id);
 
-  // Clear what the old arrangement produced. Drafts cascade to picks.
-  const { count: draftsCleared } = await supabase
-    .from('drafts')
-    .select('*', { count: 'exact', head: true })
-    .in('gameweek_id', oldIds);
-
-  await supabase.from('gameweek_scores').delete().in('gameweek_id', oldIds);
-  await supabase.from('drafts').delete().in('gameweek_id', oldIds);
-
-  // Create the new gameweeks out of the way of the existing numbering.
-  const created: string[] = [];
-  let fixturesMoved = 0;
-
-  for (const [i, block] of blocks.entries()) {
-    const { opensAt, closesAt } = windows[i];
-    const { data: gw, error } = await supabase
-      .from('gameweeks')
-      .insert({
-        season_id: seasonId,
-        number: RENUMBER_OFFSET + i + 1,
-        name: `Gameweek ${i + 1}`,
-        draft_opens_at: opensAt.toISOString(),
-        draft_closes_at: closesAt.toISOString(),
-        first_kickoff_at: block.start.toISOString(),
-        status: 'upcoming',
-      })
-      .select('id')
-      .single();
-
-    if (error || !gw) throw new Error(`recutSeason: ${error?.message}`);
-    created.push(gw.id);
-
-    // Reassign in chunks — a block can carry a hundred-odd fixtures.
-    const ids = block.items.map((f) => f.id);
-    for (let c = 0; c < ids.length; c += 200) {
-      const slice = ids.slice(c, c + 200);
-      const { error: moveError } = await supabase
-        .from('fixtures')
-        .update({ gameweek_id: gw.id })
-        .in('id', slice);
-      if (moveError) throw new Error(`recutSeason move: ${moveError.message}`);
-      fixturesMoved += slice.length;
-    }
-  }
-
-  // Old gameweeks are childless now. Deleting them before the move would have
-  // taken their fixtures with them — the foreign key cascades.
-  if (oldIds.length) {
-    await supabase.from('gameweeks').delete().in('id', oldIds);
-  }
-
-  for (const [i, id] of created.entries()) {
-    await supabase
-      .from('gameweeks')
-      .update({ number: i + 1 })
-      .eq('id', id);
-  }
+  // Destructive by design, and all-or-nothing: drafts and scores for the
+  // old shape are cleared in the same transaction that replaces it.
+  const { data: applied, error } = await callRpc<{
+    fixtures_moved: number;
+    drafts_cleared: number;
+  }>(supabase, 'apply_recut', {
+    p_season_id: seasonId,
+    p_replace: (oldGameweeks ?? []).map((g) => g.id),
+    p_blocks: planOf(blocks, windows),
+    p_clear_drafts: true,
+  });
+  if (error) throw new Error(`recutSeason: ${error.message}`);
+  const fixturesMoved = applied?.fixtures_moved ?? 0;
+  const draftsCleared = applied?.drafts_cleared ?? 0;
 
   const sizes = blocks.map((b) => b.items.length);
   const hours = windows.map(
@@ -166,7 +134,7 @@ export async function recutSeason(
   return {
     gameweeks: blocks.length,
     fixturesMoved,
-    draftsCleared: draftsCleared ?? 0,
+    draftsCleared,
     smallest: Math.min(...sizes),
     shortestWindowHours: Math.round(Math.min(...hours)),
   };
@@ -228,55 +196,25 @@ export async function syncGameweeks(
     windows[0] = { ...windows[0], opensAt: new Date(lastFrozenClose) };
   }
 
-  const created: string[] = [];
-  for (const [i, block] of blocks.entries()) {
-    const { data: gw, error } = await supabase
-      .from('gameweeks')
-      .insert({
-        season_id: seasonId,
-        number: RENUMBER_OFFSET + i + 1,
-        name: 'Gameweek',
-        draft_opens_at: windows[i].opensAt.toISOString(),
-        draft_closes_at: windows[i].closesAt.toISOString(),
-        first_kickoff_at: block.start.toISOString(),
-        status: 'upcoming',
-      })
-      .select('id')
-      .single();
-    if (error || !gw) throw new Error(`syncGameweeks: ${error?.message}`);
-    created.push(gw.id);
+  // Everything unfrozen is replaced; the database does the rest in one
+  // transaction. This used to be an insert and a move per block, a delete,
+  // and an update per gameweek — well over the 50 requests Workers Free
+  // allows — and the one time it was cut off it left the season half
+  // migrated: new gameweeks holding the fixtures, the old ones still there
+  // and empty, nothing renumbered.
+  const replace = all.map((g) => g.id).filter((id) => !frozen.has(id));
+  const { data, error } = await callRpc<{ created: number }>(
+    supabase,
+    'apply_recut',
+    {
+      p_season_id: seasonId,
+      p_replace: replace,
+      p_blocks: planOf(blocks, windows),
+    },
+  );
+  if (error) throw new Error(`syncGameweeks: ${error.message}`);
 
-    const ids = block.items.map((f) => f.id);
-    for (let c = 0; c < ids.length; c += 200) {
-      const { error: moveError } = await supabase
-        .from('fixtures')
-        .update({ gameweek_id: gw.id })
-        .in('id', ids.slice(c, c + 200));
-      if (moveError) throw new Error(`syncGameweeks move: ${moveError.message}`);
-    }
-  }
-
-  // The old un-frozen gameweeks are empty now; dropping them earlier would
-  // have taken their fixtures with them.
-  const staleIds = all.map((g) => g.id).filter((id) => !frozen.has(id));
-  if (staleIds.length) {
-    await supabase.from('gameweeks').delete().in('id', staleIds);
-  }
-
-  const { data: fresh } = await supabase
-    .from('gameweeks')
-    .select('id')
-    .eq('season_id', seasonId)
-    .order('draft_closes_at');
-
-  for (const [i, g] of (fresh ?? []).entries()) {
-    await supabase
-      .from('gameweeks')
-      .update({ number: i + 1, name: `Gameweek ${i + 1}` })
-      .eq('id', g.id);
-  }
-
-  return { frozen: frozen.size, recut: created.length };
+  return { frozen: frozen.size, recut: data?.created ?? 0 };
 }
 
 export { MIN_FIXTURES_PER_GAMEWEEK };

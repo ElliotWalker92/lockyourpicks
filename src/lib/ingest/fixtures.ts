@@ -52,7 +52,7 @@ export async function ingestFixtures(
 
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('id, code, provider_league_id')
+    .select('id, code, provider_league_id, is_cup')
     .eq('is_active', true);
 
   // Season years are named by their starting year: 2026/27 is season 2026.
@@ -125,6 +125,37 @@ export async function ingestFixtures(
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  // ---- Cup ties involving one of the 92 only ----
+  //
+  // The provider lists every round of the FA Cup, qualifying rounds
+  // included, where both sides are non-league. Those brought in 224 clubs
+  // and a hundred-odd fixtures a weekend that nobody can sensibly call and
+  // the model knows nothing about. A cup tie is kept when at least one side
+  // appears in this run's league fixtures. If a league fetch failed, fewer
+  // ties survive this run — they come back on the next one, which is the
+  // safe way round.
+  const cupIds = new Set(
+    (competitions ?? []).filter((c) => c.is_cup).map((c) => c.id),
+  );
+  const leagueSides = new Set<number>();
+  for (const { competitionId, fixture } of allFixtures) {
+    if (cupIds.has(competitionId)) continue;
+    leagueSides.add(fixture.teams.home.id);
+    leagueSides.add(fixture.teams.away.id);
+  }
+  const kept = allFixtures.filter(
+    ({ competitionId, fixture }) =>
+      !cupIds.has(competitionId) ||
+      leagueSides.has(fixture.teams.home.id) ||
+      leagueSides.has(fixture.teams.away.id),
+  );
+  allFixtures.splice(0, allFixtures.length, ...kept);
+  teams.clear();
+  for (const { fixture } of allFixtures) {
+    teams.set(fixture.teams.home.id, fixture.teams.home);
+    teams.set(fixture.teams.away.id, fixture.teams.away);
   }
 
   // ---- Teams ----

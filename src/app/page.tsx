@@ -49,7 +49,12 @@ export default async function Home() {
         .from('competitions')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true),
-      supabase.from('teams').select('*', { count: 'exact', head: true }),
+      // The league clubs, not every row in teams: a cup tie against a
+      // non-league side adds a team, and 92 is the claim being made.
+      supabase
+        .from('standings')
+        .select('*', { count: 'exact', head: true })
+        .eq('season_id', season?.id ?? NO_SEASON),
       supabase
         .from('gameweeks')
         .select('*', { count: 'exact', head: true })

@@ -52,8 +52,9 @@ const handler = {
     const body = await response.text();
 
     if (!response.ok) {
-      console.error(`${path} failed: ${response.status} ${body.slice(0, 500)}`);
-      return;
+      // Thrown, not just logged: Cloudflare marks the cron invocation failed,
+      // which is the one place a failure is visible without opening logs.
+      throw new Error(`${path} failed: ${response.status} ${body.slice(0, 500)}`);
     }
 
     console.log(`${path}: ${body.slice(0, 500)}`);

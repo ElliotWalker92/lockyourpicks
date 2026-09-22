@@ -24,6 +24,12 @@ export type StandingsReport = {
  */
 export async function ingestStandings(
   supabase: SupabaseClient<Database>,
+  {
+    competitionIds,
+  }: {
+    /** Only these — a cup id is harmless, it has no table and is skipped. */
+    competitionIds?: string[];
+  } = {},
 ): Promise<StandingsReport> {
   const { data: season, error: seasonError } = await supabase
     .from('seasons')
@@ -38,12 +44,14 @@ export async function ingestStandings(
   // Season years are named by their starting year: 2026/27 is season 2026.
   const seasonYear = new Date(season.starts_on).getUTCFullYear();
 
-  const { data: competitions } = await supabase
+  let competitionQuery = supabase
     .from('competitions')
     .select('id, code, provider_league_id')
     .eq('is_active', true)
     .eq('is_cup', false)
     .order('tier');
+  if (competitionIds) competitionQuery = competitionQuery.in('id', competitionIds);
+  const { data: competitions } = await competitionQuery;
 
   const { data: teamRows } = await supabase
     .from('teams')

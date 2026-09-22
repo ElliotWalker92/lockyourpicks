@@ -1,10 +1,9 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-import { serverEnv } from '@/lib/server-env';
+import { runCron } from '@/lib/cron';
 
 import { callRpc } from '@/lib/supabase/rpc';
 import { notifyTurns } from '@/lib/notify/turns';
-import { createServiceRoleClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,59 +34,39 @@ export const maxDuration = 60;
  * All three are idempotent, so overlapping runs are harmless.
  */
 export async function GET(request: NextRequest) {
-  const secret = serverEnv('CRON_SECRET');
-  if (!secret) {
-    return NextResponse.json(
-      { error: 'CRON_SECRET is not configured' },
-      { status: 500 },
+  return runCron(request, 'drafts', async (supabase) => {
+    const errors: string[] = [];
+
+    const { data: opened, error: openError } = await callRpc<number>(
+      supabase,
+      'open_due_drafts',
     );
-  }
+    if (openError) errors.push(`open_due_drafts: ${openError.message}`);
 
-  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    const { data: autoPicked, error: turnError } = await callRpc<number>(
+      supabase,
+      'run_expired_turns',
+    );
+    if (turnError) errors.push(`run_expired_turns: ${turnError.message}`);
 
-  const supabase = createServiceRoleClient();
-  const errors: string[] = [];
+    // After the turns have moved, not before.
+    let notified = { due: 0, sent: 0, skipped: 0 };
+    try {
+      const report = await notifyTurns(supabase);
+      notified = { due: report.due, sent: report.sent, skipped: report.skipped };
+      errors.push(...report.errors);
+    } catch (err) {
+      // A mail failure must not stop drafts opening or turns expiring.
+      errors.push(
+        `notifyTurns: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
-  const { data: opened, error: openError } = await callRpc<number>(
-    supabase,
-    'open_due_drafts',
-  );
-  if (openError) errors.push(`open_due_drafts: ${openError.message}`);
-
-  const { data: autoPicked, error: turnError } = await callRpc<number>(
-    supabase,
-    'run_expired_turns',
-  );
-  if (turnError) errors.push(`run_expired_turns: ${turnError.message}`);
-
-  // After the turns have moved, not before.
-  let notified = { due: 0, sent: 0, skipped: 0 };
-  try {
-    const report = await notifyTurns(supabase);
-    notified = {
-      due: report.due,
-      sent: report.sent,
-      skipped: report.skipped,
+    return {
+      draftsOpened: opened ?? 0,
+      turnsAutoPicked: autoPicked ?? 0,
+      notified,
+      errors,
     };
-    errors.push(...report.errors);
-  } catch (err) {
-    // A mail failure must not stop drafts opening or turns expiring.
-    errors.push(
-      `notifyTurns: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  const body = {
-    ok: errors.length === 0,
-    draftsOpened: opened ?? 0,
-    turnsAutoPicked: autoPicked ?? 0,
-    notified,
-    errors,
-  };
-
-  if (errors.length > 0) console.error('drafts cron:', errors.join(' | '));
-
-  return NextResponse.json(body, { status: errors.length > 0 ? 500 : 200 });
+  });
 }

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getFixtures } from '@/lib/api-football';
 import { HOME_ADV } from '@/lib/elo';
+import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
 /**
@@ -192,19 +193,13 @@ export async function recomputeElo(
     elo_updated_at: new Date().toISOString(),
   }));
 
-  for (let i = 0; i < rows.length; i += 200) {
-    const chunk = rows.slice(i, i + 200);
-    for (const row of chunk) {
-      const { error } = await supabase
-        .from('teams')
-        .update({
-          elo_rating: row.elo_rating,
-          elo_updated_at: row.elo_updated_at,
-        })
-        .eq('id', row.id);
-      if (error) report.errors.push(`${nameOf.get(row.id)}: ${error.message}`);
-    }
-  }
+  // One statement. Row by row this was one request per team, and Workers
+  // Free stops a job at 50 — roughly thirty clubs were rated each week and
+  // the rest kept whatever they had.
+  const { error: eloError } = await callRpc<number>(supabase, 'apply_team_elo', {
+    p_rows: rows.map(({ id, elo_rating }) => ({ id, elo_rating })),
+  });
+  if (eloError) report.errors.push(`apply elo: ${eloError.message}`);
 
   report.teamsRated = rows.length;
   const sorted = rows
