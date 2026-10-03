@@ -66,16 +66,16 @@ function WeekPicks({ picks }: { picks: WeekPick[] }) {
     return <span className="text-xs text-grey-400">&mdash;</span>;
   }
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-0.5 sm:gap-1">
       {picks.map((p, i) =>
         p.crest ? (
-          <Crest key={i} url={p.crest} alt={p.label} className="h-5 w-5" />
+          <Crest key={i} url={p.crest} alt={p.label} className="h-4 w-4 sm:h-5 sm:w-5" />
         ) : (
           // A called draw has no single club to show.
           <span
             key={i}
             title={p.label}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-grey-300 text-[9px] font-bold text-on-accent"
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-grey-300 text-[8px] font-bold text-on-accent sm:h-5 sm:w-5 sm:text-[9px]"
           >
             D
           </span>
@@ -143,8 +143,16 @@ function Table({
         ...(weekLabel
           ? [
               {
-                label: `${weekLabel} picks`,
-                from: 'sm' as const,
+                // What everyone is holding this round is the thing people
+                // open the table for mid-week, so it stays on a phone. The
+                // heading loses the word "picks" there; the crests say it.
+                label: weekLabel,
+                head: (
+                  <>
+                    <span className="sm:hidden">{weekLabel}</span>
+                    <span className="hidden sm:inline">{weekLabel} picks</span>
+                  </>
+                ),
                 wide: true,
                 value: (row: StandingRow) => (
                   <WeekPicks picks={picksOf(row.userId)} />

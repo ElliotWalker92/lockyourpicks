@@ -57,6 +57,8 @@ export function ZoneLegend({
 export type Column<T> = {
   /** Short head, the way a football table heads them: P, W, GD, Pts. */
   label: string;
+  /** Shown instead of `label`, when the heading wants to say more. */
+  head?: ReactNode;
   /** Breakpoint below which the column is dropped. Absent means always on. */
   from?: 'sm' | 'md' | 'lg';
   /** The points column: display face, full contrast. One per table. */
@@ -183,7 +185,7 @@ export function StandingsTable<T>({
                   i,
                 )}`}
               >
-                {column.label}
+                {column.head ?? column.label}
               </th>
             ))}
           </tr>
