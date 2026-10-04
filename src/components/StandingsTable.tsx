@@ -68,6 +68,13 @@ export type Column<T> = {
   value: (row: T) => ReactNode;
 };
 
+/**
+ * A number sitting straight after a row of club badges reads as part of
+ * them, so the column following a `wide` one gets a wider gutter.
+ */
+const afterWide = <T,>(columns: Column<T>[], i: number) =>
+  columns[i - 1]?.wide ? 'pl-5' : 'pl-3';
+
 const SHOW_FROM = {
   sm: 'hidden sm:table-cell',
   md: 'hidden md:table-cell',
@@ -178,7 +185,7 @@ export function StandingsTable<T>({
             {columns.map((column, i) => (
               <th
                 key={column.label}
-                className={`py-3 pl-3 font-bold ${
+                className={`py-3 font-bold ${afterWide(columns, i)} ${
                   column.wide ? 'text-left' : 'text-right'
                 } ${column.from ? SHOW_FROM[column.from] : ''} ${gutterFor(
                   columns,
@@ -220,7 +227,7 @@ export function StandingsTable<T>({
                 {columns.map((column, i) => (
                   <td
                     key={column.label}
-                    className={`py-2.5 pl-3 ${
+                    className={`py-2.5 ${afterWide(columns, i)} ${
                       column.wide ? '' : 'text-right tabular-nums'
                     } ${
                       column.emphasis ? 'numeric text-base' : 'text-grey-500'
