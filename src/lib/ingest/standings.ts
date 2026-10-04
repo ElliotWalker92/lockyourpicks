@@ -1,12 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getStandings, type ApiStandingRow } from '@/lib/api-football';
+import {
+  getStandings,
+  isTransientApiError,
+  type ApiStandingRow,
+} from '@/lib/api-football';
 import type { Database } from '@/lib/types';
 
 export type StandingsReport = {
   season: string;
   competitions: { code: string; rows: number; note?: string }[];
   rowsUpserted: number;
+  /** Refusals that the next run retries; not a failure on their own. */
+  warnings: string[];
   errors: string[];
 };
 
@@ -22,6 +28,9 @@ export type StandingsReport = {
  * run: one league's table being unavailable is no reason to leave the other
  * three stale.
  */
+/** Past this, a table that hasn't moved is a problem, not a quiet week. */
+const STALE_AFTER_MS = 24 * 3_600_000;
+
 export async function ingestStandings(
   supabase: SupabaseClient<Database>,
   {
@@ -67,6 +76,7 @@ export async function ingestStandings(
     season: season.name,
     competitions: [],
     rowsUpserted: 0,
+    warnings: [],
     errors: [],
   };
 
@@ -118,10 +128,33 @@ export async function ingestStandings(
         note: missing ? `${missing} team(s) not matched` : undefined,
       });
     } catch (err) {
-      report.errors.push(
-        `${competition.code}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const message = `${competition.code}: ${err instanceof Error ? err.message : String(err)}`;
+      // A refused pull leaves the previous table in place, which is stale
+      // rather than wrong. It only becomes a failure if it stays stale —
+      // see the check below.
+      if (isTransientApiError(err)) report.warnings.push(message);
+      else report.errors.push(message);
     }
+  }
+
+  // A table nobody has managed to refresh for a day is the failure the
+  // silent-for-eight-days outage looked like from outside. Say so, whatever
+  // the individual calls did.
+  const { data: stalest } = await supabase
+    .from('standings')
+    .select('updated_at')
+    .eq('season_id', season.id)
+    .order('updated_at')
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    stalest?.updated_at &&
+    Date.now() - Date.parse(stalest.updated_at) > STALE_AFTER_MS
+  ) {
+    report.errors.push(
+      `a league table has not updated since ${stalest.updated_at.slice(0, 16)}`,
+    );
   }
 
   return report;

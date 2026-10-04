@@ -69,7 +69,15 @@ export async function runCron(
  * Every failure a report describes, wherever it put it.
  *
  * Most jobs keep a top-level `errors`; the fixture import reports per
- * competition instead. Both count.
+ * competition instead. Both count — and `warnings` deliberately doesn't.
+ *
+ * The provider's minute ceiling looks to be enforced per IP, and Workers
+ * share outbound addresses, so a job can be refused because of somebody
+ * else's traffic and be perfectly fine on the next run. Ten such refusals
+ * in a row sent ten emails about nothing while every result was in and
+ * every table current. A job is now judged by whether its data is behind:
+ * results checks for a match played without a result, standings for a
+ * table that hasn't moved in a day.
  */
 function errorsIn(report: Report): string[] {
   const found: string[] = [];

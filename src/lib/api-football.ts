@@ -103,11 +103,25 @@ async function throttle() {
  * quietly goes missing from an otherwise successful run. Waiting is the
  * whole fix, because the limit is per minute.
  */
-const RATE_LIMIT_RETRIES = 2;
-const RATE_LIMIT_BACKOFF_MS = 20_000;
+const RATE_LIMIT_RETRIES = 3;
+/** Rising, with jitter: a fixed wait makes every retry collide again. */
+const RATE_LIMIT_BACKOFF_MS = [8_000, 20_000, 40_000];
 
-const isRateLimit = (err: unknown) =>
-  err instanceof ApiFootballError && /rateLimit/i.test(err.message);
+/**
+ * A failure that will probably not be there next time.
+ *
+ * The minute ceiling appears to be enforced per IP, and Workers share
+ * outbound addresses with everyone else on the platform, so a run can be
+ * refused because of traffic that isn't ours. Retrying helps a little and
+ * waiting helps more, but neither is a fix — which is why a caller should
+ * treat these as warnings and judge the job by whether the data is actually
+ * behind, not by whether a call was refused.
+ */
+export const isTransientApiError = (err: unknown) =>
+  err instanceof ApiFootballError &&
+  /rateLimit|Too Many Requests|HTTP 429|HTTP 50\d/i.test(err.message);
+
+const isRateLimit = isTransientApiError;
 
 async function request<T>(
   path: string,
@@ -140,7 +154,8 @@ async function request<T>(
       return unwrap<T>(await res.json(), path);
     } catch (err) {
       if (isRateLimit(err) && attempt < RATE_LIMIT_RETRIES) {
-        await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS));
+        const base = RATE_LIMIT_BACKOFF_MS[attempt] ?? 40_000;
+        await new Promise((r) => setTimeout(r, base + Math.random() * 5_000));
         continue;
       }
       throw err;

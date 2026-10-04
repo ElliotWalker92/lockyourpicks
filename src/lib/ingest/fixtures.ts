@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  isTransientApiError,
   currentSeasonOf,
   getEnglandLeagues,
   getFixtures,
@@ -118,11 +119,16 @@ export async function ingestFixtures(
         fixtures: fixtures.length,
       });
     } catch (err) {
+      // A refused pull leaves the fixtures we already hold untouched, and
+      // the weekly run picks it up next time — a warning, not a failure.
+      const message = err instanceof Error ? err.message : String(err);
       report.competitions.push({
         code: competition.code,
         season: seasonYear,
         fixtures: 0,
-        error: err instanceof Error ? err.message : String(err),
+        ...(isTransientApiError(err)
+          ? { warning: message }
+          : { error: message }),
       });
     }
   }

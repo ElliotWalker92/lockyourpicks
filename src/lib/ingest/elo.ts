@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getFixtures } from '@/lib/api-football';
+import {
+  isTransientApiError, getFixtures } from '@/lib/api-football';
 import { HOME_ADV } from '@/lib/elo';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
@@ -45,6 +46,8 @@ export type EloReport = {
   currentSeasonMatches: number;
   teamsRated: number;
   spread: { top: [string, number][]; bottom: [string, number][] };
+  /** Refusals that the next run retries; they still block a rewrite. */
+  warnings: string[];
   errors: string[];
 };
 
@@ -79,6 +82,7 @@ export async function recomputeElo(
     currentSeasonMatches: 0,
     teamsRated: 0,
     spread: { top: [], bottom: [] },
+    warnings: [],
     errors: [],
   };
 
@@ -123,6 +127,7 @@ export async function recomputeElo(
   const seed = (id: string) => seedOf.get(id) ?? DEFAULT_SEED;
 
   // ---- Last season, straight from the provider ----
+  let historyIncomplete = false;
   const played: Played[] = [];
   for (const c of competitions ?? []) {
     if (!c.provider_league_id) continue;
@@ -147,9 +152,13 @@ export async function recomputeElo(
         report.seasonsUsed.push(previous);
       }
     } catch (err) {
-      report.errors.push(
-        `${c.code} ${previous}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      // Ratings are computed from the whole history at once, so a season
+      // that didn't arrive doesn't make them slightly worse — it makes them
+      // wrong, for every club, silently. Record it and refuse to write.
+      historyIncomplete = true;
+      const message = `${c.code} ${previous}: ${err instanceof Error ? err.message : String(err)}`;
+      if (isTransientApiError(err)) report.warnings.push(message);
+      else report.errors.push(message);
     }
   }
   report.historicalMatches = played.length;
@@ -196,6 +205,14 @@ export async function recomputeElo(
   // One statement. Row by row this was one request per team, and Workers
   // Free stops a job at 50 — roughly thirty clubs were rated each week and
   // the rest kept whatever they had.
+  if (historyIncomplete) {
+    report.errors.push(
+      'history incomplete — ratings left as they were rather than rewritten from partial data',
+    );
+    report.teamsRated = 0;
+    return report;
+  }
+
   const { error: eloError } = await callRpc<number>(supabase, 'apply_team_elo', {
     p_rows: rows.map(({ id, elo_rating }) => ({ id, elo_rating })),
   });

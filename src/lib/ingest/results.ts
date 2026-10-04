@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getFixturesByDate, mapStatus } from '@/lib/api-football';
+import {
+  getFixturesByDate,
+  isTransientApiError,
+  mapStatus,
+} from '@/lib/api-football';
 import { ingestStandings } from '@/lib/ingest/standings';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
@@ -13,6 +17,12 @@ export type ResultsReport = {
   gameweeksSettled: number;
   /** League tables refreshed because one of their fixtures just finished. */
   tablesRefreshed: string[];
+  /**
+   * Refusals that fix themselves — a rate-limited date is polled again on
+   * the next run. Recorded, but they don't make the run a failure: what
+   * matters is whether a result is actually missing, which `errors` says.
+   */
+  warnings: string[];
   errors: string[];
 };
 
@@ -25,6 +35,9 @@ function isoDate(offset: number): string {
 
 /** How many dates one run may poll, so a long backlog can't blow the budget. */
 const MAX_DATES = 14;
+
+/** How long after kickoff a missing result stops being a timing question. */
+const OVERDUE_AFTER_MS = 4 * 3_600_000;
 
 /**
  * Poll recent results and settle whatever is due.
@@ -76,6 +89,7 @@ export async function ingestResults(
     finished: 0,
     gameweeksSettled: 0,
     tablesRefreshed: [],
+    warnings: [],
     errors: [],
   };
 
@@ -111,9 +125,9 @@ export async function ingestResults(
         });
       }
     } catch (err) {
-      report.errors.push(
-        `${date}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const message = `${date}: ${err instanceof Error ? err.message : String(err)}`;
+      if (isTransientApiError(err)) report.warnings.push(message);
+      else report.errors.push(message);
     }
   }
 
@@ -161,11 +175,30 @@ export async function ingestResults(
       });
       report.tablesRefreshed = tables.competitions.map((c) => c.code);
       report.errors.push(...tables.errors.map((e) => `standings ${e}`));
+      report.warnings.push(...tables.warnings.map((w) => `standings ${w}`));
     } catch (err) {
       report.errors.push(
         `standings: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  // The honest test of this job: is anything that has been played still
+  // without a result? A refused call that the next run picks up is noise;
+  // a match finished hours ago and still blank is the thing worth an email,
+  // because it stops a gameweek settling and nobody gets their points.
+  const overdue = await supabase
+    .from('fixtures')
+    .select('kickoff_at', { count: 'exact' })
+    .in('status', ['scheduled', 'live'])
+    .lt('kickoff_at', new Date(Date.now() - OVERDUE_AFTER_MS).toISOString())
+    .order('kickoff_at')
+    .limit(1);
+
+  if (overdue.count) {
+    report.errors.push(
+      `${overdue.count} fixture(s) played but still without a result, oldest ${overdue.data?.[0]?.kickoff_at?.slice(0, 16)}`,
+    );
   }
 
   return report;
