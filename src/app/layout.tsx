@@ -54,7 +54,11 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Lock Your Picks",
-    statusBarStyle: "black-translucent",
+    // Not black-translucent: that pulls the page up behind the status bar
+    // and forces white status-bar text, which on a light header is white
+    // on near-white. "default" keeps the clock legible and the layout
+    // starting below the notch.
+    statusBarStyle: "default",
   },
   // Next emits the standardised `mobile-web-app-capable`. iOS before 17
   // only knows the prefixed one, and an iPhone a couple of years old is

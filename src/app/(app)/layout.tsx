@@ -31,7 +31,14 @@ export default async function AppLayout({
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-grey-300 bg-card/90 backdrop-blur">
+      {/* Padded rather than offset, so the bar's own background fills the
+          notch inset instead of leaving a strip of page showing through.
+          Zero on anything without a notch, and on iOS when the status bar
+          is opaque — harmless either way. */}
+      <header
+        className="sticky top-0 z-20 border-b border-grey-300 bg-card/90 backdrop-blur"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-3">
           <Link href="/dashboard" className="shrink-0">
             <span className="font-display text-lg font-extrabold tracking-tight">
@@ -84,8 +91,9 @@ export default async function AppLayout({
         </div>
       </header>
 
-      {/* pb-24 clears the fixed bottom bar on phones. */}
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 pt-8 pb-24 sm:py-10">
+      {/* Clears the fixed bottom bar on phones — its height plus whatever
+          the home indicator takes, which pb-24 alone didn't account for. */}
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6 pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:py-10 sm:pb-10">
         {children}
       </main>
 
