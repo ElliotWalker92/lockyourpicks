@@ -15,11 +15,20 @@
 const VERSION = 'v1';
 const ASSETS = `assets-${VERSION}`;
 const SHELL = `shell-${VERSION}`;
-const OFFLINE = '/offline.html';
+/**
+ * Two spellings on purpose. Cloudflare's asset server strips `.html` and
+ * redirects, so the page lives at /offline in production; Next's dev
+ * server only knows the file it was given. Caching whichever answers
+ * keeps the two honest without the worker knowing where it is deployed.
+ */
+const OFFLINE = ['/offline', '/offline.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL).then((c) => c.add(OFFLINE)).then(() => self.skipWaiting()),
+    caches
+      .open(SHELL)
+      .then((c) => Promise.allSettled(OFFLINE.map((url) => c.add(url))))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -66,7 +75,13 @@ self.addEventListener('fetch', (event) => {
   // half-rendered page is worse than an obvious one.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match(OFFLINE).then((r) => r ?? Response.error())),
+      fetch(request).catch(async () => {
+        for (const url of OFFLINE) {
+          const hit = await caches.match(url);
+          if (hit) return hit;
+        }
+        return Response.error();
+      }),
     );
   }
 });
