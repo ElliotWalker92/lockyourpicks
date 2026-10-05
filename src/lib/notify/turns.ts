@@ -66,7 +66,18 @@ export async function notifyTurns(
         expiresAt: turn.expires_at,
       });
 
-      const sent = await sendEmail({ to: turn.email, ...email });
+      const sent = await sendEmail({
+        to: turn.email,
+        ...email,
+        // Mailbox providers — Outlook especially — treat a message you
+        // can't opt out of as more likely to be unwanted, and some will
+        // surface a one-tap unsubscribe instead of leaving junk as the
+        // only option. The switch it points at is real: Profile has
+        // "Email me when it's my turn".
+        headers: {
+          'List-Unsubscribe': '<https://www.lockyourpicks.com/profile>',
+        },
+      });
       if (!sent) {
         // No API key configured: leave it unmarked so it goes out once
         // notifications are switched on, rather than being lost.

@@ -14,6 +14,8 @@ export type Email = {
   subject: string;
   html: string;
   text: string;
+  /** Extra SMTP headers — List-Unsubscribe and friends. */
+  headers?: Record<string, string>;
 };
 
 const FROM = 'Lock Your Picks <noreply@lockyourpicks.com>';
@@ -52,6 +54,14 @@ export async function sendEmail(email: Email): Promise<boolean> {
       subject: email.subject,
       html: email.html,
       text: email.text,
+      // Somewhere for a reply to land. A sender nobody can answer is both
+      // a small negative signal to filters and rude; this is only set when
+      // REPLY_TO_EMAIL is configured, because a reply that bounces is
+      // worse than one that was never invited.
+      ...(serverEnv('REPLY_TO_EMAIL')
+        ? { reply_to: serverEnv('REPLY_TO_EMAIL') }
+        : {}),
+      ...(email.headers ? { headers: email.headers } : {}),
     }),
   });
 
