@@ -8,9 +8,10 @@
  * stored.
  *
  * What it does: serve the hashed build assets from cache, because their
- * URLs change whenever their contents do, and show an offline card instead
- * of the browser's error page when a navigation fails. That is also enough
- * to make the app installable.
+ * URLs change whenever their contents do; show an offline card instead of
+ * the browser's error page when a navigation fails; and show the
+ * notification when a turn is pushed, which is the one thing that has to
+ * happen here because it happens with no page open at all.
  */
 const VERSION = 'v1';
 const ASSETS = `assets-${VERSION}`;
@@ -84,4 +85,57 @@ self.addEventListener('fetch', (event) => {
       }),
     );
   }
+});
+
+
+/**
+ * A push arrives, and the notification must be shown.
+ *
+ * `userVisibleOnly` was promised at subscribe time, so every push has to
+ * produce a visible notification — a browser that catches us not showing
+ * one revokes the permission. Hence the fallback text: if the payload is
+ * ever missing or malformed, something still appears.
+ */
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = {};
+  }
+
+  const title = payload.title || 'Lock Your Picks';
+  const options = {
+    body: payload.body || "It's your turn to pick.",
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: payload.tag || 'turn',
+    renotify: true,
+    data: { url: payload.url || '/draft' },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+/**
+ * Tapping it should land on the board, and in the window they already
+ * have open if there is one — opening a second copy of an installed app
+ * is the sort of thing that loses someone their place.
+ */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/draft';
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if (new URL(client.url).origin === self.location.origin) {
+            return client.focus().then((c) => c.navigate(url));
+          }
+        }
+        return self.clients.openWindow(url);
+      }),
+  );
 });

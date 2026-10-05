@@ -6,7 +6,9 @@ import {
 } from '@/components/ProfileForms';
 import { signOut } from '@/lib/actions/auth';
 import { NotifyToggle } from '@/components/NotifyToggle';
+import { PushToggle } from '@/components/PushToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { serverEnv } from '@/lib/server-env';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Profile' };
@@ -53,6 +55,11 @@ export default async function ProfilePage() {
   const name = profile?.display_name ?? user!.email?.split('@')[0] ?? 'Player';
   const colour = profile?.avatar_color ?? '#c8f135';
 
+  // Read at request time, not inlined at build: the key lives in the
+  // Worker's env, which `next build` never sees. Absent, the switch simply
+  // isn't offered — better than one that can't subscribe.
+  const vapidPublicKey = serverEnv('NEXT_PUBLIC_VAPID_PUBLIC_KEY');
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -77,7 +84,10 @@ export default async function ProfilePage() {
           title="Notifications"
           description="An async draft only works if you know it's your go."
         >
-          <NotifyToggle enabled={profile?.notify_turn ?? true} />
+          <div className="flex flex-col gap-5">
+            {vapidPublicKey && <PushToggle publicKey={vapidPublicKey} />}
+            <NotifyToggle enabled={profile?.notify_turn ?? true} />
+          </div>
         </Section>
 
         <Section

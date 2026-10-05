@@ -24,12 +24,13 @@ export const maxDuration = 60;
  *                      point of having a turn deadline is that something
  *                      enforces it.
  *
- *   notifyTurns        emails whoever the clock has just moved to. It rides
- *                      here rather than on its own schedule for two reasons:
- *                      this is the job that changes whose turn it is, so the
- *                      email goes out in the same pass; and a Workers Free
- *                      account gets five cron triggers, all of which were
- *                      already spoken for.
+ *   notifyTurns        tells whoever the clock has just moved to — a push to
+ *                      their phone if they've installed the app, an email
+ *                      otherwise. It rides here rather than on its own
+ *                      schedule for two reasons: this is the job that changes
+ *                      whose turn it is, so the notification goes out in the
+ *                      same pass; and a Workers Free account gets five cron
+ *                      triggers, all of which were already spoken for.
  *
  * All three are idempotent, so overlapping runs are harmless.
  */
@@ -50,11 +51,18 @@ export async function GET(request: NextRequest) {
     if (turnError) errors.push(`run_expired_turns: ${turnError.message}`);
 
     // After the turns have moved, not before.
-    let notified = { due: 0, sent: 0, skipped: 0 };
+    let notified = { due: 0, sent: 0, pushed: 0, skipped: 0 };
+    const warnings: string[] = [];
     try {
       const report = await notifyTurns(supabase);
-      notified = { due: report.due, sent: report.sent, skipped: report.skipped };
+      notified = {
+        due: report.due,
+        sent: report.sent,
+        pushed: report.pushed,
+        skipped: report.skipped,
+      };
       errors.push(...report.errors);
+      warnings.push(...report.warnings);
     } catch (err) {
       // A mail failure must not stop drafts opening or turns expiring.
       errors.push(
@@ -67,6 +75,7 @@ export async function GET(request: NextRequest) {
       turnsAutoPicked: autoPicked ?? 0,
       notified,
       errors,
+      warnings,
     };
   });
 }

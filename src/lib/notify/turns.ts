@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { type PushTarget, pushConfigured, sendPush } from '@/lib/notify/push';
 import { isPlaceholderEmail, sendEmail } from '@/lib/notify/resend';
 import { turnEmail } from '@/lib/notify/turn-email';
 import { callRpc } from '@/lib/supabase/rpc';
@@ -8,8 +9,16 @@ import type { Database } from '@/lib/types';
 export type NotifyReport = {
   due: number;
   sent: number;
+  /** Of `sent`, how many went to a phone rather than an inbox. */
+  pushed: number;
   skipped: number;
   errors: string[];
+  /**
+   * Things worth knowing that aren't failures — a push that had to fall
+   * back to email still told the player, so it must not fail the run and
+   * wake the admins. `runCron` reads `errors` and ignores these.
+   */
+  warnings: string[];
 };
 
 type PendingTurn = {
@@ -21,21 +30,37 @@ type PendingTurn = {
   league_name: string;
   gameweek: number;
   expires_at: string | null;
+  push_targets: PushTarget[] | null;
 };
 
 /**
- * Email whoever is on the clock and hasn't been told.
+ * Tell whoever is on the clock, and hasn't been told.
  *
- * Marked as notified only after the send succeeds, so a provider outage
- * means a delayed email rather than a silently skipped one. The cost of
- * that choice is a possible duplicate if the mark fails after the send —
- * which is the right way round: two emails is a nuisance, none is a player
+ * A phone beats an inbox, so a player with a device registered gets a push
+ * and no email: a turn email went to junk once already, and two nudges for
+ * one turn trains people to ignore both. Email remains the channel for
+ * everyone who hasn't installed the app, and the fallback whenever every
+ * one of a player's devices refuses the push — a dead subscription must not
+ * be the reason nobody was told.
+ *
+ * Marked as notified only after something succeeds, so a provider outage
+ * means a delayed notification rather than a silently skipped one. The cost
+ * of that choice is a possible duplicate if the mark fails after the send —
+ * which is the right way round: two nudges is a nuisance, none is a player
  * getting auto-picked without warning.
  */
 export async function notifyTurns(
   supabase: SupabaseClient<Database>,
 ): Promise<NotifyReport> {
-  const report: NotifyReport = { due: 0, sent: 0, skipped: 0, errors: [] };
+  const report: NotifyReport = {
+    due: 0,
+    sent: 0,
+    pushed: 0,
+    skipped: 0,
+    errors: [],
+    warnings: [],
+  };
+  const canPush = pushConfigured();
 
   const { data, error } = await callRpc<PendingTurn[]>(
     supabase,
@@ -48,6 +73,38 @@ export async function notifyTurns(
 
   for (const turn of pending) {
     try {
+      const devices = canPush ? (turn.push_targets ?? []) : [];
+
+      if (devices.length > 0) {
+        const results = await Promise.all(
+          devices.map((device) =>
+            sendPush(supabase, device, {
+              title: 'You’re on the clock',
+              body: `Gameweek ${turn.gameweek} — pick your three in ${turn.division_name}.`,
+              url: '/draft',
+              // One notification per turn: a second push for the same turn
+              // replaces the first rather than stacking under it.
+              tag: `turn-${turn.draft_id}`,
+            }),
+          ),
+        );
+
+        if (results.includes('sent')) {
+          await callRpc(supabase, 'mark_turn_notified', {
+            p_draft_id: turn.draft_id,
+          });
+          report.sent++;
+          report.pushed++;
+          continue;
+        }
+        // Every device refused. Fall through to email — and say so, since
+        // otherwise a player whose phone has quietly stopped receiving
+        // looks indistinguishable from one who never installed the app.
+        report.warnings.push(
+          `${turn.email}: push failed on ${results.length} device${results.length === 1 ? '' : 's'} (${results.join(', ')}), fell back to email`,
+        );
+      }
+
       // A player with no real address yet: marked as notified so it isn't
       // retried every ten minutes, and counted as skipped, not sent.
       if (isPlaceholderEmail(turn.email)) {

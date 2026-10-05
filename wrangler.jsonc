@@ -39,10 +39,19 @@
 
   "vars": {
     // Non-secret. Secrets are set with `wrangler secret put` and never live here:
-    //   SUPABASE_SERVICE_ROLE_KEY, API_FOOTBALL_KEY, CRON_SECRET
+    //   SUPABASE_SERVICE_ROLE_KEY, API_FOOTBALL_KEY, CRON_SECRET,
+    //   VAPID_PRIVATE_KEY
     "NEXT_PUBLIC_SUPABASE_URL": "https://itxdvbfjpyszcwnwbbyt.supabase.co",
     // Where emailed auth links come back to. Must match a Redirect URL
     // allowed in the Supabase project, or the link silently loses its code.
-    "NEXT_PUBLIC_SITE_URL": "https://lockyourpicks.com"
+    "NEXT_PUBLIC_SITE_URL": "https://lockyourpicks.com",
+    // The public half of the push signing key. It is handed to every browser
+    // that subscribes — that is its whole job — so it belongs here and not
+    // in a secret. Its private half signs each push and must never be.
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BPB8ATtVzFHHY7lv5cHoLSScF6gW5OdwVVjCq4clTe3a95Y11n5cFoe6A3zk_HC2TdpvROqObKNMOhtrP0mekAg",
+    // Who to contact about pushes from this app, per RFC 8292. Push services
+    // use it if a sender starts misbehaving, so it has to be real: the site,
+    // rather than a mailbox nothing delivers to.
+    "VAPID_SUBJECT": "https://www.lockyourpicks.com"
   }
 }

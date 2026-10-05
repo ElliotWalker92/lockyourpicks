@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { AVATAR_COLORS, type ProfileState } from '@/lib/profile-options';
+import { callRpc } from '@/lib/supabase/rpc';
 import { createClient } from '@/lib/supabase/server';
 
 export async function updateProfile(
@@ -134,4 +135,56 @@ export async function setTurnNotifications(enabled: boolean): Promise<void> {
     .eq('id', user.id);
 
   revalidatePath('/profile');
+}
+
+/**
+ * Remember a device so its turns can be pushed to it.
+ *
+ * The endpoint is the device's identity and already unique per device per
+ * site, so re-subscribing on a phone that already has a row updates it
+ * rather than collecting duplicates — which is what happens otherwise,
+ * because browsers reissue the subscription when their keys rotate.
+ *
+ * Through a function because it also has to take an endpoint over from
+ * another account, which RLS won't allow directly. See migration 0027.
+ */
+export async function savePushSubscription(subscription: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  label?: string;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'You need to be signed in.' };
+
+  const { error } = await callRpc(supabase, 'save_push_subscription', {
+    p_endpoint: subscription.endpoint,
+    p_p256dh: subscription.p256dh,
+    p_auth: subscription.auth,
+    p_label: subscription.label ?? null,
+  });
+
+  return { error: error?.message ?? null };
+}
+
+/** Stop pushing to this device. */
+export async function removePushSubscription(
+  endpoint: string,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'You need to be signed in.' };
+
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .delete()
+    .eq('endpoint', endpoint)
+    .eq('user_id', user.id);
+
+  return { error: error?.message ?? null };
 }
