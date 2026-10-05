@@ -101,6 +101,23 @@ export function pickText(p: SharePick): string {
 }
 
 /**
+ * The lines every shared slip opens with.
+ *
+ * No emoji here, deliberately. This line used to start with a padlock,
+ * U+1F512, and it reached at least one player's phone as an empty box while
+ * the em dash beside it arrived intact — the dash is two bytes and inside
+ * the BMP, the padlock is four and outside it, which is the signature of
+ * something in the chain mishandling a surrogate pair rather than a font
+ * missing a glyph. Bold makes the header stand out just as well and there
+ * is nothing left to fail.
+ *
+ * Shared by both slips so the two can't drift apart.
+ */
+function slipHeader(gameweek: string, subtitle: string): string[] {
+  return [`*Lock Your Picks* — ${gameweek}`, subtitle, ''];
+}
+
+/**
  * Shrink until it fits, then ellipsize — a long fixture shouldn't overflow.
  */
 function fitText(
@@ -451,7 +468,7 @@ export function SharePicks({
   );
   const totalPoints = filled.reduce((n, g) => n + (g.points ?? 0), 0);
 
-  const lines: string[] = [`🔒 Lock Your Picks — ${gameweek}`, subtitle, ''];
+  const lines: string[] = slipHeader(gameweek, subtitle);
   let textSection: string | null = null;
   for (const g of filled) {
     if (g.section && g.section !== textSection) {
@@ -640,11 +657,7 @@ export function SlipSet({
     );
 
   const textOf = (section: SlipSection) => {
-    const lines = [
-      `🔒 Lock Your Picks — ${gameweek}`,
-      `${subtitle} · ${section.title}`,
-      '',
-    ];
+    const lines = slipHeader(gameweek, `${subtitle} · ${section.title}`);
     for (const g of section.groups) {
       if (!g.picks.length) continue;
       lines.push(
