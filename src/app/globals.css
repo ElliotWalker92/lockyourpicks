@@ -68,6 +68,22 @@
    follows the operating system. A recorded choice pins it, and because the
    attribute is rendered by the server from a cookie there is no script to
    run and no frame of the wrong palette before it does. */
+/* ---- The phone tab bar ----
+   One source for the bar's height and the clearance the page leaves it,
+   because they were three separate numbers that drifted apart: the page
+   reserved 96px for a bar nearer 117, and the home-indicator strip was
+   left at the full inset, which reads as a grey band under the icons.
+
+   The indicator itself is a thin pill a few pixels tall sitting at the
+   very bottom. Reserving the whole inset keeps labels clear of it with
+   room to spare; trimming a little keeps them clear and gives the bar
+   back a third of its height. */
+:root {
+  --nav-reserve: max(calc(env(safe-area-inset-bottom) - 0.75rem), 0.25rem);
+  --nav-row: 3.5rem;
+  --nav-height: calc(var(--nav-row) + var(--nav-reserve));
+}
+
 html {
   scroll-behavior: smooth;
   color-scheme: light dark;

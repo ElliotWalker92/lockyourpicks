@@ -93,7 +93,7 @@ export default async function AppLayout({
 
       {/* Clears the fixed bottom bar on phones — its height plus whatever
           the home indicator takes, which pb-24 alone didn't account for. */}
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:py-10 sm:pb-10">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6 pt-8 pb-[calc(var(--nav-height)+1rem)] sm:py-10 sm:pb-10">
         {children}
       </main>
 

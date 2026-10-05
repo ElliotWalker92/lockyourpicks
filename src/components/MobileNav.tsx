@@ -68,11 +68,11 @@ export function MobileNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-grey-300 bg-card/95 backdrop-blur sm:hidden"
-      // Keeps the bar clear of the iOS home indicator.
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-grey-300 bg-card sm:hidden"
+      // Keeps the bar clear of the iOS home indicator — see globals.
+      style={{ paddingBottom: 'var(--nav-reserve)' }}
     >
-      <ul className="mx-auto flex max-w-lg">
+      <ul className="mx-auto flex h-[var(--nav-row)] max-w-lg">
         {TABS.map((tab) => {
           const active = [tab.href, ...(tab.also ?? [])].some(
             (p) => pathname === p || pathname.startsWith(`${p}/`),
@@ -82,7 +82,7 @@ export function MobileNav() {
               <Link
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition ${
+                className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition ${
                   active ? 'text-ink' : 'text-grey-500'
                 }`}
               >
