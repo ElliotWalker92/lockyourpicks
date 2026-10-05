@@ -30,7 +30,14 @@ export const config = {
     /*
      * Everything except static assets and image files — those don't need a
      * session refresh and matching them would just add latency.
+     *
+     * The install files are excluded for a stronger reason than latency:
+     * the browser fetches the manifest and the service worker with no
+     * session, and this middleware answers an unauthenticated request with
+     * a redirect to sign-in. A 307 where a script or a manifest should be
+     * is not an error anyone sees — the app simply never becomes
+     * installable, and the offline page never arrives.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
   ],
 };

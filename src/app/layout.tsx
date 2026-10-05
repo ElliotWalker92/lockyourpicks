@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ServiceWorker } from '@/components/ServiceWorker';
 import { cookies } from "next/headers";
 import { Archivo, Inter } from "next/font/google";
 import "./globals.css";
@@ -47,6 +48,18 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
     shortcut: "/favicon.ico",
   },
+  // Launched from the home screen on iOS: no Safari chrome, and the dark
+  // status bar blends into the header rather than sitting on top of it as
+  // a white band.
+  appleWebApp: {
+    capable: true,
+    title: "Lock Your Picks",
+    statusBarStyle: "black-translucent",
+  },
+  // Next emits the standardised `mobile-web-app-capable`. iOS before 17
+  // only knows the prefixed one, and an iPhone a couple of years old is
+  // exactly the device this is for.
+  other: { "apple-mobile-web-app-capable": "yes" },
   openGraph: {
     title: "Lock Your Picks",
     description:
@@ -57,6 +70,9 @@ export const metadata: Metadata = {
 
 export const viewport = {
   themeColor: "#0d0d0d",
+  // Installed, the app fills the screen including under the notch; the
+  // layout already pads for the safe areas.
+  viewportFit: "cover" as const,
 };
 
 /**
@@ -83,6 +99,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         {children}
+        <ServiceWorker />
       </body>
     </html>
   );
