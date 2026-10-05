@@ -68,7 +68,49 @@ function Stat({
   );
 }
 
-export default async function DashboardPage() {
+/**
+ * Switch which player's dashboard is on screen. Admin only.
+ *
+ * Rendered in both places an admin can land: their own dashboard — which,
+ * for someone who only watches a group, is the "Watching" card — and the
+ * player dashboard they switch into.
+ */
+function ViewAs({
+  players,
+  viewedId,
+  selfId,
+}: {
+  players: { id: string; display_name: string | null }[];
+  viewedId: string;
+  selfId: string;
+}) {
+  if (!players.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-grey-500">View as</span>
+      {players.map((p) => (
+        <Link
+          key={p.id}
+          href={p.id === selfId ? '/dashboard' : `/dashboard?as=${p.id}`}
+          className={`rounded-full border px-2.5 py-1 transition ${
+            p.id === viewedId
+              ? 'border-panel bg-panel text-white'
+              : 'border-grey-300 text-grey-700 hover:border-ink hover:text-ink'
+          }`}
+        >
+          {p.display_name ?? 'Player'}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ as?: string }>;
+}) {
+  const { as } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -81,10 +123,58 @@ export default async function DashboardPage() {
     .maybeSingle();
   const seasonId = season?.id ?? NOBODY;
 
+  /**
+   * Looking at somebody else's dashboard.
+   *
+   * Admin only, and read-only: this swaps which player the page is built
+   * for, nothing more. Every query still runs under the admin's own
+   * session and row-level security, so it can only show what they were
+   * already entitled to read — a leaguemate's picks are visible on the
+   * picks page and the table anyway. What it adds is seeing them arranged
+   * the way that player sees them, which is the difference between
+   * guessing at a complaint and reproducing it.
+   *
+   * Nothing here can act as them: the controls that do anything are
+   * hidden below, and every write path reads auth.uid() in the database.
+   */
+  const { data: me } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user!.id)
+    .maybeSingle();
+
+  const impersonating = Boolean(me?.is_admin && as && as !== user!.id);
+  const viewedId = impersonating ? as! : user!.id;
+
+  const playersIn = async (leagueId: string | null) => {
+    if (!me?.is_admin || !leagueId) return [];
+    const { data: members } = await supabase
+      .from('division_members')
+      .select('user_id')
+      .eq('league_id', leagueId)
+      .eq('season_id', seasonId);
+    const ids = (members ?? []).map((m) => m.user_id);
+    if (!ids.length) return [];
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', ids)
+      .order('display_name');
+    return data ?? [];
+  };
+
+  const { data: viewedProfile } = impersonating
+    ? await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', viewedId)
+        .maybeSingle()
+    : { data: null };
+
   const { data: membership } = await supabase
     .from('division_members')
     .select('division_id, league_id, divisions(name, tier), leagues(name, is_open, division_size)')
-    .eq('user_id', user!.id)
+    .eq('user_id', viewedId)
     .eq('season_id', seasonId)
     .maybeSingle();
 
@@ -94,8 +184,8 @@ export default async function DashboardPage() {
       supabase
         .from('league_members')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user!.id),
-      viewingFor(supabase, user!.id, seasonId),
+        .eq('user_id', viewedId),
+      viewingFor(supabase, viewedId, seasonId),
     ]);
 
     // ---- Watching rather than playing ----
@@ -139,6 +229,13 @@ export default async function DashboardPage() {
               </Link>
             </div>
           </div>
+          {me?.is_admin && (
+            <ViewAs
+              players={await playersIn(view.leagueId)}
+              viewedId={viewedId}
+              selfId={user!.id}
+            />
+          )}
         </div>
       );
     }
@@ -195,6 +292,7 @@ export default async function DashboardPage() {
         .eq('season_id', seasonId),
     ]);
 
+  const others = await playersIn(membership.league_id);
   const divisionIds = (divisionMembers ?? []).map((m) => m.user_id);
   const leagueIds = (leagueMembers ?? []).map((m) => m.user_id);
 
@@ -242,8 +340,8 @@ export default async function DashboardPage() {
     ? Math.max(0, openDivisionSize - divisionIds.length)
     : 0;
 
-  const meDiv = divisionTable.find((r) => r.userId === user!.id);
-  const meLeague = leagueTable.find((r) => r.userId === user!.id);
+  const meDiv = divisionTable.find((r) => r.userId === viewedId);
+  const meLeague = leagueTable.find((r) => r.userId === viewedId);
 
   // Recent gameweeks, oldest first, for the form guide.
   const { data: scoredWeeks } = await supabase
@@ -282,14 +380,14 @@ export default async function DashboardPage() {
       .reverse()
       .map((w) => {
         const s = (scores ?? []).find(
-          (x) => x.user_id === user!.id && x.gameweek_id === w.id,
+          (x) => x.user_id === viewedId && x.gameweek_id === w.id,
         );
         return s ? { number: w.number, points: s.points ?? 0 } : null;
       })
       .find((x) => x !== null) ?? null;
 
   const onTurn = draft ? userAtTurn(draft.pick_order, draft.current_turn) : null;
-  const isMyTurn = draft?.status === 'active' && onTurn === user!.id;
+  const isMyTurn = draft?.status === 'active' && onTurn === viewedId;
 
   // My picks for the open gameweek.
   const { data: myPicks } = draft
@@ -304,7 +402,7 @@ export default async function DashboardPage() {
            )`,
         )
         .eq('draft_id', draft.id)
-        .eq('user_id', user!.id)
+        .eq('user_id', viewedId)
         .order('pick_number')
     : { data: null };
 
@@ -340,6 +438,26 @@ export default async function DashboardPage() {
       {/* Scores, ticks, the running total, the last-round stat and the
           division table all move as results land — see migration 0021. */}
       {gameweek && <LiveScores gameweekId={gameweek.id} />}
+
+      {/* ---- Viewing someone else ---- */}
+      {impersonating && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-hot bg-hot/5 px-3 py-2 text-sm">
+          <span className="font-medium">
+            Viewing {viewedProfile?.display_name ?? 'a player'}&rsquo;s dashboard
+          </span>
+          <span className="text-grey-500">read only</span>
+          <Link
+            href="/dashboard"
+            className="ml-auto underline underline-offset-4 hover:text-ink"
+          >
+            Back to yours
+          </Link>
+        </div>
+      )}
+
+      {me?.is_admin && (
+        <ViewAs players={others} viewedId={viewedId} selfId={user!.id} />
+      )}
 
       {/* ---- Heading ---- */}
       <div>
@@ -403,7 +521,7 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {isMyTurn && (
+      {isMyTurn && !impersonating && (
         <div>
           <Link href="/draft" className="btn btn-hot">
             <LockIcon className="h-4 w-4" />
@@ -456,7 +574,7 @@ export default async function DashboardPage() {
         <FormGuide
           players={formPlayers}
           perfect={draft?.picks_per_player ?? 3}
-          highlightUserId={user!.id}
+          highlightUserId={viewedId}
         />
       </section>
 
@@ -466,7 +584,10 @@ export default async function DashboardPage() {
           <div className="mb-4 flex items-baseline justify-between gap-3">
             <h2 className="label flex items-center gap-1.5">
               <LockIcon open={isMyTurn} className="h-3 w-3" />
-              Your picks ({myPicks?.length ?? 0}/{draft?.picks_per_player ?? 3})
+              {impersonating
+                ? `${viewedProfile?.display_name ?? 'Their'}’s picks`
+                : 'Your picks'}{' '}
+              ({myPicks?.length ?? 0}/{draft?.picks_per_player ?? 3})
             </h2>
             {tally.decided > 0 ? (
               // Once anything has finished, the running total is the thing
@@ -579,7 +700,7 @@ export default async function DashboardPage() {
                 <li
                   key={row.userId}
                   className={`flex items-center gap-3 border-b border-grey-100 py-2.5 text-sm last:border-0 ${
-                    row.userId === user!.id ? 'font-medium' : ''
+                    row.userId === viewedId ? 'font-medium' : ''
                   }`}
                 >
                   <span className="w-4 text-grey-500 tabular-nums">
