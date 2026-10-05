@@ -389,6 +389,12 @@ export default async function DashboardPage({
   const onTurn = draft ? userAtTurn(draft.pick_order, draft.current_turn) : null;
   const isMyTurn = draft?.status === 'active' && onTurn === viewedId;
 
+  // Where this player sits relative to the turn in progress. Behind it
+  // means they have already drafted; ahead means that many turns to wait.
+  const mySeat = draft ? draft.pick_order.indexOf(viewedId) : -1;
+  const waitingOn =
+    draft && mySeat > draft.current_turn ? mySeat - draft.current_turn : 0;
+
   // My picks for the open gameweek.
   const { data: myPicks } = draft
     ? await supabase
@@ -491,6 +497,7 @@ export default async function DashboardPage({
           expiresAt={draft.turn_expires_at}
           isMyTurn={isMyTurn}
           onTurnName={onTurn ? nameOf(onTurn) : 'the next player'}
+          waitingOn={waitingOn}
         />
       ) : (
         <section className="card p-6">

@@ -63,10 +63,22 @@ export function TurnCountdown({
   expiresAt,
   isMyTurn,
   onTurnName,
+  waitingOn,
 }: {
   expiresAt: string | null;
   isMyTurn: boolean;
   onTurnName: string;
+  /**
+   * How many turns come before yours, counting the one in progress. Zero
+   * means yours is done — you drafted earlier in the order and the round
+   * has moved past you.
+   *
+   * This used to be assumed: anyone who wasn't on the clock was told
+   * they'd be up once the current player locked in. Someone who had
+   * already picked was told they were still to come, and someone two
+   * places back was told they were next.
+   */
+  waitingOn: number;
 }) {
   const remaining = useRemaining(expiresAt);
 
@@ -82,7 +94,11 @@ export function TurnCountdown({
 
   const sub = isMyTurn
     ? 'Pick three fixtures and lock them in before the clock runs out, or they’ll be picked for you.'
-    : `${onTurnName} is drafting. You’ll be up once they lock in.`;
+    : waitingOn === 0
+      ? `Your picks are in. ${onTurnName} is drafting — the round finishes when everyone has been.`
+      : waitingOn === 1
+        ? `${onTurnName} is drafting. You’re next.`
+        : `${onTurnName} is drafting. ${waitingOn - 1} more before you.`;
 
   return (
     <section
