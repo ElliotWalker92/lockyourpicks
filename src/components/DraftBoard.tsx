@@ -49,32 +49,25 @@ export type BoardFixture = {
 };
 
 /**
- * League, then kick-off, then alphabetical.
+ * Kick-off, then club name.
  *
- * A gameweek used to arrive in kick-off order and nothing else, which on a
- * Saturday is barely an order at all: most of the card is 15:00, so within
- * a day the sequence was whatever Postgres happened to return, and it read
- * as one long alphabetical run with four divisions shuffled together.
- * Keeping a league's fixtures in one block is what makes the list scannable
- * when you already know which division you're shopping in.
- *
- * Cups have no tier and go last. Two cups are then separated by code, and
- * two fixtures at the same minute by club name, so that equal things still
- * come out in the same order every render instead of moving under the
- * cursor.
+ * The names are there to break a tie rather than to sort on: a Saturday is
+ * mostly 15:00, and with nothing to decide between them those thirty-odd
+ * fixtures came back in whatever order Postgres chose — which read as
+ * alphabetical, and could have come out differently on the next render.
  */
-const byLeagueThenTime = (a: BoardFixture, b: BoardFixture) => {
-  const tier = (f: BoardFixture) => f.competition?.tier ?? 99;
-  const code = (f: BoardFixture) => f.competition?.code ?? '';
+const byTimeThenName = (a: BoardFixture, b: BoardFixture) =>
+  a.kickoff_at.localeCompare(b.kickoff_at) ||
+  a.home.name.localeCompare(b.home.name) ||
+  a.away.name.localeCompare(b.away.name);
 
-  return (
-    tier(a) - tier(b) ||
-    code(a).localeCompare(code(b)) ||
-    a.kickoff_at.localeCompare(b.kickoff_at) ||
-    a.home.name.localeCompare(b.home.name) ||
-    a.away.name.localeCompare(b.away.name)
-  );
-};
+const dayOf = (f: BoardFixture) =>
+  new Date(f.kickoff_at).toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Europe/London',
+  });
 
 export type BoardPick = {
   id: string;
@@ -370,28 +363,56 @@ export function DraftBoard({
     });
   }
 
-  const byDay = useMemo(() => {
-    // Day order comes from the kick-offs, so the pass that builds the groups
-    // reads them in time order rather than trusting the query to have done
-    // it. Each day is then ordered by league inside.
-    const chronological = [...available].sort((a, b) =>
-      a.kickoff_at < b.kickoff_at ? -1 : a.kickoff_at > b.kickoff_at ? 1 : 0,
-    );
+  /**
+   * A block per league, each split into days.
+   *
+   * Grouping by day alone meant reading forty Saturday rows to find the one
+   * League Two match you were after: on a normal gameweek nearly every
+   * fixture is on the same afternoon, so a day heading barely divides
+   * anything. A league is ten to twelve rows, it's what you already know
+   * when you open the board, and its Friday and Monday games now come with
+   * it instead of being filed under separate days further down the page.
+   *
+   * Everything is placed in one pass over a kick-off-ordered list, so each
+   * league's days come out in date order and each day's fixtures in time
+   * order without sorting a second time.
+   */
+  const byLeague = useMemo(() => {
+    type Group = {
+      code: string;
+      name: string;
+      tier: number;
+      days: Map<string, BoardFixture[]>;
+    };
+    const leagues = new Map<string, Group>();
 
-    const groups = new Map<string, BoardFixture[]>();
-    for (const f of chronological) {
-      const day = new Date(f.kickoff_at).toLocaleDateString('en-GB', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        timeZone: 'Europe/London',
-      });
-      if (!groups.has(day)) groups.set(day, []);
-      groups.get(day)!.push(f);
+    for (const f of [...available].sort(byTimeThenName)) {
+      const code = f.competition?.code ?? '';
+      let group = leagues.get(code);
+      if (!group) {
+        group = {
+          code,
+          name: f.competition?.name ?? 'Other',
+          // Cups carry no tier, and belong after the four divisions.
+          tier: f.competition?.tier ?? 99,
+          days: new Map(),
+        };
+        leagues.set(code, group);
+      }
+
+      const day = dayOf(f);
+      if (!group.days.has(day)) group.days.set(day, []);
+      group.days.get(day)!.push(f);
     }
 
-    for (const fixtures of groups.values()) fixtures.sort(byLeagueThenTime);
-    return Array.from(groups.entries());
+    return [...leagues.values()]
+      .sort((a, b) => a.tier - b.tier || a.code.localeCompare(b.code))
+      .map((group) => ({
+        code: group.code,
+        name: group.name,
+        count: [...group.days.values()].reduce((n, l) => n + l.length, 0),
+        days: [...group.days.entries()],
+      }));
   }, [available]);
 
   const time = (iso: string) =>
@@ -718,114 +739,125 @@ export function DraftBoard({
           </p>
         )}
 
-        <div className="flex flex-col gap-6">
-          {byDay.map(([day, dayFixtures]) => (
-            <div key={day}>
-              <h3 className="mb-2 text-sm font-medium text-grey-500">
-                {day}
+        <div className="flex flex-col gap-8">
+          {byLeague.map((league) => (
+            <div key={league.code}>
+              {/* The heading carries the league, so the rows below it no
+                  longer each need a competition badge. */}
+              <h3 className="mb-3 flex items-baseline justify-between gap-3 border-b border-grey-300 pb-1.5">
+                <span className="text-sm font-semibold text-ink">
+                  {league.name}
+                </span>
+                <span className="shrink-0 text-xs font-medium text-grey-500">
+                  {league.count} left
+                </span>
               </h3>
-              <ul className="flex flex-col gap-1.5">
-                {dayFixtures.map((f) => {
-                  const busy = submitting === f.id;
-                  return (
-                    <li
-                      key={f.id}
-                      className="overflow-hidden rounded-lg border border-grey-300 bg-card text-sm"
-                    >
-                     {/* On a phone the fixture takes the first line and the
-                         three buttons take the second as equal thirds, so
-                         they can't be squeezed however long the clubs are.
-                         Once there's room it all sits on one line. */}
-                     <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <span className="w-11 shrink-0 font-mono text-xs text-grey-500">
-                          {time(f.kickoff_at)}
-                        </span>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenModel(openModel === f.id ? null : f.id)
-                          }
-                          aria-expanded={openModel === f.id}
-                          className="min-w-0 flex-1 text-left transition hover:text-lime-dark"
-                          title="Show the model's read on this fixture"
+              <div className="flex flex-col gap-4">
+                {league.days.map(([day, dayFixtures]) => (
+                <div key={day}>
+                  <h4 className="mb-2 text-xs font-medium text-grey-500">
+                    {day}
+                  </h4>
+                  <ul className="flex flex-col gap-1.5">
+                    {dayFixtures.map((f) => {
+                      const busy = submitting === f.id;
+                      return (
+                        <li
+                          key={f.id}
+                          className="overflow-hidden rounded-lg border border-grey-300 bg-card text-sm"
                         >
-                          <FixtureLine
-                            home={f.home.name}
-                            away={f.away.name}
-                            homeCrest={f.home.crest_url}
-                            awayCrest={f.away.crest_url}
-                            crestClass="h-5 w-5"
-                          />
-                        </button>
+                         {/* On a phone the fixture takes the first line and the
+                             three buttons take the second as equal thirds, so
+                             they can't be squeezed however long the clubs are.
+                             Once there's room it all sits on one line. */}
+                         <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className="w-11 shrink-0 font-mono text-xs text-grey-500">
+                              {time(f.kickoff_at)}
+                            </span>
 
-                        {f.competition && (
-                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-xs font-medium text-grey-500">
-                            {f.competition.code}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenModel(openModel === f.id ? null : f.id)
+                              }
+                              aria-expanded={openModel === f.id}
+                              className="min-w-0 flex-1 text-left transition hover:text-lime-dark"
+                              title="Show the model's read on this fixture"
+                            >
+                              <FixtureLine
+                                home={f.home.name}
+                                away={f.away.name}
+                                homeCrest={f.home.crest_url}
+                                awayCrest={f.away.crest_url}
+                                crestClass="h-5 w-5"
+                              />
+                            </button>
+                          </div>
+
+                          {/* Outcome buttons sit with the fixture: one tap to
+                              pick, rather than opening the row first and then
+                              choosing. */}
+                          <span className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0">
+                            {(
+                              [
+                                ['HOME', f.home.name],
+                                ['DRAW', 'Draw'],
+                                ['AWAY', f.away.name],
+                              ] as [Outcome, string][]
+                            ).map(([outcome, label]) => (
+                              <button
+                                key={outcome}
+                                type="button"
+                                disabled={!isMyTurn || pending}
+                                onClick={() => submit(f.id, outcome)}
+                                title={
+                                  outcome === 'DRAW'
+                                    ? 'Call it a draw'
+                                    : `${label} to win`
+                                }
+                                className={`btn btn-sm ${OUTCOME_BTN[outcome]} ${
+                                  busy ? 'opacity-60' : ''
+                                }`}
+                              >
+                                {outcome === 'DRAW' ? (
+                                  label
+                                ) : (
+                                  <TeamName name={label} />
+                                )}
+                              </button>
+                            ))}
                           </span>
-                        )}
-                      </div>
+                         </div>
 
-                      {/* Outcome buttons sit with the fixture: one tap to
-                          pick, rather than opening the row first and then
-                          choosing. */}
-                      <span className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0">
-                        {(
-                          [
-                            ['HOME', f.home.name],
-                            ['DRAW', 'Draw'],
-                            ['AWAY', f.away.name],
-                          ] as [Outcome, string][]
-                        ).map(([outcome, label]) => (
-                          <button
-                            key={outcome}
-                            type="button"
-                            disabled={!isMyTurn || pending}
-                            onClick={() => submit(f.id, outcome)}
-                            title={
-                              outcome === 'DRAW'
-                                ? 'Call it a draw'
-                                : `${label} to win`
-                            }
-                            className={`btn btn-sm ${OUTCOME_BTN[outcome]} ${
-                              busy ? 'opacity-60' : ''
-                            }`}
-                          >
-                            {outcome === 'DRAW' ? (
-                              label
-                            ) : (
-                              <TeamName name={label} />
-                            )}
-                          </button>
-                        ))}
-                      </span>
-                     </div>
-
-                      {openModel === f.id && (
-                        <FixtureModel
-                          home={{
-                            name: f.home.name,
-                            elo: f.home.elo_rating,
-                            form: f.home.form,
-                            table: f.home.table,
-                          }}
-                          away={{
-                            name: f.away.name,
-                            elo: f.away.elo_rating,
-                            form: f.away.form,
-                            table: f.away.table,
-                          }}
-                          crowdCounts={
-                            crowd[f.id] ?? { home: 0, draw: 0, away: 0 }
-                          }
-                          otherPicks={elsewhere[f.id] ?? []}
-                        />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                          {openModel === f.id && (
+                            <FixtureModel
+                              home={{
+                                name: f.home.name,
+                                elo: f.home.elo_rating,
+                                form: f.home.form,
+                                table: f.home.table,
+                              }}
+                              away={{
+                                name: f.away.name,
+                                elo: f.away.elo_rating,
+                                form: f.away.form,
+                                table: f.away.table,
+                              }}
+                              crowdCounts={
+                                crowd[f.id] ?? { home: 0, draw: 0, away: 0 }
+                              }
+                              otherPicks={elsewhere[f.id] ?? []}
+                            />
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
