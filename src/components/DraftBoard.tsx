@@ -48,6 +48,34 @@ export type BoardFixture = {
   competition: { code: string; name: string; tier: number | null } | null;
 };
 
+/**
+ * League, then kick-off, then alphabetical.
+ *
+ * A gameweek used to arrive in kick-off order and nothing else, which on a
+ * Saturday is barely an order at all: most of the card is 15:00, so within
+ * a day the sequence was whatever Postgres happened to return, and it read
+ * as one long alphabetical run with four divisions shuffled together.
+ * Keeping a league's fixtures in one block is what makes the list scannable
+ * when you already know which division you're shopping in.
+ *
+ * Cups have no tier and go last. Two cups are then separated by code, and
+ * two fixtures at the same minute by club name, so that equal things still
+ * come out in the same order every render instead of moving under the
+ * cursor.
+ */
+const byLeagueThenTime = (a: BoardFixture, b: BoardFixture) => {
+  const tier = (f: BoardFixture) => f.competition?.tier ?? 99;
+  const code = (f: BoardFixture) => f.competition?.code ?? '';
+
+  return (
+    tier(a) - tier(b) ||
+    code(a).localeCompare(code(b)) ||
+    a.kickoff_at.localeCompare(b.kickoff_at) ||
+    a.home.name.localeCompare(b.home.name) ||
+    a.away.name.localeCompare(b.away.name)
+  );
+};
+
 export type BoardPick = {
   id: string;
   user_id: string;
@@ -343,8 +371,15 @@ export function DraftBoard({
   }
 
   const byDay = useMemo(() => {
+    // Day order comes from the kick-offs, so the pass that builds the groups
+    // reads them in time order rather than trusting the query to have done
+    // it. Each day is then ordered by league inside.
+    const chronological = [...available].sort((a, b) =>
+      a.kickoff_at < b.kickoff_at ? -1 : a.kickoff_at > b.kickoff_at ? 1 : 0,
+    );
+
     const groups = new Map<string, BoardFixture[]>();
-    for (const f of available) {
+    for (const f of chronological) {
       const day = new Date(f.kickoff_at).toLocaleDateString('en-GB', {
         weekday: 'long',
         day: 'numeric',
@@ -354,6 +389,8 @@ export function DraftBoard({
       if (!groups.has(day)) groups.set(day, []);
       groups.get(day)!.push(f);
     }
+
+    for (const fixtures of groups.values()) fixtures.sort(byLeagueThenTime);
     return Array.from(groups.entries());
   }, [available]);
 
