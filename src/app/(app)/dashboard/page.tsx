@@ -172,22 +172,38 @@ export default async function DashboardPage({
         .maybeSingle()
     : { data: null };
 
-  const { data: membership } = await supabase
-    .from('division_members')
-    .select('division_id, league_id, divisions(name, tier), leagues(name, is_open, division_size)')
-    .eq('user_id', viewedId)
-    .eq('season_id', seasonId)
-    .maybeSingle();
+  // Which group this page is about, before anything is fetched for it.
+  //
+  // This used to ask `division_members` for "your division" with no league
+  // on the query at all, and `.maybeSingle()` on the end. So switching group
+  // changed every other tab and left this one alone — and anyone with a
+  // division in two groups got an error rather than a row, and was told
+  // they weren't in a division anywhere.
+  const view = await viewingFor(
+    supabase,
+    viewedId,
+    seasonId,
+    await activeLeagueId(),
+  );
+
+  const { data: membership } = view?.divisionId
+    ? await supabase
+        .from('division_members')
+        .select(
+          'division_id, league_id, divisions(name, tier), leagues(name, is_open, division_size)',
+        )
+        .eq('user_id', viewedId)
+        .eq('season_id', seasonId)
+        .eq('league_id', view.leagueId)
+        .maybeSingle()
+    : { data: null };
 
   // ---- Not in a division: say what's missing, not "0 points" ----
   if (!membership) {
-    const [{ count: leagueCount }, view] = await Promise.all([
-      supabase
-        .from('league_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', viewedId),
-      viewingFor(supabase, viewedId, seasonId, await activeLeagueId()),
-    ]);
+    const { count: leagueCount } = await supabase
+      .from('league_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', viewedId);
 
     // ---- Watching rather than playing ----
     //
