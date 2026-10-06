@@ -323,7 +323,13 @@ export default async function DraftPage({
         ) : (
           <>
             {sections.map((section) => (
-              <section key={section.title} className="flex flex-col gap-3">
+              <section
+                key={section.title}
+                // A viewer never sees the board, so this read-only slip is
+                // the only thing the tour can point at on this page.
+                data-tour="slip"
+                className="flex flex-col gap-3"
+              >
                 <h2 className="label flex items-center gap-2 border-b border-grey-300 pb-2">
                   <span
                     aria-hidden

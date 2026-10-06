@@ -784,6 +784,8 @@ export function DraftBoard({
                                 setOpenModel(openModel === f.id ? null : f.id)
                               }
                               aria-expanded={openModel === f.id}
+                              // The tour points at the first of these.
+                              data-tour="fixture"
                               className="min-w-0 flex-1 text-left transition hover:text-lime-dark"
                               title="Show the model's read on this fixture"
                             >

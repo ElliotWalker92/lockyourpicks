@@ -31,8 +31,9 @@ export const TOUR: TourStep[] = [
   {
     id: 'welcome',
     path: '/dashboard',
+    target: 'heading',
     title: 'Here’s how it works',
-    body: 'Nine players, three divisions, one pick each from three matches a week. Thirty seconds and you’ll know your way around.',
+    body: 'Nine players, three divisions, three picks each a week. This is the gameweek you’re on — thirty seconds and you’ll know your way around.',
   },
   {
     id: 'clock',
@@ -46,7 +47,7 @@ export const TOUR: TourStep[] = [
     path: '/dashboard',
     target: 'stats',
     title: 'Where you stand',
-    body: 'Your position in your division and across the whole league, your points, and how the last round went. Top of a division goes up, bottom goes down.',
+    body: 'Your place in your division and across the whole league, your points, and how last round went. Top of a division goes up, bottom goes down.',
   },
   {
     id: 'my-picks',
@@ -63,18 +64,25 @@ export const TOUR: TourStep[] = [
     body: 'Every fixture still available, in league order. Once somebody takes one it leaves this list — nobody else in your division can have it.',
   },
   {
+    id: 'fixture',
+    path: '/draft',
+    target: 'fixture',
+    title: 'Tap a match for the numbers',
+    body: 'Tapping the teams opens the model’s read on that game: recent form, where they sit in the table, the rating gap, and how the other divisions called it.',
+  },
+  {
     id: 'pick',
     path: '/draft',
     target: 'pick-buttons',
-    title: 'Making a pick',
-    body: 'Call it: home win, draw or away win. One point if you’re right, nothing if you’re not. You get three.',
+    title: 'Making the call',
+    body: 'Home win, draw or away win. One point if you’re right, nothing if you’re not. You get three a week.',
   },
   {
     id: 'slip',
     path: '/draft',
     target: 'slip',
     title: 'The slip',
-    body: 'Your division’s picks for the week, yours marked. It fills up as people take their turns, and the scores land here too.',
+    body: 'Your division’s picks for the week, yours marked. It fills as people take their turns, and the scores land here too.',
   },
   {
     id: 'lock-in',
@@ -87,8 +95,8 @@ export const TOUR: TourStep[] = [
     id: 'table',
     path: '/table',
     target: 'table',
-    title: 'The table',
-    body: 'Your division, and the whole league on the other toggle. This is the one that settles the season.',
+    title: 'Division or whole league',
+    body: 'This switches the table between your own division and everyone. Promotion and relegation come off the division one.',
   },
   {
     id: 'tabs',

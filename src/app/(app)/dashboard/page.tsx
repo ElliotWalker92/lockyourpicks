@@ -466,7 +466,7 @@ export default async function DashboardPage({
       )}
 
       {/* ---- Heading ---- */}
-      <div>
+      <div data-tour="heading">
         <p className="label">
           {membership.leagues?.name} &middot; {membership.divisions?.name}
           {season && <> &middot; {season.name}</>}

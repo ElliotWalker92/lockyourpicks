@@ -15,10 +15,16 @@ import { TOUR, type TourStep } from '@/lib/tour';
  * every step; a shadow follows the one element it's attached to.
  *
  * The steps span three tabs, so the tour drives the router and then waits
- * for its target to appear. That wait is the fiddly part: a server
- * component arrives when it arrives, so each step polls for its element and
- * gives up after a moment rather than hanging. Missing targets are normal —
- * there's no lock-in button unless it's your turn.
+ * for its target to appear. Two rules make that bearable:
+ *
+ *  - A step whose target isn't there is stepped over, not shown. There is
+ *    no lock-in button unless it's your turn and a viewer never sees the
+ *    board at all, and a walkthrough that is mostly boxes of text pointing
+ *    at nothing is one nobody reads.
+ *  - Nothing is drawn until the step has resolved. Deciding a target is
+ *    missing means waiting to see whether it is merely late, and drawing
+ *    the card during that wait put the text on screen for a second before
+ *    yanking it away — the exact flicker the first rule exists to remove.
  *
  * Progress lives in sessionStorage because a tour that's survived three
  * navigations shouldn't be undone by a stray reload, and because the whole
@@ -26,22 +32,48 @@ import { TOUR, type TourStep } from '@/lib/tour';
  */
 
 const PROGRESS = 'tour:step';
-/** How long to wait for a step's target before giving up on it. */
-const WAIT_MS = 1500;
+/** How long a target gets to turn up before the step is written off. */
+const WAIT_MS = 1000;
 
 type Rect = { top: number; left: number; width: number; height: number };
+/** null while a step is still resolving — see the second rule above. */
+type Spot = { kind: 'centred' } | { kind: 'at'; rect: Rect };
 
-/** Hunt for an element, resolving null once it's clearly not coming. */
-function waitFor(selector: string, signal: AbortSignal): Promise<Element | null> {
+const measure = (el: Element): Rect => {
+  const box = el.getBoundingClientRect();
+  return { top: box.top, left: box.left, width: box.width, height: box.height };
+};
+
+/**
+ * Hunt for an element, resolving null once it's clearly not coming.
+ *
+ * The wait exists for the moment after a navigation, when the new page is
+ * still arriving and its anchors haven't rendered. Once any anchor at all
+ * is on the page, that moment has passed — so a target still missing then
+ * is genuinely missing, and the step can be stepped over at once instead of
+ * sitting on a dark screen for a second per absent step.
+ */
+function waitFor(
+  selector: string,
+  signal: AbortSignal,
+): Promise<Element | null> {
   return new Promise((resolve) => {
-    const found = document.querySelector(selector);
+    const look = () => document.querySelector(selector);
+    const found = look();
     if (found) return resolve(found);
 
     const deadline = Date.now() + WAIT_MS;
+    // Twice in a row, so a half-built DOM caught mid-navigation can't be
+    // mistaken for a finished page and skip a step that was still coming.
+    let settled = 0;
     const tick = () => {
       if (signal.aborted) return resolve(null);
-      const el = document.querySelector(selector);
+      const el = look();
       if (el) return resolve(el);
+
+      settled = document.querySelector('[data-tour]') ? settled + 1 : 0;
+      if (settled >= 2) return resolve(null);
+
       if (Date.now() > deadline) return resolve(null);
       requestAnimationFrame(tick);
     };
@@ -62,8 +94,10 @@ export function Tour({
   const pathname = usePathname();
 
   const [index, setIndex] = useState<number | null>(null);
-  const [rect, setRect] = useState<Rect | null>(null);
+  const [spot, setSpot] = useState<Spot | null>(null);
   const target = useRef<Element | null>(null);
+  /** Which way they're moving, so a skipped step skips the same way. */
+  const direction = useRef<1 | -1>(1);
 
   const running = index !== null;
   const step: TourStep | null = running ? (steps[index] ?? null) : null;
@@ -72,8 +106,7 @@ export function Tour({
   // half-finished run is still in the tab.
   //
   // On a frame of its own rather than straight away: the page it is about
-  // to point at has only just mounted, and starting inside the effect would
-  // put the overlay up during the same commit.
+  // to point at has only just mounted.
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       let saved: string | null = null;
@@ -106,7 +139,7 @@ export function Tour({
   const finish = useCallback(
     (completed: boolean) => {
       setIndex(null);
-      setRect(null);
+      setSpot(null);
       target.current = null;
       try {
         sessionStorage.removeItem(PROGRESS);
@@ -123,9 +156,12 @@ export function Tour({
   );
 
   const go = useCallback((next: number) => {
-    setRect(null);
+    setSpot(null);
     target.current = null;
-    setIndex(next);
+    setIndex((prev) => {
+      if (prev !== null) direction.current = next >= prev ? 1 : -1;
+      return next;
+    });
     try {
       sessionStorage.setItem(PROGRESS, String(next));
     } catch {
@@ -136,7 +172,7 @@ export function Tour({
   // Put the current step on screen: navigate if it lives elsewhere, find
   // the target, scroll it into view, measure it.
   useEffect(() => {
-    if (!step) return;
+    if (!step || index === null) return;
 
     if (step.path !== pathname) {
       router.push(step.path);
@@ -146,8 +182,7 @@ export function Tour({
     const controller = new AbortController();
 
     if (!step.target) {
-      // Centre-screen step; nothing to point at.
-      const id = requestAnimationFrame(() => setRect(null));
+      const id = requestAnimationFrame(() => setSpot({ kind: 'centred' }));
       return () => cancelAnimationFrame(id);
     }
 
@@ -155,46 +190,38 @@ export function Tour({
       if (controller.signal.aborted) return;
 
       if (!el) {
-        // Not on this screen for this player. Skip rather than stall.
-        setRect(null);
+        // Not on this screen for this player. Step over it, in whichever
+        // direction they were already going, so Back doesn't walk them
+        // forwards. Running off either end ends the tour, which also means
+        // this can't loop when nothing is left to find.
+        const onwards = index + direction.current;
+        if (onwards < 0 || onwards >= steps.length) finish(true);
+        else go(onwards);
         return;
       }
 
       target.current = el;
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
-      const box = el.getBoundingClientRect();
-      setRect({
-        top: box.top,
-        left: box.left,
-        width: box.width,
-        height: box.height,
-      });
+      setSpot({ kind: 'at', rect: measure(el) });
     });
 
     return () => controller.abort();
-  }, [step, pathname, router]);
+  }, [step, pathname, router, index, steps.length, finish, go]);
 
   // Keep the spotlight on its element if anything moves underneath it.
   useEffect(() => {
-    if (!running || !target.current) return;
+    if (!running) return;
 
-    const measure = () => {
+    const remeasure = () => {
       const el = target.current;
-      if (!el) return;
-      const box = el.getBoundingClientRect();
-      setRect({
-        top: box.top,
-        left: box.left,
-        width: box.width,
-        height: box.height,
-      });
+      if (el) setSpot({ kind: 'at', rect: measure(el) });
     };
 
-    window.addEventListener('resize', measure);
-    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', remeasure);
+    window.addEventListener('scroll', remeasure, { passive: true });
     return () => {
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', remeasure);
+      window.removeEventListener('scroll', remeasure);
     };
   }, [running, index]);
 
@@ -218,7 +245,8 @@ export function Tour({
 
   if (!running || !step) return null;
 
-  const last = index! === steps.length - 1;
+  const rect = spot?.kind === 'at' ? spot.rect : null;
+  const last = index === steps.length - 1;
   const padding = 6;
 
   // Above or below the target, whichever has room. The card is roughly
@@ -232,8 +260,8 @@ export function Tour({
       aria-modal="true"
       aria-label={step.title}
     >
-      {/* The dark. A click anywhere on it does nothing on purpose: the tour
-          is ten taps and the buttons are right there. */}
+      {/* The dark. A click on it does nothing on purpose: the tour is a
+          handful of taps and the buttons are right there. */}
       {!rect && <div className="absolute inset-0 bg-black/70" />}
 
       {rect && (
@@ -250,58 +278,63 @@ export function Tour({
         />
       )}
 
-      <div
-        className="absolute left-1/2 w-[min(22rem,calc(100vw-2rem))] rounded-xl bg-card p-5 shadow-2xl"
-        // Centred with an inline transform rather than -translate-x-1/2.
-        // Tailwind 4 writes that class to the `translate` property, which
-        // composes with `transform` instead of being replaced by it — the
-        // two together shifted the card a whole width off the screen.
-        style={
-          rect
-            ? {
-                top: below
-                  ? rect.top + rect.height + padding + 14
-                  : Math.max(16, rect.top - padding - 210),
-                transform: 'translateX(-50%)',
-              }
-            : { top: '50%', transform: 'translate(-50%, -50%)' }
-        }
-      >
-        <p className="label text-[10px]">
-          Step {index! + 1} of {steps.length}
-        </p>
-        <h2 className="display-md mt-1">{step.title}</h2>
-        <p className="mt-2 text-sm text-grey-700">{step.body}</p>
+      {/* Nothing but the dark until the step knows what it is pointing at.
+          Drawing the card first means showing text that may be about to be
+          skipped straight past. */}
+      {spot && (
+        <div
+          className="absolute left-1/2 w-[min(22rem,calc(100vw-2rem))] rounded-xl bg-card p-5 shadow-2xl"
+          // Centred with an inline transform rather than -translate-x-1/2.
+          // Tailwind 4 writes that class to the `translate` property, which
+          // composes with `transform` instead of being replaced by it — the
+          // two together shifted the card a whole width off the screen.
+          style={
+            rect
+              ? {
+                  top: below
+                    ? rect.top + rect.height + padding + 14
+                    : Math.max(16, rect.top - padding - 210),
+                  transform: 'translateX(-50%)',
+                }
+              : { top: '50%', transform: 'translate(-50%, -50%)' }
+          }
+        >
+          <p className="label text-[10px]">
+            Step {index + 1} of {steps.length}
+          </p>
+          <h2 className="display-md mt-1">{step.title}</h2>
+          <p className="mt-2 text-sm text-grey-700">{step.body}</p>
 
-        <div className="mt-4 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={next}
-            className="btn btn-lime btn-sm"
-            autoFocus
-          >
-            {last ? 'Got it' : 'Next'}
-          </button>
-
-          {index! > 0 && (
+          <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => go(index! - 1)}
-              className="btn btn-outline btn-sm"
+              onClick={next}
+              className="btn btn-lime btn-sm"
+              autoFocus
             >
-              Back
+              {last ? 'Got it' : 'Next'}
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={() => finish(false)}
-            className="ml-auto text-sm text-grey-500 underline underline-offset-4 hover:text-ink"
-          >
-            Skip
-          </button>
+            {index > 0 && (
+              <button
+                type="button"
+                onClick={() => go(index - 1)}
+                className="btn btn-outline btn-sm"
+              >
+                Back
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => finish(false)}
+              className="ml-auto text-sm text-grey-500 underline underline-offset-4 hover:text-ink"
+            >
+              Skip
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
