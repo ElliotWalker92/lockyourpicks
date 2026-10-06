@@ -57,7 +57,10 @@ export default async function AppLayout({
       <ScrollMemory />
 
       {/* Runs itself once, for anyone who has never been shown round. */}
-      <Tour autoStart={!profile?.tour_seen_at} />
+      <Tour
+        autoStart={!profile?.tour_seen_at}
+        playing={!(groups.find((g) => g.leagueId === activeId)?.viewer ?? true)}
+      />
 
       {/* Padded rather than offset, so the bar's own background fills the
           notch inset instead of leaving a strip of page showing through.

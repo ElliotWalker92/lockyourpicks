@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { markTourSeen } from '@/lib/actions/profile';
 import { TOUR, type TourStep } from '@/lib/tour';
@@ -83,18 +83,37 @@ function waitFor(
 
 export function Tour({
   autoStart,
+  // Whether this player has a division of their own. A watcher's dashboard
+  // is a different page without the clock, the stats or their own picks on
+  // it, and they never see the board — so those steps come out of the plan
+  // before it starts rather than being discovered missing one at a time.
+  playing,
   // The steps are injectable so the engine can be exercised over a set of
   // pages that aren't behind a sign-in. Nothing in the app passes them.
-  steps = TOUR,
+  steps: given = TOUR,
 }: {
   autoStart: boolean;
+  playing: boolean;
   steps?: TourStep[];
 }) {
+  const steps = useMemo(
+    () => given.filter((s) => s.requires !== 'playing' || playing),
+    [given, playing],
+  );
   const router = useRouter();
   const pathname = usePathname();
 
   const [index, setIndex] = useState<number | null>(null);
   const [spot, setSpot] = useState<Spot | null>(null);
+  /**
+   * The steps that have actually appeared, in order.
+   *
+   * What people want from a counter is where they are in the walkthrough
+   * they're being given, and steps are stepped over when their target isn't
+   * there. Numbering by position in the list told a watcher they were on
+   * step 8 of 11 when it was the first thing they had seen.
+   */
+  const [shown, setShown] = useState<number[]>([]);
   const target = useRef<Element | null>(null);
   /** Which way they're moving, so a skipped step skips the same way. */
   const direction = useRef<1 | -1>(1);
@@ -140,6 +159,7 @@ export function Tour({
     (completed: boolean) => {
       setIndex(null);
       setSpot(null);
+      setShown([]);
       target.current = null;
       try {
         sessionStorage.removeItem(PROGRESS);
@@ -182,7 +202,10 @@ export function Tour({
     const controller = new AbortController();
 
     if (!step.target) {
-      const id = requestAnimationFrame(() => setSpot({ kind: 'centred' }));
+      const id = requestAnimationFrame(() => {
+        setSpot({ kind: 'centred' });
+        setShown((prev) => (prev.includes(index) ? prev : [...prev, index]));
+      });
       return () => cancelAnimationFrame(id);
     }
 
@@ -203,6 +226,7 @@ export function Tour({
       target.current = el;
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       setSpot({ kind: 'at', rect: measure(el) });
+      setShown((prev) => (prev.includes(index) ? prev : [...prev, index]));
     });
 
     return () => controller.abort();
@@ -300,7 +324,7 @@ export function Tour({
           }
         >
           <p className="label text-[10px]">
-            Step {index + 1} of {steps.length}
+            Step {Math.max(1, shown.indexOf(index) + 1)}
           </p>
           <h2 className="display-md mt-1">{step.title}</h2>
           <p className="mt-2 text-sm text-grey-700">{step.body}</p>
@@ -315,7 +339,10 @@ export function Tour({
               {last ? 'Got it' : 'Next'}
             </button>
 
-            {index > 0 && (
+            {/* Only once something has been shown to go back to. On the
+                first visible step, Back would walk into the steps that were
+                skipped on the way here and fall off the start. */}
+            {shown.indexOf(index) > 0 && (
               <button
                 type="button"
                 onClick={() => go(index - 1)}

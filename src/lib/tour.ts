@@ -25,6 +25,13 @@ export type TourStep = {
   target?: string;
   title: string;
   body: string;
+  /**
+   * Steps that only exist for someone with a division of their own. A
+   * watcher's dashboard is a different page with none of these on it, and
+   * they never see the board at all — so rather than find that out one
+   * step at a time, they are dropped from the plan before it starts.
+   */
+  requires?: 'playing';
 };
 
 export const TOUR: TourStep[] = [
@@ -37,6 +44,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'clock',
+    requires: 'playing',
     path: '/dashboard',
     target: 'clock',
     title: 'Whose turn it is',
@@ -44,6 +52,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'stats',
+    requires: 'playing',
     path: '/dashboard',
     target: 'stats',
     title: 'Where you stand',
@@ -51,6 +60,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'my-picks',
+    requires: 'playing',
     path: '/dashboard',
     target: 'my-picks',
     title: 'This week’s picks',
@@ -58,6 +68,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'board',
+    requires: 'playing',
     path: '/draft',
     target: 'available',
     title: 'The board',
@@ -65,6 +76,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'fixture',
+    requires: 'playing',
     path: '/draft',
     target: 'fixture',
     title: 'Tap a match for the numbers',
@@ -72,6 +84,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'pick',
+    requires: 'playing',
     path: '/draft',
     target: 'pick-buttons',
     title: 'Making the call',
@@ -86,6 +99,7 @@ export const TOUR: TourStep[] = [
   },
   {
     id: 'lock-in',
+    requires: 'playing',
     path: '/draft',
     target: 'lock-in',
     title: 'Locking in',

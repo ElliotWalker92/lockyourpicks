@@ -203,7 +203,10 @@ export default async function DashboardPage({
 
       return (
         <div className="flex flex-col gap-6">
-          <div>
+          {/* The tour opens here for a watcher, the same as the heading does
+              for a player — without it their walkthrough would start on
+              another tab. */}
+          <div data-tour="heading">
             <p className="label">
               {view.leagueName}
               {season && <> &middot; {season.name}</>}
