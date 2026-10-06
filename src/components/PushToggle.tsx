@@ -68,7 +68,34 @@ const swReady = async (ms = 5000) => {
   }
 };
 
-async function detect(): Promise<State> {
+/**
+ * Is this an iPhone or iPad?
+ *
+ * It matters because Apple is the only platform that refuses push to a
+ * browser tab, so it's the only one where the answer to "why is there no
+ * switch" is "install the app first".
+ *
+ * iPadOS has claimed to be a Mac since version 13, so the user agent alone
+ * reports an iPad as a desktop and sends it down the "this browser can't do
+ * notifications" path, which is both wrong and a dead end. A Mac with a
+ * touchscreen is the thing that doesn't exist.
+ */
+const isApple = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
+const isInstalled = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  // Apple's own, from before the standard one.
+  ('standalone' in navigator && navigator.standalone === true);
+
+type Detected = { state: State; apple: boolean; installed: boolean };
+
+async function detect(): Promise<Detected> {
+  const apple = isApple();
+  const installed = isInstalled();
+  const where = { apple, installed };
+
   const supported =
     'serviceWorker' in navigator &&
     'PushManager' in window &&
@@ -76,30 +103,34 @@ async function detect(): Promise<State> {
 
   if (!supported) {
     // iOS gives a tab no PushManager at all; installed, it has one.
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const installed = window.matchMedia('(display-mode: standalone)').matches;
-    return iOS && !installed ? 'needs-install' : 'unsupported';
+    return { state: apple && !installed ? 'needs-install' : 'unsupported', ...where };
   }
 
-  if (Notification.permission === 'denied') return 'blocked';
+  if (Notification.permission === 'denied') return { state: 'blocked', ...where };
 
   try {
     const reg = await swReady();
-    return (await reg.pushManager.getSubscription()) ? 'on' : 'off';
+    return {
+      state: (await reg.pushManager.getSubscription()) ? 'on' : 'off',
+      ...where,
+    };
   } catch {
-    return 'off';
+    return { state: 'off', ...where };
   }
 }
 
 export function PushToggle({ publicKey }: { publicKey: string }) {
   const [state, setState] = useState<State>('checking');
+  const [where, setWhere] = useState({ apple: false, installed: false });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     let alive = true;
     detect().then((next) => {
-      if (alive) setState(next);
+      if (!alive) return;
+      setState(next.state);
+      setWhere({ apple: next.apple, installed: next.installed });
     });
     return () => {
       alive = false;
@@ -160,11 +191,25 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
       <p className="font-medium">Notify me on this device</p>
 
       {state === 'needs-install' && (
-        <p className="text-sm text-grey-500">
-          iPhones only allow this once the app is on your home screen. Tap
-          Share, then <span className="font-medium">Add to Home Screen</span>,
-          open it from there, and this switch appears.
-        </p>
+        <div className="flex flex-col gap-2 text-sm text-grey-500">
+          <p>
+            On an iPhone or iPad this only works from the app on your home
+            screen &mdash; Apple doesn&rsquo;t allow notifications from a
+            Safari tab, so there&rsquo;s no switch to show you here yet.
+          </p>
+          <ol className="ml-4 list-decimal space-y-1">
+            <li>
+              Tap the Share button (the square with the arrow out of the top).
+            </li>
+            <li>
+              Scroll down and tap{' '}
+              <span className="font-medium text-ink">Add to Home Screen</span>.
+            </li>
+            <li>Open Lock Your Picks from the new icon.</li>
+            <li>Come back to Profile and the switch will be here.</li>
+          </ol>
+          <p>Until then your turn still reaches you by email.</p>
+        </div>
       )}
 
       {state === 'unsupported' && (
@@ -176,8 +221,9 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
 
       {state === 'blocked' && (
         <p className="text-sm text-grey-500">
-          Notifications are blocked for this site. Allow them in your
-          browser&rsquo;s settings for lockyourpicks.com, then come back.
+          {where.apple
+            ? 'Notifications are turned off for Lock Your Picks. Open the iPhone’s Settings app, find Lock Your Picks in the list, tap Notifications and allow them — then come back here.'
+            : 'Notifications are blocked for this site. Allow them in your browser’s settings for lockyourpicks.com, then come back.'}
         </p>
       )}
 
@@ -188,6 +234,12 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
               ? 'This device buzzes when it’s your turn. Emails stop — one nudge is enough.'
               : 'A notification the moment the turn reaches you, instead of an email that might sit in junk.'}
           </p>
+          {state === 'off' && (
+            <p className="text-sm text-grey-500">
+              Your phone will ask whether to allow them &mdash; say yes, or
+              nothing arrives.
+            </p>
+          )}
           <button
             type="button"
             onClick={state === 'on' ? disable : enable}
@@ -200,6 +252,12 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
                 ? 'Turn off on this device'
                 : 'Turn on'}
           </button>
+          {where.apple && !where.installed && (
+            <p className="text-sm text-grey-500">
+              Note: on an iPhone this only sticks in the home-screen app. In a
+              Safari tab it will stop as soon as you close it.
+            </p>
+          )}
         </>
       )}
 

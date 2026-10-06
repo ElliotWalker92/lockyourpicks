@@ -83,7 +83,7 @@ export default async function ProfilePage() {
 
         <Section
           title="Notifications"
-          description="An async draft only works if you know it's your go."
+          description="An async draft only works if you know it's your go. On an iPhone or iPad, notifications need the app on your home screen first — the steps are below."
         >
           <div className="flex flex-col gap-5">
             {vapidPublicKey && <PushToggle publicKey={vapidPublicKey} />}
