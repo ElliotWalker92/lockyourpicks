@@ -18,12 +18,7 @@ export function ReplayTour() {
   const [pending, start] = useTransition();
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="font-medium">Show me around</p>
-      <p className="text-sm text-grey-500">
-        The walkthrough again, from the start — the clock, the board, the
-        slip and the table. About thirty seconds.
-      </p>
+    <div>
       <button
         type="button"
         disabled={pending}

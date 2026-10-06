@@ -29,11 +29,10 @@ export function NotifyToggle({ enabled }: { enabled: boolean }) {
         className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-lime"
       />
       <span>
-        <span className="font-medium">Email me when it&rsquo;s my turn</span>
+        <span className="font-medium">By email</span>
         <span className="mt-0.5 block text-sm text-grey-500">
-          One email per turn, with how long you&rsquo;ve got. Nothing else. Any
-          device set to notify you takes over from this, so you&rsquo;re never
-          told twice.
+          One email per turn, with how long you&rsquo;ve got. A device set to
+          notify you takes over from this.
         </span>
       </span>
     </label>

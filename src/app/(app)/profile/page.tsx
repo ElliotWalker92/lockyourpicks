@@ -83,17 +83,19 @@ export default async function ProfilePage() {
 
         <Section
           title="Notifications"
-          description="An async draft only works if you know it's your go. On an iPhone or iPad, notifications need the app on your home screen first — the steps are below."
+          description="Two ways to hear that it's your turn. You only ever get one of them — a device that buzzes takes over from the email."
         >
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4">
             {vapidPublicKey && <PushToggle publicKey={vapidPublicKey} />}
-            <NotifyToggle enabled={profile?.notify_turn ?? true} />
+            <div className="border-t border-grey-300 pt-4">
+              <NotifyToggle enabled={profile?.notify_turn ?? true} />
+            </div>
           </div>
         </Section>
 
         <Section
-          title="Getting started"
-          description="New to it, or want a refresher on how the week works."
+          title="How it works"
+          description="A walkthrough of the week — the clock, the board, the slip and the table. About thirty seconds."
         >
           <ReplayTour />
         </Section>

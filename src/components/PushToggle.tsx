@@ -188,42 +188,38 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="font-medium">Notify me on this device</p>
+      <p className="font-medium">On this device</p>
 
       {state === 'needs-install' && (
         <div className="flex flex-col gap-2 text-sm text-grey-500">
           <p>
-            On an iPhone or iPad this only works from the app on your home
-            screen &mdash; Apple doesn&rsquo;t allow notifications from a
-            Safari tab, so there&rsquo;s no switch to show you here yet.
+            Apple doesn&rsquo;t allow notifications from a Safari tab, so this
+            needs the app on your home screen first:
           </p>
           <ol className="ml-4 list-decimal space-y-1">
+            <li>Tap Share — the square with the arrow out of the top.</li>
             <li>
-              Tap the Share button (the square with the arrow out of the top).
-            </li>
-            <li>
-              Scroll down and tap{' '}
-              <span className="font-medium text-ink">Add to Home Screen</span>.
+              Tap <span className="font-medium text-ink">Add to Home Screen</span>.
             </li>
             <li>Open Lock Your Picks from the new icon.</li>
-            <li>Come back to Profile and the switch will be here.</li>
+            <li>Come back here and the switch will be waiting.</li>
           </ol>
-          <p>Until then your turn still reaches you by email.</p>
+          <p>Until then your turn reaches you by email.</p>
         </div>
       )}
 
       {state === 'unsupported' && (
         <p className="text-sm text-grey-500">
-          This browser doesn&rsquo;t do notifications. Turn emails will still
-          reach you.
+          This browser can&rsquo;t do notifications. Your turn will come by
+          email instead.
         </p>
       )}
 
       {state === 'blocked' && (
         <p className="text-sm text-grey-500">
           {where.apple
-            ? 'Notifications are turned off for Lock Your Picks. Open the iPhone’s Settings app, find Lock Your Picks in the list, tap Notifications and allow them — then come back here.'
-            : 'Notifications are blocked for this site. Allow them in your browser’s settings for lockyourpicks.com, then come back.'}
+            ? 'Turned off for Lock Your Picks. Open Settings, find Lock Your Picks, tap Notifications and allow them.'
+            : 'Blocked for this site. Allow notifications for lockyourpicks.com in your browser settings.'}
         </p>
       )}
 
@@ -231,31 +227,21 @@ export function PushToggle({ publicKey }: { publicKey: string }) {
         <>
           <p className="text-sm text-grey-500">
             {state === 'on'
-              ? 'This device buzzes when it’s your turn. Emails stop — one nudge is enough.'
-              : 'A notification the moment the turn reaches you, instead of an email that might sit in junk.'}
+              ? 'This device buzzes the moment your turn starts.'
+              : 'Buzz this device the moment your turn starts. It will ask you to allow it.'}
           </p>
-          {state === 'off' && (
-            <p className="text-sm text-grey-500">
-              Your phone will ask whether to allow them &mdash; say yes, or
-              nothing arrives.
-            </p>
-          )}
           <button
             type="button"
             onClick={state === 'on' ? disable : enable}
             disabled={pending}
             className={`btn btn-sm self-start ${state === 'on' ? 'btn-outline' : 'btn-lime'}`}
           >
-            {pending
-              ? 'Working…'
-              : state === 'on'
-                ? 'Turn off on this device'
-                : 'Turn on'}
+            {pending ? 'Working…' : state === 'on' ? 'Turn off' : 'Turn on'}
           </button>
           {where.apple && !where.installed && (
             <p className="text-sm text-grey-500">
-              Note: on an iPhone this only sticks in the home-screen app. In a
-              Safari tab it will stop as soon as you close it.
+              In a Safari tab this stops when you close it — add the app to your
+              home screen to keep it.
             </p>
           )}
         </>
