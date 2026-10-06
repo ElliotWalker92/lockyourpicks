@@ -58,7 +58,15 @@ function waitFor(
   signal: AbortSignal,
 ): Promise<Element | null> {
   return new Promise((resolve) => {
-    const look = () => document.querySelector(selector);
+    // Hidden counts as absent. The tab bar is `sm:hidden`, so on a desktop
+    // the element is there to be found but has no size — which spotlit a
+    // nothing-sized box in the top corner and put a card beside it.
+    const look = () => {
+      const el = document.querySelector(selector);
+      if (!el) return null;
+      const box = el.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 ? el : null;
+    };
     const found = look();
     if (found) return resolve(found);
 
