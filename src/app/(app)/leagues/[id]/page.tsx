@@ -365,7 +365,6 @@ export default async function LeaguePage({
             <LeagueShape
               leagueId={league.id}
               divisionSize={league.division_size}
-              picksPerPlayer={league.picks_per_player ?? 3}
               floor={fixtureFloor}
             />
           </div>

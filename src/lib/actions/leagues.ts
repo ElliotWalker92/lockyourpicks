@@ -260,40 +260,41 @@ export async function buildDivisions(
 }
 
 /**
- * Set how many play in a division and how many fixtures each one takes.
+ * Set how many play in a division.
  *
- * Both together, because they are only valid together: a group of six
- * taking three each needs eighteen fixtures a week and the thin gameweeks
- * carry ten. Saving them one at a time would let an owner walk into an
- * impossible pair in two steps, each of which looked fine on its own.
+ * Only the size is chosen. How many fixtures each player takes follows from
+ * it — see picks_for_division_size in migration 0029 — because the two
+ * multiply against a fixture list the owner can't see, and a group of six
+ * taking three each cannot run at all.
  *
- * The checking is all in `set_league_shape` — ownership, the range of each
- * number, the product against the fixture list, and whether a division has
- * already grown past the size being asked for. Doing it there rather than
- * here keeps it true for anything that calls it, and keeps the answer in
- * the same place as the data it's checked against.
+ * The checking is all in `set_division_size`: ownership, the range, the
+ * product against the real fixture floor, and whether a division has
+ * already grown past the size being asked for. Doing it there keeps it true
+ * for anything that calls it, and keeps the answer beside the data it is
+ * checked against.
  */
-export async function setLeagueShape(
+export async function setDivisionSize(
   _prev: { error: string | null; success: string | null },
   formData: FormData,
 ): Promise<{ error: string | null; success: string | null }> {
   const leagueId = String(formData.get('league_id') ?? '');
   const size = Number(formData.get('division_size'));
-  const picks = Number(formData.get('picks_per_player'));
 
   if (!leagueId) return { error: 'Missing group.', success: null };
 
   const supabase = await createClient();
-  const { error } = await callRpc(supabase, 'set_league_shape', {
-    p_league_id: leagueId,
-    p_division_size: size,
-    p_picks_per_player: picks,
-  });
+  const { data, error } = await callRpc<{ picks_per_player: number }>(
+    supabase,
+    'set_division_size',
+    { p_league_id: leagueId, p_division_size: size },
+  );
 
   if (error) return { error: error.message, success: null };
 
   revalidatePath(`/leagues/${leagueId}`);
   revalidatePath('/dashboard');
+
+  const picks = data?.picks_per_player ?? 0;
   return {
     error: null,
     success: `Saved — ${size} per division, ${picks} pick${picks === 1 ? '' : 's'} each.`,

@@ -1,26 +1,29 @@
 -- ============================================================
---  0029 — let a group choose its own shape
+--  0029 — a group picks its size, and the rest follows
 --
---  How many play in a division, and how many fixtures each of them takes,
---  are the two numbers that decide whether a group can run at all. They
---  multiply: a division needs size × picks distinct fixtures every single
---  gameweek, because once somebody takes a match nobody else in that
---  division can have it.
+--  How many play in a division and how many fixtures each of them takes
+--  multiply: once a match is taken nobody else in that division can have
+--  it, so a division needs size × picks distinct fixtures every gameweek.
+--  On this season's card the tightest gameweeks carry ten.
 --
---  Division size was already the owner's to set. Picks per player was not
---  settable anywhere — every draft took the column default of 3, and no
---  insert has ever named it — so a group of six had no way to work. On
---  this season's fixtures the tightest gameweeks carry ten matches, which
---  is the whole constraint:
+--  That makes the second number a consequence of the first rather than a
+--  choice, so it isn't offered as one. An owner says how many play; the
+--  number of picks follows:
 --
---      3 players x 3 picks = 9   fits
---      4 players x 2 picks = 8   fits
---      5 players x 2 picks = 10  fits exactly
---      4 players x 3 picks = 12  does not
+--      2 players  4 picks   8 fixtures
+--      3 players  3 picks   9
+--      4 players  2 picks   8
+--      5 players  2 picks  10
+--      6 to 10    1 pick   6 to 10
 --
---  So the second number has to move when the first one does, and the floor
---  is not a constant anyone can hardcode — it depends on the fixture list.
---  fixture_floor answers it from the data.
+--  Every row fits inside ten, and the two that sit exactly on it are the
+--  reason the floor is still checked rather than trusted: a season whose
+--  thinnest week carried eight would break five-a-side, and the fixture
+--  list is not ours to promise.
+--
+--  picks_per_player is still stored rather than derived on read, because
+--  drafts copy it as they open and a round under way must not change shape
+--  underneath the people playing it.
 -- ============================================================
 
 alter table public.leagues
@@ -38,22 +41,39 @@ begin
 end $$;
 
 comment on column public.leagues.picks_per_player is
-  'How many fixtures each player takes per gameweek. Applied to drafts as they open; a draft already running keeps the number it started with.';
+  'How many fixtures each player takes per gameweek. Follows from division_size — see picks_for_division_size. Copied onto drafts as they open.';
+
+
+-- ------------------------------------------------------------
+--  The rule
+-- ------------------------------------------------------------
+--
+--  Mirrored in src/lib/division-shape.ts so the form can show the
+--  consequence as the owner changes the size. If this changes, that
+--  changes with it.
+create or replace function public.picks_for_division_size(p_size integer)
+returns integer language sql immutable as $$
+  select case
+    when p_size <= 2 then 4
+    when p_size  = 3 then 3
+    when p_size <= 5 then 2
+    else 1
+  end;
+$$;
+
+grant execute on function public.picks_for_division_size(integer)
+  to authenticated, service_role;
 
 
 -- ------------------------------------------------------------
 --  How much room the fixture list leaves
 -- ------------------------------------------------------------
 --
---  The smallest gameweek still to be drafted, counted in fixtures. A
---  division cannot need more than this, and the answer changes as the
---  season goes on: the thin gameweeks are the ones with a cup round or an
---  international break eating the card, and once they're behind us the
---  floor rises.
---
---  Gameweeks already closed are excluded because they can't constrain
---  anything; a group changing its shape now is choosing for the rounds it
---  has left.
+--  The smallest gameweek still to be drafted, counted in fixtures. The
+--  answer moves as the season goes on: the thin weeks are the ones a cup
+--  round or an international break has eaten, and once they are behind us
+--  the floor rises. Closed gameweeks are excluded because they can no
+--  longer constrain anybody.
 create or replace function public.fixture_floor(p_season uuid)
 returns integer language sql stable security definer set search_path = public as $$
   select coalesce(min(c), 0)
@@ -71,27 +91,23 @@ grant execute on function public.fixture_floor(uuid) to authenticated, service_r
 
 
 -- ------------------------------------------------------------
---  Changing the shape
+--  Setting the size
 -- ------------------------------------------------------------
 --
---  Both numbers together, because they are only valid together: checking
---  one against the other's stored value would let an owner walk a group
---  into an impossible pair one save at a time.
---
---  Division size is checked against the real divisions as well as the
---  fixtures. Shrinking it below a division that already exists would leave
---  those players in a division the rules say is too big, so it is refused
---  and the owner is told to re-arrange first.
-create or replace function public.set_league_shape(
+--  An earlier draft of this took both numbers. It doesn't any more, so if
+--  that version was ever applied, its function goes.
+drop function if exists public.set_league_shape(uuid, integer, integer);
+
+create or replace function public.set_division_size(
   p_league_id uuid,
-  p_division_size integer,
-  p_picks_per_player integer
+  p_division_size integer
 )
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_uid     uuid := auth.uid();
   v_league  public.leagues%rowtype;
   v_season  uuid;
+  v_picks   integer;
   v_floor   integer;
   v_biggest integer;
 begin
@@ -112,20 +128,21 @@ begin
     raise exception 'A division holds between 2 and 10 players.';
   end if;
 
-  if p_picks_per_player is null or not (p_picks_per_player between 1 and 5) then
-    raise exception 'Each player takes between 1 and 5 fixtures.';
-  end if;
+  v_picks := public.picks_for_division_size(p_division_size);
 
   select id into v_season from public.seasons where is_active;
   v_floor := coalesce(public.fixture_floor(v_season), 0);
 
-  if v_floor > 0 and p_division_size * p_picks_per_player > v_floor then
+  -- Belt and braces: the table above fits this season, and the next one is
+  -- somebody else's fixture list.
+  if v_floor > 0 and p_division_size * v_picks > v_floor then
     raise exception
       '% players taking % each needs % fixtures, and the smallest gameweek left has %.',
-      p_division_size, p_picks_per_player,
-      p_division_size * p_picks_per_player, v_floor;
+      p_division_size, v_picks, p_division_size * v_picks, v_floor;
   end if;
 
+  -- Shrinking below a division that already exists would leave those
+  -- players somewhere the rules say is too big.
   select max(n) into v_biggest
     from (
       select count(*) as n
@@ -143,35 +160,37 @@ begin
   end if;
 
   update public.leagues
-     set division_size   = p_division_size,
-         picks_per_player = p_picks_per_player
+     set division_size    = p_division_size,
+         picks_per_player = v_picks
    where id = p_league_id;
 
   return jsonb_build_object(
     'division_size', p_division_size,
-    'picks_per_player', p_picks_per_player,
+    'picks_per_player', v_picks,
     'floor', v_floor
   );
 end;
 $$;
 
-revoke all on function public.set_league_shape(uuid, integer, integer)
-  from public, anon;
-grant execute on function public.set_league_shape(uuid, integer, integer)
-  to authenticated;
+revoke all on function public.set_division_size(uuid, integer) from public, anon;
+grant execute on function public.set_division_size(uuid, integer) to authenticated;
+
+
+-- Bring every existing group onto the rule. Betting League 26/27 is three
+-- a side and stays on three picks; nothing about it moves.
+update public.leagues
+   set picks_per_player = public.picks_for_division_size(division_size)
+ where picks_per_player is distinct from
+       public.picks_for_division_size(division_size);
 
 
 -- ------------------------------------------------------------
 --  Drafts take the number from their group
 -- ------------------------------------------------------------
 --
---  Both of these are copied from 0026 with one line added to each: the
+--  Both of these are 0026's functions with one line added to each: the
 --  insert now names picks_per_player. Without it every draft keeps taking
 --  the column default and the setting above would be decoration.
---
---  The value is copied onto the draft rather than read through to the
---  league, so a round already under way can't change shape underneath the
---  people playing it.
 create or replace function public.start_drafts_for_gameweek(p_gameweek_id uuid)
 returns integer language plpgsql security definer set search_path = public as $$
 declare

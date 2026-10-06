@@ -1,37 +1,39 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 
-import { setLeagueShape } from '@/lib/actions/leagues';
+import { setDivisionSize } from '@/lib/actions/leagues';
+import { fixturesNeeded, picksForDivisionSize } from '@/lib/division-shape';
 
 /**
- * The two numbers that decide whether a group can run.
+ * How many play in a division. The picks follow.
  *
- * They multiply, and the product has to fit inside the smallest gameweek
- * left — a division of six taking three each needs eighteen fixtures, and
- * the thin weeks on this season's card carry ten. So the headroom is shown
- * rather than left to be discovered by a rejected save, and the arithmetic
- * is spelled out as it changes.
+ * Only one control, because only one of the two numbers is a decision: a
+ * division needs size × picks distinct fixtures every gameweek and the thin
+ * weeks carry ten, so a group of six taking three each simply cannot run.
+ * Offering both was offering a choice with a wrong answer in it.
  *
- * Plain selects over anything cleverer: there are nine values of one and
- * five of the other, both are chosen once in a season, and a native select
- * is the control every phone already knows how to open.
+ * The consequence is shown as the selector moves rather than after saving,
+ * so the trade is visible while it's being made.
  */
 export function LeagueShape({
   leagueId,
   divisionSize,
-  picksPerPlayer,
   floor,
 }: {
   leagueId: string;
   divisionSize: number;
-  picksPerPlayer: number;
   floor: number;
 }) {
-  const [state, action, pending] = useActionState(setLeagueShape, {
+  const [size, setSize] = useState(divisionSize);
+  const [state, action, pending] = useActionState(setDivisionSize, {
     error: null as string | null,
     success: null as string | null,
   });
+
+  const picks = picksForDivisionSize(size);
+  const needs = fixturesNeeded(size);
+  const tight = floor > 0 && needs > floor;
 
   return (
     <form action={action} className="flex flex-col gap-3">
@@ -42,7 +44,8 @@ export function LeagueShape({
           <span className="label text-[10px]">Players per division</span>
           <select
             name="division_size"
-            defaultValue={divisionSize}
+            value={size}
+            onChange={(e) => setSize(Number(e.target.value))}
             className="rounded-md border border-grey-300 bg-card px-2 py-1.5 text-sm"
           >
             {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
@@ -53,20 +56,12 @@ export function LeagueShape({
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
-          <span className="label text-[10px]">Picks each</span>
-          <select
-            name="picks_per_player"
-            defaultValue={picksPerPlayer}
-            className="rounded-md border border-grey-300 bg-card px-2 py-1.5 text-sm"
-          >
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
+        <p className="pb-1.5 text-sm">
+          <span className="numeric text-lg">{picks}</span>{' '}
+          <span className="text-grey-500">
+            pick{picks === 1 ? '' : 's'} each
+          </span>
+        </p>
 
         <button type="submit" disabled={pending} className="btn btn-sm btn-ink">
           {pending ? 'Saving…' : 'Save'}
@@ -74,33 +69,23 @@ export function LeagueShape({
       </div>
 
       <p className="text-sm text-grey-500">
-        A division needs one fixture per player per pick, every gameweek
-        &mdash; once a match is taken nobody else in that division can have
-        it.{' '}
-        {floor > 0 ? (
+        The picks follow from the size: a division needs one fixture per
+        player per pick every gameweek, because once a match is taken nobody
+        else in that division can have it. {size} &times; {picks} ={' '}
+        <span className={tight ? 'font-medium text-loss' : 'font-medium text-ink'}>
+          {needs} fixtures
+        </span>
+        {floor > 0 && (
           <>
-            The smallest gameweek you have left carries{' '}
-            <span className="font-medium text-ink">{floor} fixtures</span>, so{' '}
-            {divisionSize} &times; {picksPerPlayer} ={' '}
-            <span
-              className={
-                divisionSize * picksPerPlayer > floor
-                  ? 'font-medium text-loss'
-                  : 'font-medium text-ink'
-              }
-            >
-              {divisionSize * picksPerPlayer}
-            </span>{' '}
-            is what you&rsquo;re asking of it.
+            , and the smallest gameweek you have left carries {floor}
           </>
-        ) : (
-          'There are no gameweeks left to check against.'
         )}
+        .
       </p>
 
       <p className="text-sm text-grey-500">
-        A round already under way keeps the number it opened with. Changing
-        the division size doesn&rsquo;t move anybody &mdash; re-arrange the
+        A round already under way keeps the number it opened with, and
+        changing the size doesn&rsquo;t move anybody &mdash; re-arrange the
         divisions for that.
       </p>
 
