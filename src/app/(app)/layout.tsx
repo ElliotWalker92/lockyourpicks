@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { MobileNav } from '@/components/MobileNav';
 import { NavLinks } from '@/components/NavLinks';
+import { ScrollMemory } from '@/components/ScrollMemory';
 import { signOut } from '@/lib/actions/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -31,6 +32,9 @@ export default async function AppLayout({
 
   return (
     <>
+      {/* Puts each tab back where you left it. */}
+      <ScrollMemory />
+
       {/* Padded rather than offset, so the bar's own background fills the
           notch inset instead of leaving a strip of page showing through.
           Zero on anything without a notch, and on iOS when the status bar

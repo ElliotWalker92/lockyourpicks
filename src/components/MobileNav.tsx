@@ -81,6 +81,10 @@ export function MobileNav() {
             <li key={tab.href} className="flex-1">
               <Link
                 href={tab.href}
+                // ScrollMemory does the scrolling for these — it puts you
+                // back where you were on that tab, and Next's own animated
+                // jump to the top would only override it.
+                scroll={false}
                 aria-current={active ? 'page' : undefined}
                 className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition ${
                   active ? 'text-ink' : 'text-grey-500'

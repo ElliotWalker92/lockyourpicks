@@ -7,9 +7,18 @@ import { useEffect } from 'react';
  *
  * After load, not during: registration competes with the page's own
  * requests, and nothing here needs it to be early.
+ *
+ * Not in development. The worker caches everything under /_next/static,
+ * which is safe in production because those filenames carry a hash of
+ * their contents and change whenever the code does. `next dev` reuses
+ * names, so the cache answers with yesterday's JavaScript and the app
+ * stops reflecting the file being edited — silently, with the dev server
+ * reporting a clean compile. To work on the worker itself, drop this
+ * check and remember to unregister it afterwards.
  */
 export function ServiceWorker() {
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') return;
     if (!('serviceWorker' in navigator)) return;
     const register = () => {
       navigator.serviceWorker

@@ -43,6 +43,8 @@ export function NavLinks({ isAdmin }: { isAdmin: boolean }) {
           <Link
             key={link.href}
             href={link.href}
+            // See MobileNav: ScrollMemory handles the scroll for the tabs.
+            scroll={false}
             aria-current={active ? 'page' : undefined}
             className={`rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition ${
               active
