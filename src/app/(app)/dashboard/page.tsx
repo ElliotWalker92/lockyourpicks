@@ -11,6 +11,7 @@ import { userAtTurn } from '@/lib/draft-order';
 import { rank } from '@/lib/standings';
 import { currentDraftFor } from '@/lib/current-draft';
 import { createClient } from '@/lib/supabase/server';
+import { activeLeagueId } from '@/lib/active-league';
 import { viewingFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Dashboard' };
@@ -185,7 +186,7 @@ export default async function DashboardPage({
         .from('league_members')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', viewedId),
-      viewingFor(supabase, viewedId, seasonId),
+      viewingFor(supabase, viewedId, seasonId, await activeLeagueId()),
     ]);
 
     // ---- Watching rather than playing ----

@@ -17,6 +17,7 @@ import {
   loadTeamForm,
 } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
+import { activeLeagueId } from '@/lib/active-league';
 import { viewingFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Picks' };
@@ -63,6 +64,7 @@ export default async function DraftPage({
       supabase,
       user!.id,
       season?.id ?? '00000000-0000-0000-0000-000000000000',
+      await activeLeagueId(),
     ),
     supabase
       .from('profiles')

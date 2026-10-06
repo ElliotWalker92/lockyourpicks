@@ -9,6 +9,7 @@ import {
   type Zone,
 } from '@/components/StandingsTable';
 import { rank, type StandingRow } from '@/lib/standings';
+import { activeLeagueId } from '@/lib/active-league';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Table' };
@@ -187,9 +188,13 @@ export default async function TablePage() {
       .maybeSingle(),
   ]);
 
-  const league = (memberships ?? [])
+  // The group they last switched to, or their first. Taking [0] meant
+  // anyone in two groups could only ever see whichever came back first.
+  const active = await activeLeagueId();
+  const mine = (memberships ?? [])
     .map((m) => m.leagues)
-    .filter((l): l is NonNullable<typeof l> => Boolean(l))[0];
+    .filter((l): l is NonNullable<typeof l> => Boolean(l));
+  const league = mine.find((l) => l.id === active) ?? mine[0];
 
   const heading = (
     <div>

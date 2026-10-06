@@ -3,10 +3,13 @@ import { redirect } from 'next/navigation';
 
 import { MobileNav } from '@/components/MobileNav';
 import { NavLinks } from '@/components/NavLinks';
+import { LeagueSwitcher } from '@/components/LeagueSwitcher';
 import { ScrollMemory } from '@/components/ScrollMemory';
 import { Tour } from '@/components/Tour';
 import { signOut } from '@/lib/actions/auth';
+import { activeLeagueId } from '@/lib/active-league';
 import { createClient } from '@/lib/supabase/server';
+import { membershipsFor } from '@/lib/viewing';
 
 export default async function AppLayout({
   children,
@@ -30,6 +33,23 @@ export default async function AppLayout({
 
   const name = profile?.display_name ?? user.email?.split('@')[0] ?? 'Player';
   const initial = name.charAt(0).toUpperCase();
+
+  // Only to decide whether there's a choice to offer. Each page resolves the
+  // active group itself, from the same cookie.
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  const groups = season
+    ? await membershipsFor(supabase, user.id, season.id)
+    : [];
+  const active = await activeLeagueId();
+  const activeId =
+    groups.find((g) => g.leagueId === active)?.leagueId ??
+    groups[0]?.leagueId ??
+    '';
 
   return (
     <>
@@ -58,6 +78,15 @@ export default async function AppLayout({
           <div className="hidden flex-1 sm:flex">
             <NavLinks isAdmin={profile?.is_admin ?? false} />
           </div>
+
+          <LeagueSwitcher
+            leagues={groups.map((g) => ({
+              id: g.leagueId,
+              name: g.leagueName,
+              viewer: g.role === 'viewer',
+            }))}
+            activeId={activeId}
+          />
 
           <div className="ml-auto flex shrink-0 items-center gap-2.5 sm:ml-0">
             <Link

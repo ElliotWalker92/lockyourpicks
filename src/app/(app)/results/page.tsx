@@ -14,6 +14,7 @@ import {
 import { currentDraftFor } from '@/lib/current-draft';
 import { loadRounds } from '@/lib/rounds';
 import { createClient } from '@/lib/supabase/server';
+import { activeLeagueId } from '@/lib/active-league';
 import { viewingFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Picks' };
@@ -81,7 +82,12 @@ export default async function ResultsPage({
     .maybeSingle();
   const seasonId = season?.id ?? NOBODY;
 
-  const view = await viewingFor(supabase, user!.id, seasonId);
+  const view = await viewingFor(
+    supabase,
+    user!.id,
+    seasonId,
+    await activeLeagueId(),
+  );
 
   // Watching rather than playing: there is no "your division" to narrow to.
   const wholeGroupOnly = view?.viewer ?? false;
