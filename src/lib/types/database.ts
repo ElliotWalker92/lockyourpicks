@@ -380,6 +380,7 @@ export type Database = {
           drafting_paused: boolean
           created_at: string
           division_size: number
+          picks_per_player: number
           id: string
           is_open: boolean
           join_code: string
@@ -390,6 +391,7 @@ export type Database = {
           drafting_paused?: boolean
           created_at?: string
           division_size?: number
+          picks_per_player?: number
           id?: string
           is_open?: boolean
           join_code: string
@@ -400,6 +402,7 @@ export type Database = {
           drafting_paused?: boolean
           created_at?: string
           division_size?: number
+          picks_per_player?: number
           id?: string
           is_open?: boolean
           join_code?: string

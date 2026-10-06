@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
+import { LeagueShape } from '@/components/LeagueShape';
+import { callRpc } from '@/lib/supabase/rpc';
 import { DivisionEditor } from '@/components/DivisionEditor';
 import { OpenNextGameweek } from '@/components/OpenNextGameweek';
 import { SLIP_ACCENTS } from '@/lib/slip-accents';
@@ -30,7 +32,7 @@ export default async function LeaguePage({
 
   const { data: league } = await supabase
     .from('leagues')
-    .select('id, name, join_code, owner_id, division_size')
+    .select('id, name, join_code, owner_id, division_size, picks_per_player')
     .eq('id', id)
     .maybeSingle();
 
@@ -78,6 +80,13 @@ export default async function LeaguePage({
     profiles?.find((p) => p.id === userId)?.avatar_color ?? '#c8f135';
 
   const isOwner = league.owner_id === user!.id;
+
+  // How much room the fixture list leaves, for the shape form. Asked for
+  // only when there's somebody who can act on it.
+  const { data: floorValue } = isOwner
+    ? await callRpc<number>(supabase, 'fixture_floor', { p_season: seasonId })
+    : { data: 0 };
+  const fixtureFloor = floorValue ?? 0;
 
   // ---- Every division's picks for one round, on one card ----
   //
@@ -214,7 +223,11 @@ export default async function LeaguePage({
             {(members?.length ?? 0) === 1 ? '' : 's'}
           </span>
           <span aria-hidden>·</span>
-          <span>{league.division_size} per division</span>
+          <span>
+            {league.division_size} per division &middot;{' '}
+            {league.picks_per_player ?? 3} pick
+            {(league.picks_per_player ?? 3) === 1 ? '' : 's'} each
+          </span>
           <span aria-hidden>·</span>
           <span>
             Join code{' '}
@@ -346,6 +359,16 @@ export default async function LeaguePage({
           <p className="mt-1 text-sm text-grey-700">
             Only you can see this.
           </p>
+
+          <div className="mt-4 border-t border-grey-300 pt-4">
+            <h3 className="label mb-3">Shape of the group</h3>
+            <LeagueShape
+              leagueId={league.id}
+              divisionSize={league.division_size}
+              picksPerPlayer={league.picks_per_player ?? 3}
+              floor={fixtureFloor}
+            />
+          </div>
 
           <div className="mt-4 border-t border-grey-300 pt-4">
             <OpenNextGameweek leagueId={league.id} />

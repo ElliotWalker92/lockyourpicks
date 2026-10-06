@@ -258,3 +258,44 @@ export async function buildDivisions(
   revalidatePath(`/leagues/${leagueId}`);
   return { error: null };
 }
+
+/**
+ * Set how many play in a division and how many fixtures each one takes.
+ *
+ * Both together, because they are only valid together: a group of six
+ * taking three each needs eighteen fixtures a week and the thin gameweeks
+ * carry ten. Saving them one at a time would let an owner walk into an
+ * impossible pair in two steps, each of which looked fine on its own.
+ *
+ * The checking is all in `set_league_shape` — ownership, the range of each
+ * number, the product against the fixture list, and whether a division has
+ * already grown past the size being asked for. Doing it there rather than
+ * here keeps it true for anything that calls it, and keeps the answer in
+ * the same place as the data it's checked against.
+ */
+export async function setLeagueShape(
+  _prev: { error: string | null; success: string | null },
+  formData: FormData,
+): Promise<{ error: string | null; success: string | null }> {
+  const leagueId = String(formData.get('league_id') ?? '');
+  const size = Number(formData.get('division_size'));
+  const picks = Number(formData.get('picks_per_player'));
+
+  if (!leagueId) return { error: 'Missing group.', success: null };
+
+  const supabase = await createClient();
+  const { error } = await callRpc(supabase, 'set_league_shape', {
+    p_league_id: leagueId,
+    p_division_size: size,
+    p_picks_per_player: picks,
+  });
+
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath('/dashboard');
+  return {
+    error: null,
+    success: `Saved — ${size} per division, ${picks} pick${picks === 1 ? '' : 's'} each.`,
+  };
+}
