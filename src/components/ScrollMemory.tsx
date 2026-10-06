@@ -106,6 +106,11 @@ export function ScrollMemory() {
 
   // Apply it on arrival.
   useEffect(() => {
+    // The tour moves the page to whatever it's pointing at. Two things
+    // scrolling at once is one too many, and the tour is the one the reader
+    // is actually watching.
+    if (document.documentElement.dataset.tour) return;
+
     const target = read(page);
 
     let frames = 0;

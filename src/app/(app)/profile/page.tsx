@@ -7,6 +7,7 @@ import {
 import { signOut } from '@/lib/actions/auth';
 import { NotifyToggle } from '@/components/NotifyToggle';
 import { PushToggle } from '@/components/PushToggle';
+import { ReplayTour } from '@/components/ReplayTour';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { serverEnv } from '@/lib/server-env';
 import { createClient } from '@/lib/supabase/server';
@@ -88,6 +89,13 @@ export default async function ProfilePage() {
             {vapidPublicKey && <PushToggle publicKey={vapidPublicKey} />}
             <NotifyToggle enabled={profile?.notify_turn ?? true} />
           </div>
+        </Section>
+
+        <Section
+          title="Getting started"
+          description="New to it, or want a refresher on how the week works."
+        >
+          <ReplayTour />
         </Section>
 
         <Section

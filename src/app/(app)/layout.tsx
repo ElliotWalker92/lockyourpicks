@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { MobileNav } from '@/components/MobileNav';
 import { NavLinks } from '@/components/NavLinks';
 import { ScrollMemory } from '@/components/ScrollMemory';
+import { Tour } from '@/components/Tour';
 import { signOut } from '@/lib/actions/auth';
 import { createClient } from '@/lib/supabase/server';
 
@@ -23,7 +24,7 @@ export default async function AppLayout({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, avatar_color, avatar_url, is_admin')
+    .select('display_name, avatar_color, avatar_url, is_admin, tour_seen_at')
     .eq('id', user.id)
     .single();
 
@@ -34,6 +35,9 @@ export default async function AppLayout({
     <>
       {/* Puts each tab back where you left it. */}
       <ScrollMemory />
+
+      {/* Runs itself once, for anyone who has never been shown round. */}
+      <Tour autoStart={!profile?.tour_seen_at} />
 
       {/* Padded rather than offset, so the bar's own background fills the
           notch inset instead of leaving a strip of page showing through.

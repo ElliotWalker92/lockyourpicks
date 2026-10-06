@@ -506,7 +506,7 @@ export function DraftBoard({
 
               This is the slip from the first pick, filling as the division
               drafts. Yours is the card that's lit. */}
-      <section>
+      <section data-tour="slip">
         <h2 className="label mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
           <LockIcon open={!everyoneIn} className="h-3 w-3" />
           The slip
@@ -690,6 +690,7 @@ export function DraftBoard({
               type="button"
               onClick={lockIn}
               disabled={pending || myPicks.length < draft.picks_per_player}
+              data-tour="lock-in"
               className="btn btn-ink"
             >
               <LockIcon className="h-4 w-4" />
@@ -728,7 +729,7 @@ export function DraftBoard({
       </section>
 
       {/* ---- Available ---- */}
-      <section>
+      <section data-tour="available">
         <h2 className="label mb-3">
           Available ({available.length})
         </h2>
@@ -799,7 +800,12 @@ export function DraftBoard({
                           {/* Outcome buttons sit with the fixture: one tap to
                               pick, rather than opening the row first and then
                               choosing. */}
-                          <span className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0">
+                          <span
+                            // The tour points at the first of these it
+                            // finds, which is the top fixture on the board.
+                            data-tour="pick-buttons"
+                            className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0"
+                          >
                             {(
                               [
                                 ['HOME', f.home.name],

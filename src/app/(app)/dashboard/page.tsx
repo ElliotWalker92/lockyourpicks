@@ -492,6 +492,7 @@ export default async function DashboardPage({
       </div>
 
       {/* ---- The clock ---- */}
+      <div data-tour="clock">
       {draft && draft.status === 'active' ? (
         <TurnCountdown
           expiresAt={draft.turn_expires_at}
@@ -527,6 +528,7 @@ export default async function DashboardPage({
           </p>
         </section>
       )}
+      </div>
 
       {isMyTurn && !impersonating && (
         <div>
@@ -539,7 +541,10 @@ export default async function DashboardPage({
 
       {/* ---- Standings at a glance ----
               Two to a row on a phone, four across once there's room. */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div
+        data-tour="stats"
+        className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
+      >
         <Stat
           label={membership.divisions?.name ?? 'Division'}
           value={meDiv ? ordinal(meDiv.position) : '—'}
@@ -587,7 +592,7 @@ export default async function DashboardPage({
 
       {/* ---- Picks and division table ---- */}
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="card p-5">
+        <section data-tour="my-picks" className="card p-5">
           <div className="mb-4 flex items-baseline justify-between gap-3">
             <h2 className="label flex items-center gap-1.5">
               <LockIcon open={isMyTurn} className="h-3 w-3" />

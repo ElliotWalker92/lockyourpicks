@@ -138,6 +138,44 @@ export async function setTurnNotifications(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Record that the guided tour has been offered.
+ *
+ * Stamped whether they finished it or skipped out halfway: the point is
+ * that they've been shown it once, and showing it again every login would
+ * be the opposite of helpful. Profile has a button to run it again.
+ */
+export async function markTourSeen(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from('profiles')
+    .update({ tour_seen_at: new Date().toISOString() })
+    .eq('id', user.id);
+
+  revalidatePath('/', 'layout');
+}
+
+/** Put the tour back on the next page load. */
+export async function replayTour(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from('profiles')
+    .update({ tour_seen_at: null })
+    .eq('id', user.id);
+
+  revalidatePath('/', 'layout');
+}
+
+/**
  * Remember a device so its turns can be pushed to it.
  *
  * The endpoint is the device's identity and already unique per device per

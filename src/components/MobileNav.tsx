@@ -68,6 +68,7 @@ export function MobileNav() {
   return (
     <nav
       aria-label="Main"
+      data-tour="tabs"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-grey-300 bg-card sm:hidden"
       // Keeps the bar clear of the iOS home indicator — see globals.
       style={{ paddingBottom: 'var(--nav-reserve)' }}

@@ -199,7 +199,7 @@ export default async function TablePage() {
         One point per correct result. Divisions run alongside the overall
         standings.
       </p>
-      <div className="mt-4">
+      <div className="mt-4" data-tour="table">
         <TableScopeToggle scope="league" />
       </div>
     </div>
