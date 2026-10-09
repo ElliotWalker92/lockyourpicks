@@ -7,12 +7,24 @@ import {
 } from '@/components/LeagueForms';
 import { JoinCode } from '@/components/JoinCode';
 import { LockIcon } from '@/components/LockIcon';
+import { callRpc } from '@/lib/supabase/rpc';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Group' };
 
 export default async function LeaguesPage() {
   const supabase = await createClient();
+
+  // Quoted in the create form, so the trade-off is shown against the real
+  // fixture list rather than a number written down once and left to rot.
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .maybeSingle();
+  const { data: floorValue } = season
+    ? await callRpc<number>(supabase, 'fixture_floor', { p_season: season.id })
+    : { data: 0 };
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -98,7 +110,7 @@ export default async function LeaguesPage() {
           <h2 className="label mb-4">
             Start a group
           </h2>
-          <CreateLeagueForm />
+          <CreateLeagueForm floor={floorValue ?? 0} />
         </section>
 
         <section className="card p-5">

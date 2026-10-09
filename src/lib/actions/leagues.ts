@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { picksForDivisionSize } from '@/lib/division-shape';
 import { callRpc } from '@/lib/supabase/rpc';
 import { createClient } from '@/lib/supabase/server';
 
@@ -51,6 +52,11 @@ export async function createLeague(
         join_code: generateJoinCode(),
         owner_id: user.id,
         division_size: divisionSize,
+        // The picks follow from the size and are stored, not derived on
+        // read, because drafts copy the number as they open. Leaving it to
+        // the column default gave a new group of five three picks each —
+        // fifteen fixtures a week, which no gameweek this season carries.
+        picks_per_player: picksForDivisionSize(divisionSize),
       })
       .select('id')
       .single();

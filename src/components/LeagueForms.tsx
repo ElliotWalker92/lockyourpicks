@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
+import { fixturesNeeded, picksForDivisionSize } from '@/lib/division-shape';
 import {
   createLeague,
   joinLeague,
@@ -37,7 +38,7 @@ function Error({ state }: { state: LeagueState }) {
   );
 }
 
-export function CreateLeagueForm() {
+export function CreateLeagueForm({ floor = 0 }: { floor?: number }) {
   const [state, action] = useActionState(createLeague, { error: null });
   const [size, setSize] = useState(3);
 
@@ -60,30 +61,33 @@ export function CreateLeagueForm() {
         <label htmlFor="division_size" className="text-sm font-medium">
           Players per division
         </label>
-        <input
+        {/* A select, not a number box. The number box was controlled, so
+            clearing it gave 0 and the next keystroke read "05" — you could
+            not simply type 5. There are nine valid values; offer them. */}
+        <select
           id="division_size"
           name="division_size"
-          type="number"
-          min={2}
-          max={10}
           value={size}
           onChange={(e) => setSize(Number(e.target.value))}
           className={field}
-        />
-        {size > 3 ? (
-          <p className="rounded-md border border-loss/30 bg-loss/5 px-3 py-2 text-xs leading-relaxed text-loss">
-            <strong>{size} per division needs {size * 3} fixtures a week.</strong>{' '}
-            Three gameweeks this season carry only 10 fixtures across all
-            competitions — international breaks. Those drafts would run out of
-            fixtures. Three players per division is the largest size that works
-            every week.
-          </p>
-        ) : (
-          <p className="text-xs leading-relaxed text-grey-500">
-            A division of <em>n</em> consumes 3<em>n</em> fixtures a week. Three
-            players means 9 — the most that fits every gameweek this season.
-          </p>
-        )}
+        >
+          {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+            <option key={n} value={n}>
+              {n} player{n === 1 ? '' : 's'}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs leading-relaxed text-grey-500">
+          Each player takes{' '}
+          <strong className="text-ink">
+            {picksForDivisionSize(size)} fixture
+            {picksForDivisionSize(size) === 1 ? '' : 's'}
+          </strong>{' '}
+          a week — that follows from the size, because once a match is taken
+          nobody else in the division can have it. {size} &times;{' '}
+          {picksForDivisionSize(size)} = {fixturesNeeded(size)} a week
+          {floor > 0 && <>, and the thinnest gameweek carries {floor}</>}.
+        </p>
       </div>
 
       <Error state={state} />
