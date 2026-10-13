@@ -39,13 +39,24 @@ create trigger on_auth_user_email_changed
   execute procedure public.sync_profile_email();
 
 
--- Bring the existing rows into line. One of these is Matt's placeholder,
--- already corrected by hand so this will pass over it; the other is a
--- profile still carrying the address its player was imported with, while
--- their account has since moved to a different one.
+-- Only the placeholders are backfilled, not every difference.
+--
+-- A profile whose address differs from the account's is not necessarily
+-- stale. Besty's account carries the address he signed up with in August;
+-- his profile was moved to a different real address in September, after it,
+-- and that later one is where he reads his mail. Syncing everything would
+-- have quietly moved him back to the older address — fixing one player by
+-- breaking another.
+--
+-- A placeholder is different: nobody chose it, it was invented by the
+-- import so a row could exist before the player did, and mail to it goes
+-- nowhere by design. Those are safe to overwrite with the real account
+-- address, and from here the trigger keeps the two in step.
 update public.profiles p
    set email = u.email,
        updated_at = now()
   from auth.users u
  where u.id = p.id
+   and p.email like '%.invalid'
+   and u.email not like '%.invalid'
    and p.email is distinct from u.email;
