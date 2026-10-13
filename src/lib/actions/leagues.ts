@@ -306,3 +306,34 @@ export async function setDivisionSize(
     success: `Saved — ${size} per division, ${picks} pick${picks === 1 ? '' : 's'} each.`,
   };
 }
+
+/**
+ * Undo the picks the clock made.
+ *
+ * All the judgement is in `rollback_auto_picks`: ownership, which round is
+ * still open, whether the football has started, which seat to rewind each
+ * division to, and leaving real picks alone. Keeping it there means the
+ * rule is the same wherever it is called from, and the decision sits beside
+ * the rows it is made about.
+ */
+export async function undoAutoPicks(
+  _prev: { error: string | null; success: string | null },
+  formData: FormData,
+): Promise<{ error: string | null; success: string | null }> {
+  const leagueId = String(formData.get('league_id') ?? '');
+  if (!leagueId) return { error: 'Missing group.', success: null };
+
+  const supabase = await createClient();
+  const { data, error } = await callRpc<{ message: string }>(
+    supabase,
+    'rollback_auto_picks',
+    { p_league_id: leagueId },
+  );
+
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath('/dashboard');
+  revalidatePath('/draft');
+  return { error: null, success: data?.message ?? 'Done.' };
+}

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
 import { LeagueShape } from '@/components/LeagueShape';
+import { UndoAutoPicks } from '@/components/UndoAutoPicks';
 import { callRpc } from '@/lib/supabase/rpc';
 import { DivisionEditor } from '@/components/DivisionEditor';
 import { OpenNextGameweek } from '@/components/OpenNextGameweek';
@@ -87,6 +88,16 @@ export default async function LeaguePage({
     ? await callRpc<number>(supabase, 'fixture_floor', { p_season: seasonId })
     : { data: 0 };
   const fixtureFloor = floorValue ?? 0;
+
+  // What the clock has picked for people in the round still open, so the
+  // undo can say what it will do before it does it.
+  const { data: autoPicks } = isOwner
+    ? await callRpc<{
+        gameweek: number | null;
+        picks: number;
+        players: string[];
+      }>(supabase, 'auto_pick_summary', { p_league_id: id })
+    : { data: null };
 
   // ---- Every division's picks for one round, on one card ----
   //
@@ -368,6 +379,18 @@ export default async function LeaguePage({
               floor={fixtureFloor}
             />
           </div>
+
+          {!!autoPicks?.picks && (
+            <div className="mt-4 border-t border-grey-300 pt-4">
+              <h3 className="label mb-3">Picks the clock made</h3>
+              <UndoAutoPicks
+                leagueId={league.id}
+                gameweek={autoPicks.gameweek ?? 0}
+                picks={autoPicks.picks}
+                players={autoPicks.players ?? []}
+              />
+            </div>
+          )}
 
           <div className="mt-4 border-t border-grey-300 pt-4">
             <OpenNextGameweek leagueId={league.id} />
