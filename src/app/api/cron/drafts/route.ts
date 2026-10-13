@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     if (turnError) errors.push(`run_expired_turns: ${turnError.message}`);
 
     // After the turns have moved, not before.
-    let notified = { due: 0, sent: 0, pushed: 0, skipped: 0 };
+    let notified = { due: 0, sent: 0, pushed: 0, warned: 0, skipped: 0 };
     const warnings: string[] = [];
     try {
       const report = await notifyTurns(supabase);
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         due: report.due,
         sent: report.sent,
         pushed: report.pushed,
+        warned: report.warned,
         skipped: report.skipped,
       };
       errors.push(...report.errors);

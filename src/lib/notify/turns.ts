@@ -11,6 +11,8 @@ export type NotifyReport = {
   sent: number;
   /** Of `sent`, how many went to a phone rather than an inbox. */
   pushed: number;
+  /** Three-hours-left nudges, counted apart from the turn itself. */
+  warned: number;
   skipped: number;
   errors: string[];
   /**
@@ -56,6 +58,7 @@ export async function notifyTurns(
     due: 0,
     sent: 0,
     pushed: 0,
+    warned: 0,
     skipped: 0,
     errors: [],
     warnings: [],
@@ -71,73 +74,73 @@ export async function notifyTurns(
   const pending = data ?? [];
   report.due = pending.length;
 
-  for (const turn of pending) {
-    try {
-      const devices = canPush ? (turn.push_targets ?? []) : [];
+  /**
+   * Tell one player, by whichever channel they have.
+   *
+   * Push first and email only without it — see the note above. Returns
+   * whether anything got through, so the caller knows whether to stamp the
+   * row: an unstamped turn is retried, a stamped one is not.
+   */
+  const tell = async (
+    turn: PendingTurn,
+    kind: 'start' | 'warning',
+  ): Promise<'push' | 'email' | 'skipped'> => {
+    const devices = canPush ? (turn.push_targets ?? []) : [];
 
-      if (devices.length > 0) {
-        const results = await Promise.all(
-          devices.map((device) =>
-            sendPush(supabase, device, {
-              title: 'You’re on the clock',
-              body: `Gameweek ${turn.gameweek} — pick your three in ${turn.division_name}.`,
-              url: '/draft',
-              // One notification per turn: a second push for the same turn
-              // replaces the first rather than stacking under it.
-              tag: `turn-${turn.draft_id}`,
-            }),
-          ),
-        );
+    if (devices.length > 0) {
+      const results = await Promise.all(
+        devices.map((device) =>
+          sendPush(supabase, device, {
+            title:
+              kind === 'warning'
+                ? 'Three hours left'
+                : 'You’re on the clock',
+            body:
+              kind === 'warning'
+                ? `Gameweek ${turn.gameweek} — your picks are due soon in ${turn.division_name}.`
+                : `Gameweek ${turn.gameweek} — make your picks in ${turn.division_name}.`,
+            url: '/draft',
+            // One notification per turn per kind: a repeat replaces the
+            // earlier one rather than stacking under it.
+            tag: `${kind}-${turn.draft_id}`,
+          }),
+        ),
+      );
 
-        if (results.includes('sent')) {
-          await callRpc(supabase, 'mark_turn_notified', {
-            p_draft_id: turn.draft_id,
-          });
-          report.sent++;
-          report.pushed++;
-          continue;
-        }
-        // Every device refused. Fall through to email — and say so, since
-        // otherwise a player whose phone has quietly stopped receiving
-        // looks indistinguishable from one who never installed the app.
-        report.warnings.push(
-          `${turn.email}: push failed on ${results.length} device${results.length === 1 ? '' : 's'} (${results.join(', ')}), fell back to email`,
-        );
-      }
+      if (results.includes('sent')) return 'push';
 
-      // A player with no real address yet: marked as notified so it isn't
-      // retried every ten minutes, and counted as skipped, not sent.
-      if (isPlaceholderEmail(turn.email)) {
-        await callRpc(supabase, 'mark_turn_notified', {
-          p_draft_id: turn.draft_id,
-        });
-        report.skipped++;
-        continue;
-      }
+      report.warnings.push(
+        `${turn.email}: push failed on ${results.length} device${results.length === 1 ? '' : 's'} (${results.join(', ')}), fell back to email`,
+      );
+    }
 
-      const email = turnEmail({
+    // A player with no real address yet.
+    if (isPlaceholderEmail(turn.email)) return 'skipped';
+
+    const sent = await sendEmail({
+      to: turn.email,
+      ...turnEmail({
         name: turn.display_name ?? 'there',
         division: turn.division_name,
         league: turn.league_name,
         gameweek: turn.gameweek,
         expiresAt: turn.expires_at,
-      });
+        kind,
+      }),
+      headers: {
+        'List-Unsubscribe': '<https://www.lockyourpicks.com/profile>',
+      },
+    });
 
-      const sent = await sendEmail({
-        to: turn.email,
-        ...email,
-        // Mailbox providers — Outlook especially — treat a message you
-        // can't opt out of as more likely to be unwanted, and some will
-        // surface a one-tap unsubscribe instead of leaving junk as the
-        // only option. The switch it points at is real: Profile has
-        // "Email me when it's my turn".
-        headers: {
-          'List-Unsubscribe': '<https://www.lockyourpicks.com/profile>',
-        },
-      });
-      if (!sent) {
-        // No API key configured: leave it unmarked so it goes out once
-        // notifications are switched on, rather than being lost.
+    // No API key configured: leave it unstamped so it goes out once
+    // notifications are switched on, rather than being lost.
+    return sent ? 'email' : 'skipped';
+  };
+
+  for (const turn of pending) {
+    try {
+      const how = await tell(turn, 'start');
+      if (how === 'skipped' && !isPlaceholderEmail(turn.email)) {
         report.skipped++;
         continue;
       }
@@ -145,10 +148,42 @@ export async function notifyTurns(
       await callRpc(supabase, 'mark_turn_notified', {
         p_draft_id: turn.draft_id,
       });
-      report.sent++;
+
+      if (how === 'skipped') report.skipped++;
+      else {
+        report.sent++;
+        if (how === 'push') report.pushed++;
+      }
     } catch (err) {
       report.errors.push(
         `${turn.email}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  // ---- Three hours to go ----
+  //
+  // Separate pass, separate stamp. The turn email lands when the player in
+  // front of you finishes; this one lands when it actually matters.
+  const { data: dueSoon, error: warnError } = await callRpc<PendingTurn[]>(
+    supabase,
+    'pending_turn_warnings',
+  );
+  if (warnError) {
+    report.errors.push(`pending_turn_warnings: ${warnError.message}`);
+    return report;
+  }
+
+  for (const turn of dueSoon ?? []) {
+    try {
+      const how = await tell(turn, 'warning');
+      if (how === 'skipped' && !isPlaceholderEmail(turn.email)) continue;
+
+      await callRpc(supabase, 'mark_turn_warned', { p_draft_id: turn.draft_id });
+      if (how !== 'skipped') report.warned++;
+    } catch (err) {
+      report.errors.push(
+        `${turn.email} (warning): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

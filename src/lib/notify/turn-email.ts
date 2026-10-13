@@ -3,6 +3,12 @@
  *
  * Inline styles and tables for the same reasons: Gmail strips <style>, and
  * Outlook renders with Word. See supabase/templates/README.md.
+ *
+ * Two kinds through one template. The warning goes out three hours before
+ * a deadline and differs only in what it says — the turn email arrives
+ * when the player in front of you finishes, which can be a day and a half
+ * before you are actually up against it, and by then it is far down an
+ * inbox. A second template would be a second thing to keep in step.
  */
 export function turnEmail(opts: {
   name: string;
@@ -10,7 +16,9 @@ export function turnEmail(opts: {
   league: string;
   gameweek: number;
   expiresAt: string | null;
+  kind?: 'start' | 'warning';
 }) {
+  const warning = opts.kind === 'warning';
   const deadline = opts.expiresAt
     ? new Date(opts.expiresAt).toLocaleString('en-GB', {
         weekday: 'long',
@@ -26,10 +34,12 @@ export function turnEmail(opts: {
   const first = opts.name.trim().split(/\s+/)[0] || 'there';
 
   const text = [
-    `It's your turn — gameweek ${opts.gameweek}`,
+    warning
+      ? `Three hours left — gameweek ${opts.gameweek}`
+      : `It's your turn — gameweek ${opts.gameweek}`,
     `${opts.league} · ${opts.division}`,
     '',
-    'Three fixtures. Once one is gone in your division, nobody else can have it.',
+    'Your picks. Once a fixture is gone in your division, nobody else can have it.',
     deadline ? `Your turn ends ${deadline}.` : '',
     'Miss it and the clock picks for you.',
     '',
@@ -51,15 +61,19 @@ export function turnEmail(opts: {
           <tr><td style="width:18px;height:12px;background-color:#ff2d87;border-radius:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
         </table>
       </td>
-      <td style="vertical-align:middle;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:2.5px;color:#ff2d87;text-transform:uppercase;">You're on the clock</td>
+      <td style="vertical-align:middle;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:2.5px;color:#ff2d87;text-transform:uppercase;">${warning ? 'Three hours left' : "You're on the clock"}</td>
     </tr></table>
   </td></tr>
 
   <tr><td style="background-color:#ffffff;padding:36px 32px 32px;border-left:1px solid #e6e6e4;border-right:1px solid #e6e6e4;">
-    <h1 style="margin:0 0 14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:30px;line-height:1.15;font-weight:800;letter-spacing:-0.6px;color:#0d0d0d;">It's your turn, ${first}</h1>
+    <h1 style="margin:0 0 14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:30px;line-height:1.15;font-weight:800;letter-spacing:-0.6px;color:#0d0d0d;">${warning ? `Nearly out of time, ${first}` : `It's your turn, ${first}`}</h1>
     <p style="margin:0 0 22px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#374151;">
       Gameweek ${opts.gameweek} in <span style="color:#0d0d0d;font-weight:600;">${opts.division}</span>.
-      Three fixtures &mdash; and once one's gone in your division, nobody else can have it.
+      ${
+        warning
+          ? 'Your turn is nearly up &mdash; after that the clock picks for you.'
+          : "Once a fixture's gone in your division, nobody else can have it."
+      }
     </p>
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
@@ -93,7 +107,9 @@ export function turnEmail(opts: {
 </td></tr></table>`.trim();
 
   return {
-    subject: `It's your turn — gameweek ${opts.gameweek}`,
+    subject: warning
+      ? `Three hours left — gameweek ${opts.gameweek}`
+      : `It's your turn — gameweek ${opts.gameweek}`,
     html,
     text,
   };

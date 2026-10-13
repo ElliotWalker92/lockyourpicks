@@ -130,12 +130,51 @@ export function blocksFrom<T>(
 }
 
 /**
+ * Noon on the last Sunday that leaves a decent run at the draft.
+ *
+ * Sunday because that is when a football week resets and people are around;
+ * noon because a notification at noon gets read. `minLeadHours` keeps it
+ * from landing so close to kickoff that the window is theatre — if this
+ * Sunday is too late, the one before it is used.
+ *
+ * Built in London time, since it is a time people read.
+ */
+function sundayNoonBefore(closesAt: Date, minLeadHours = 48): Date {
+  const limit = new Date(closesAt.getTime() - minLeadHours * 60 * 60 * 1000);
+
+  // Walk back from the limit to the most recent Sunday, then set noon.
+  const london = new Date(
+    limit.toLocaleString('en-US', { timeZone: 'Europe/London' }),
+  );
+  const offset = limit.getTime() - london.getTime();
+
+  const sunday = new Date(london);
+  sunday.setDate(sunday.getDate() - sunday.getDay()); // getDay() 0 = Sunday
+  sunday.setHours(12, 0, 0, 0);
+
+  const asUtc = new Date(sunday.getTime() + offset);
+  // Setting noon can push past the limit when the limit is a Sunday
+  // morning; a week earlier is still better than a window of hours.
+  return asUtc > limit
+    ? new Date(asUtc.getTime() - 7 * MS_PER_DAY)
+    : asUtc;
+}
+
+/**
  * When each gameweek's draft opens.
  *
- * A gameweek's picks lock at its first kickoff, and the next gameweek's draft
- * opens at that same moment — so exactly one draft is ever open, and you
- * spend a round of football drafting the next one. That gives three to four
- * days a gameweek instead of the hours a Tuesday cup tie used to leave.
+ * A gameweek's picks lock at its first kickoff, and the next gameweek's
+ * draft opened at that same moment — so exactly one draft is ever open, and
+ * you spend a round of football drafting the next one.
+ *
+ * That alone put the opening of a midweek round on the previous Friday
+ * night, where the first notification went out to people at the pub and the
+ * first deadline fell in the middle of a Saturday. Gameweek 15 auto-picked
+ * five of nine players that way. So a draft also waits for noon on the
+ * Sunday before it: whichever of the two is later.
+ *
+ * For a weekend gameweek nothing changes, because the previous kickoff is
+ * already past that Sunday. It is the midweek rounds this is for.
  *
  * The first gameweek of a season has no predecessor, so it gets `leadDays`.
  */
@@ -143,11 +182,17 @@ export function draftWindows<T>(
   blocks: Block<T>[],
   leadDays = 3,
 ): { opensAt: Date; closesAt: Date }[] {
-  return blocks.map((block, i) => ({
-    opensAt:
+  return blocks.map((block, i) => {
+    const afterPrevious =
       i === 0
         ? new Date(block.start.getTime() - leadDays * MS_PER_DAY)
-        : blocks[i - 1].start,
-    closesAt: block.start,
-  }));
+        : blocks[i - 1].start;
+
+    const sunday = sundayNoonBefore(block.start);
+
+    return {
+      opensAt: sunday > afterPrevious ? sunday : afterPrevious,
+      closesAt: block.start,
+    };
+  });
 }
