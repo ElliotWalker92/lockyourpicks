@@ -257,7 +257,16 @@ export default async function TablePage() {
       supabase
         .from('gameweek_scores')
         .select('user_id, points, gameweek_id')
-        .in('user_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000']),
+        .in('user_id', userIds.length ? userIds : ['00000000-0000-0000-0000-000000000000'])
+        // Narrowed to this group's divisions. Filtering on the player alone
+        // summed every point they had scored anywhere, so somebody in two
+        // groups carried their other group's total into both tables.
+        .in(
+          'division_id',
+          (divisions ?? []).length
+            ? (divisions ?? []).map((d) => d.id)
+            : ['00000000-0000-0000-0000-000000000000'],
+        ),
       supabase
         .from('gameweeks')
         .select('*', { count: 'exact', head: true })

@@ -95,10 +95,13 @@ export async function notifyTurns(
               kind === 'warning'
                 ? 'Three hours left'
                 : 'You’re on the clock',
+            // Named by group, not just division. Somebody in two groups is
+            // in a "Division 1" and a "Division 2" at once, and the division
+            // alone doesn't say which one wants them.
             body:
               kind === 'warning'
-                ? `Gameweek ${turn.gameweek} — your picks are due soon in ${turn.division_name}.`
-                : `Gameweek ${turn.gameweek} — make your picks in ${turn.division_name}.`,
+                ? `${turn.league_name} · ${turn.division_name} — your picks are due soon.`
+                : `${turn.league_name} · ${turn.division_name} — gameweek ${turn.gameweek}, you're up.`,
             url: '/draft',
             // One notification per turn per kind: a repeat replaces the
             // earlier one rather than stacking under it.

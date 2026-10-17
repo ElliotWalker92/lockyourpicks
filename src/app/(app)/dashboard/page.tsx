@@ -316,11 +316,16 @@ export default async function DashboardPage({
   const divisionIds = (divisionMembers ?? []).map((m) => m.user_id);
   const leagueIds = (leagueMembers ?? []).map((m) => m.user_id);
 
-  const { count: divisionCount } = await supabase
+  // The divisions of this group, so the scores below can be narrowed to
+  // points scored in it. A player in two groups has rows for both.
+  const { data: leagueDivisions } = await supabase
     .from('divisions')
-    .select('*', { count: 'exact', head: true })
+    .select('id')
     .eq('league_id', membership.league_id)
     .eq('season_id', seasonId);
+
+  const divisionCount = leagueDivisions?.length ?? 0;
+  const scopeIds = (leagueDivisions ?? []).map((d) => d.id);
 
   const [{ data: profiles }, { data: scores }] = await Promise.all([
     supabase
@@ -330,7 +335,10 @@ export default async function DashboardPage({
     supabase
       .from('gameweek_scores')
       .select('user_id, points, gameweek_id')
-      .in('user_id', leagueIds.length ? leagueIds : [NOBODY]),
+      .in('user_id', leagueIds.length ? leagueIds : [NOBODY])
+      // Without this, every point a player has scored in any other group
+      // is counted here too — see the league table, which had the same gap.
+      .in('division_id', scopeIds.length ? scopeIds : [NOBODY]),
   ]);
 
   const profileOf = (id: string) => profiles?.find((p) => p.id === id);
