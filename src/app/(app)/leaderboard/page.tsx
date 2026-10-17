@@ -68,7 +68,7 @@ export default async function LeaderboardPage() {
 
   const { data: rows } = await supabase
     .from('global_standings')
-    .select('user_id, points, gameweeks_played, correct_count, position')
+    .select('user_id, points, gameweeks_played, correct_count, position, league_name, leagues_played')
     .eq('season_id', season.id)
     .order('position', { ascending: true })
     .limit(PAGE_SIZE);
@@ -101,7 +101,7 @@ export default async function LeaderboardPage() {
     : (
         await supabase
           .from('global_standings')
-          .select('user_id, points, gameweeks_played, correct_count, position')
+          .select('user_id, points, gameweeks_played, correct_count, position, league_name, leagues_played')
           .eq('season_id', season.id)
           .eq('user_id', user!.id)
           .maybeSingle()
@@ -115,7 +115,19 @@ export default async function LeaderboardPage() {
     const player = row.user_id ? (playerById.get(row.user_id) ?? null) : null;
     const name = player?.display_name ?? 'Player';
     return (
-      <Identity badge={<Avatar player={player} name={name} />} name={name} />
+      <Identity
+        badge={<Avatar player={player} name={name} />}
+        name={name}
+        // Only for the people it needs explaining to. Somebody in one group
+        // doesn't need telling which group their points came from; somebody
+        // in two would otherwise see a total lower than their own
+        // arithmetic and no reason for it.
+        note={
+          (row.leagues_played ?? 1) > 1
+            ? `best of ${row.leagues_played} — ${row.league_name}`
+            : undefined
+        }
+      />
     );
   };
 
@@ -151,9 +163,9 @@ export default async function LeaderboardPage() {
         <p className="label">{season.name}</p>
         <h1 className="display-lg mt-1">Global leaderboard</h1>
         <p className="mt-2 max-w-xl text-grey-700">
-          Every player, every group, one table. You each get three picks a
-          round worth a point apiece &mdash; so the totals compare, even though
-          no two of you were choosing from the same board.
+          Every player, every group, one table. Anyone playing in more than
+          one group is counted on their strongest &mdash; a longer season
+          isn&rsquo;t a better one.
         </p>
         <div className="mt-4">
           <TableScopeToggle scope="global" />

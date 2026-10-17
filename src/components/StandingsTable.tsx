@@ -252,15 +252,25 @@ export function StandingsTable<T>({
 export function Identity({
   badge,
   name,
+  note,
 }: {
   badge: ReactNode;
   name: string;
+  /** A quiet second line, for a row that needs explaining. */
+  note?: string;
 }) {
   return (
     <span className="flex items-center gap-2.5">
       {badge}
-      <span className="truncate font-medium" title={name}>
-        {name}
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate font-medium" title={name}>
+          {name}
+        </span>
+        {note && (
+          <span className="truncate text-[11px] leading-tight text-grey-500">
+            {note}
+          </span>
+        )}
       </span>
     </span>
   );

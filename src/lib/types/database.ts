@@ -747,6 +747,8 @@ export type Database = {
         Row: {
           correct_count: number | null
           gameweeks_played: number | null
+          league_name: string | null
+          leagues_played: number | null
           plays_open: boolean | null
           points: number | null
           position: number | null
