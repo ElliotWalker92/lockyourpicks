@@ -7,6 +7,8 @@ import { LiveScores } from '@/components/LiveScores';
 import { tallyOf, verdictOf } from '@/lib/scoring';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
+import { SlipWaiting } from '@/components/SlipWaiting';
+import { turnDeadlines } from '@/lib/turn-windows';
 import { SlipSet } from '@/components/SharePicks';
 import { currentDraftFor } from '@/lib/current-draft';
 import { loadRounds } from '@/lib/rounds';
@@ -185,7 +187,11 @@ export default async function DraftPage({
 
     const { data: groupDrafts } = await supabase
       .from('drafts')
-      .select('id, division_id, status')
+      // The running order and the clock come too: a watcher's slip says who
+      // each division is waiting on and when the seats behind them are due.
+      .select(
+        'id, division_id, status, pick_order, current_turn, turn_expires_at',
+      )
       .eq('gameweek_id', gameweek.id)
       .in('division_id', (divisions ?? []).map((d) => d.id));
 
@@ -261,13 +267,38 @@ export default async function DraftPage({
       };
     };
 
+    const hardDeadline = new Date(
+      new Date(gameweek.draft_closes_at).getTime() - 5 * 60_000,
+    );
+    const rightNow = new Date();
+
     const sections = (divisions ?? []).map((division, i) => {
+      const theDraft = (groupDrafts ?? []).find(
+        (d) => d.division_id === division.id,
+      );
       const ids = (groupDrafts ?? [])
         .filter((d) => d.division_id === division.id)
         .map((d) => d.id);
       const rows = ((groupPicks ?? []) as unknown as GroupPickRow[]).filter(
         (p) => ids.includes(p.draft_id),
       );
+
+      // When each seat still to pick is due — the real expiry for whoever is
+      // on the clock, a projection for the seats behind them.
+      const order: string[] = theDraft?.pick_order ?? [];
+      const due =
+        theDraft && theDraft.status !== 'complete' && order.length
+          ? turnDeadlines({
+              seats: order.length,
+              currentTurn: theDraft.current_turn ?? 0,
+              currentExpiry: theDraft.turn_expires_at
+                ? new Date(theDraft.turn_expires_at)
+                : null,
+              hardDeadline,
+              now: rightNow,
+            })
+          : [];
+
       const players = (groupMembers ?? [])
         .filter((m) => m.division_id === division.id)
         .map((m) => {
@@ -280,12 +311,23 @@ export default async function DraftPage({
               result: pick.result,
             })),
           );
+          const seat = order.indexOf(m.user_id);
+          const mine = seat >= 0 ? due[seat] : null;
           return {
             player: groupNameOf(m.user_id),
             points: tally.decided > 0 ? tally.landed : null,
             provisional: tally.decided > 0 && !tally.settled,
             decided: tally.decided,
             picks,
+            // How many turns have to finish before this one starts, so a
+            // waiting player can be told what they're waiting on rather
+            // than only that they haven't picked.
+            ahead:
+              seat >= 0 && theDraft && theDraft.status !== 'complete'
+                ? Math.max(seat - (theDraft.current_turn ?? 0), 0)
+                : null,
+            dueAt: mine ? mine.at.toISOString() : null,
+            projected: mine ? mine.projected : false,
           };
         });
       return {
@@ -364,9 +406,11 @@ export default async function DraftPage({
                       )}
                     </p>
                     {player.picks.length === 0 ? (
-                      <p className="text-sm text-grey-500">
-                        Nothing picked yet.
-                      </p>
+                      <SlipWaiting
+                        ahead={player.ahead}
+                        dueAt={player.dueAt}
+                        projected={player.projected}
+                      />
                     ) : (
                       <ul className="flex flex-col divide-y divide-grey-100">
                         {player.picks.map((pick, index) => {
