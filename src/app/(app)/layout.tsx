@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation';
 import { MobileNav } from '@/components/MobileNav';
 import { NavLinks } from '@/components/NavLinks';
 import { LeagueSwitcher } from '@/components/LeagueSwitcher';
-import { Logo } from '@/components/Logo';
 import { ScrollMemory } from '@/components/ScrollMemory';
 import { Tour } from '@/components/Tour';
 import { signOut } from '@/lib/actions/auth';
@@ -72,8 +71,10 @@ export default async function AppLayout({
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-3">
-          <Link href="/dashboard" className="shrink-0" aria-label="Lock Your Picks">
-            <Logo className="h-9 w-9" />
+          <Link href="/dashboard" className="shrink-0">
+            <span className="font-display text-lg font-extrabold tracking-tight">
+              Lock Your <span className="text-lime-dark">Picks</span>
+            </span>
           </Link>
 
           {/* Phones get the bottom tab bar instead — see MobileNav. */}
