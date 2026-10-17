@@ -14,7 +14,7 @@ import {
   type SlipGroup,
 } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
-import { formatDeadline, turnDeadlines } from '@/lib/turn-windows';
+import { formatDeadline } from '@/lib/turn-windows';
 import { tallyOf, verdictOf } from '@/lib/scoring';
 import type { TeamTable } from '@/lib/ingest/form';
 import type { Outcome } from '@/lib/types';
@@ -137,8 +137,8 @@ export function DraftBoard({
   crowd,
   gameweekLabel,
   divisionName,
-  hardDeadline,
   now,
+  schedule,
 }: {
   draft: BoardDraft;
   fixtures: BoardFixture[];
@@ -153,7 +153,12 @@ export function DraftBoard({
   gameweekLabel: string;
   divisionName: string;
   /** Five minutes before the first kickoff, ISO. Nobody picks past it. */
-  hardDeadline: string;
+  /**
+   * One entry per seat, in pick order: when that turn ends, and whether
+   * that is its real expiry or what it would get if the turns ahead ran
+   * their full length. Null for a seat that has already picked.
+   */
+  schedule: ({ at: string; projected: boolean } | null)[];
   /**
    * Render time, from the server.
    *
@@ -255,29 +260,16 @@ export function DraftBoard({
   const order = fullOrder(draft.pick_order);
   const myPicks = picks.filter((p) => p.user_id === currentUserId);
 
-  // When each seat still to pick is due. Exact for whoever is on the clock,
-  // a projection for the rest — see turn-windows.
+  // When each seat still to pick is due, worked out by the database and
+  // handed over — see migration 0035. This used to be recomputed here from
+  // a copy of the same arithmetic, which drifted out of step with it twice.
   const deadlines = useMemo(
     () =>
-      draft.status === 'complete'
-        ? order.map(() => null)
-        : turnDeadlines({
-            seats: order.length,
-            currentTurn: draft.current_turn,
-            currentExpiry: draft.turn_expires_at
-              ? new Date(draft.turn_expires_at)
-              : null,
-            hardDeadline: new Date(hardDeadline),
-            now: new Date(now),
-          }),
-    [
-      draft.status,
-      draft.current_turn,
-      draft.turn_expires_at,
-      hardDeadline,
-      now,
-      order,
-    ],
+      order.map((_, seat) => {
+        const row = schedule[seat];
+        return row ? { at: new Date(row.at), projected: row.projected } : null;
+      }),
+    [order, schedule],
   );
 
   // The shared card has to say exactly what the list above it says, so the

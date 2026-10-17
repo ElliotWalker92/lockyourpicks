@@ -8,7 +8,8 @@ import { tallyOf, verdictOf } from '@/lib/scoring';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
 import { SlipWaiting } from '@/components/SlipWaiting';
-import { turnDeadlines } from '@/lib/turn-windows';
+import { callRpc } from '@/lib/supabase/rpc';
+
 import { SlipSet } from '@/components/SharePicks';
 import { currentDraftFor } from '@/lib/current-draft';
 import { loadRounds } from '@/lib/rounds';
@@ -21,6 +22,15 @@ import {
 import { createClient } from '@/lib/supabase/server';
 import { activeLeagueId } from '@/lib/active-league';
 import { viewingFor } from '@/lib/viewing';
+
+/** One row per seat of every draft in the group — see migration 0035. */
+type TurnScheduleRow = {
+  draft_id: string;
+  seat: number;
+  user_id: string;
+  due_at: string | null;
+  projected: boolean;
+};
 
 export const metadata = { title: 'Picks' };
 
@@ -267,10 +277,21 @@ export default async function DraftPage({
       };
     };
 
-    const hardDeadline = new Date(
-      new Date(gameweek.draft_closes_at).getTime() - 5 * 60_000,
+    // The whole group's schedule in one call: the seat on the clock with
+    // its real expiry, and the seats behind it with what they would get if
+    // the turns ahead ran their full length. Worked out by the database so
+    // there is only one copy of that arithmetic — see migration 0035.
+    const { data: scheduleRows } = await callRpc<TurnScheduleRow[]>(
+      supabase,
+      'turn_schedule',
+      { p_gameweek_id: gameweek.id, p_league_id: view.leagueId },
     );
-    const rightNow = new Date();
+    const scheduleFor = new Map<string, TurnScheduleRow[]>();
+    for (const row of scheduleRows ?? []) {
+      const list = scheduleFor.get(row.draft_id) ?? [];
+      list.push(row);
+      scheduleFor.set(row.draft_id, list);
+    }
 
     const sections = (divisions ?? []).map((division, i) => {
       const theDraft = (groupDrafts ?? []).find(
@@ -283,21 +304,12 @@ export default async function DraftPage({
         (p) => ids.includes(p.draft_id),
       );
 
-      // When each seat still to pick is due — the real expiry for whoever is
-      // on the clock, a projection for the seats behind them.
       const order: string[] = theDraft?.pick_order ?? [];
-      const due =
-        theDraft && theDraft.status !== 'complete' && order.length
-          ? turnDeadlines({
-              seats: order.length,
-              currentTurn: theDraft.current_turn ?? 0,
-              currentExpiry: theDraft.turn_expires_at
-                ? new Date(theDraft.turn_expires_at)
-                : null,
-              hardDeadline,
-              now: rightNow,
-            })
-          : [];
+      const due = theDraft
+        ? [...(scheduleFor.get(theDraft.id) ?? [])].sort(
+            (a, b) => a.seat - b.seat,
+          )
+        : [];
 
       const players = (groupMembers ?? [])
         .filter((m) => m.division_id === division.id)
@@ -312,7 +324,7 @@ export default async function DraftPage({
             })),
           );
           const seat = order.indexOf(m.user_id);
-          const mine = seat >= 0 ? due[seat] : null;
+          const mine = seat >= 0 ? (due[seat] ?? null) : null;
           return {
             player: groupNameOf(m.user_id),
             points: tally.decided > 0 ? tally.landed : null,
@@ -326,8 +338,8 @@ export default async function DraftPage({
               seat >= 0 && theDraft && theDraft.status !== 'complete'
                 ? Math.max(seat - (theDraft.current_turn ?? 0), 0)
                 : null,
-            dueAt: mine ? mine.at.toISOString() : null,
-            projected: mine ? mine.projected : false,
+            dueAt: mine?.due_at ?? null,
+            projected: mine?.projected ?? false,
           };
         });
       return {
@@ -681,6 +693,19 @@ export default async function DraftPage({
     (elsewhere[pick.fixture_id] ??= []).push({ division: name, called });
   }
 
+  // When each seat of this division is due, from the database — see 0035.
+  const { data: myScheduleRows } = await callRpc<TurnScheduleRow[]>(
+    supabase,
+    'turn_schedule',
+    { p_gameweek_id: gameweek.id, p_league_id: view.leagueId },
+  );
+  const mySchedule = (draft.pick_order ?? []).map((_, seat) => {
+    const row = (myScheduleRows ?? []).find(
+      (r) => r.draft_id === draft.id && r.seat === seat,
+    );
+    return row?.due_at ? { at: row.due_at, projected: row.projected } : null;
+  });
+
   return (
     <div className="flex flex-col gap-8">
       {/* Scores and ticks reach the slip without a reload — see 0021. */}
@@ -688,6 +713,7 @@ export default async function DraftPage({
       {heading(roundStrip)}
       {gameweekLabel}
       <DraftBoard
+        schedule={mySchedule}
         draft={draft}
         fixtures={fixtures}
         picks={picks ?? []}
@@ -697,11 +723,6 @@ export default async function DraftPage({
         crowd={crowd}
         gameweekLabel={gameweek.name ?? `Gameweek ${gameweek.number}`}
         divisionName={view.divisionName ?? 'Your division'}
-        // Five minutes before the first kickoff — draft_hard_deadline in
-        // migration 0015, mirrored so the board can say when a seat is due.
-        hardDeadline={new Date(
-          new Date(gameweek.draft_closes_at).getTime() - 5 * 60_000,
-        ).toISOString()}
         now={nowIso}
       />
     </div>
