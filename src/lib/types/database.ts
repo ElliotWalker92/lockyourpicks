@@ -375,6 +375,60 @@ export type Database = {
           },
         ]
       }
+      historical_matches: {
+        Row: {
+          away_score: number
+          away_team_id: string
+          competition_id: string
+          home_score: number
+          home_team_id: string
+          kicked_off_at: string
+          provider_fixture_id: number
+          season: number
+        }
+        Insert: {
+          away_score: number
+          away_team_id: string
+          competition_id: string
+          home_score: number
+          home_team_id: string
+          kicked_off_at: string
+          provider_fixture_id: number
+          season: number
+        }
+        Update: {
+          away_score?: number
+          away_team_id?: string
+          competition_id?: string
+          home_score?: number
+          home_team_id?: string
+          kicked_off_at?: string
+          provider_fixture_id?: number
+          season?: number
+        }
+        Relationships: []
+      }
+      historical_imports: {
+        Row: {
+          competition_id: string
+          imported_at: string
+          match_count: number
+          season: number
+        }
+        Insert: {
+          competition_id: string
+          imported_at?: string
+          match_count: number
+          season: number
+        }
+        Update: {
+          competition_id?: string
+          imported_at?: string
+          match_count?: number
+          season?: number
+        }
+        Relationships: []
+      }
       leagues: {
         Row: {
           drafting_paused: boolean

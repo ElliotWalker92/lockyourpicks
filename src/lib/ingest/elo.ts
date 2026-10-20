@@ -42,6 +42,11 @@ const K = 20;
 
 export type EloReport = {
   seasonsUsed: number[];
+  /**
+   * Competition-seasons fetched from the provider this run. Zero is the
+   * steady state — a finished season is stored once and read thereafter.
+   */
+  seasonsImported: number;
   historicalMatches: number;
   currentSeasonMatches: number;
   teamsRated: number;
@@ -78,6 +83,7 @@ export async function recomputeElo(
 ): Promise<EloReport> {
   const report: EloReport = {
     seasonsUsed: [],
+    seasonsImported: 0,
     historicalMatches: 0,
     currentSeasonMatches: 0,
     teamsRated: 0,
@@ -126,7 +132,12 @@ export async function recomputeElo(
   }
   const seed = (id: string) => seedOf.get(id) ?? DEFAULT_SEED;
 
-  // ---- Last season, straight from the provider ----
+  // ---- Last season, from our own store ----
+  //
+  // A finished season cannot change, so it is fetched once and kept. The
+  // weekly run makes no provider calls for history at all once that has
+  // happened, which is what takes this job out from under the per-minute
+  // ceiling — see migration 0036.
   let historyIncomplete = false;
   // Whether anything that broke the history was worth waking somebody for.
   // A refused request is not: the minute ceiling is enforced per IP and
@@ -134,10 +145,62 @@ export async function recomputeElo(
   // of traffic that isn't ours.
   let incompleteForGoodReason = false;
   const played: Played[] = [];
+
+  const { data: imported } = await supabase
+    .from('historical_imports')
+    .select('competition_id, match_count')
+    .eq('season', previous);
+  const haveSeason = new Set((imported ?? []).map((r) => r.competition_id));
+
+  // Everything already stored, in one read rather than one per competition.
+  const storedFor = new Map<string, Played[]>();
+  for (let from = 0; ; from += 1000) {
+    const { data: rows } = await supabase
+      .from('historical_matches')
+      .select(
+        'competition_id, home_team_id, away_team_id, home_score, away_score, kicked_off_at',
+      )
+      .eq('season', previous)
+      .range(from, from + 999);
+    if (!rows?.length) break;
+    for (const r of rows) {
+      const list = storedFor.get(r.competition_id) ?? [];
+      list.push({
+        home: r.home_team_id,
+        away: r.away_team_id,
+        hs: r.home_score,
+        as: r.away_score,
+        at: new Date(r.kicked_off_at).getTime(),
+      });
+      storedFor.set(r.competition_id, list);
+    }
+    if (rows.length < 1000) break;
+  }
+
   for (const c of competitions ?? []) {
     if (!c.provider_league_id) continue;
+
+    if (haveSeason.has(c.id)) {
+      played.push(...(storedFor.get(c.id) ?? []));
+      if (!report.seasonsUsed.includes(previous)) {
+        report.seasonsUsed.push(previous);
+      }
+      continue;
+    }
+
     try {
       const fixtures = await getFixtures(c.provider_league_id, previous);
+      const keep: {
+        competition_id: string;
+        season: number;
+        provider_fixture_id: number;
+        home_team_id: string;
+        away_team_id: string;
+        home_score: number;
+        away_score: number;
+        kicked_off_at: string;
+      }[] = [];
+
       for (const f of fixtures) {
         if (f.goals.home === null || f.goals.away === null) continue;
         const home = byProviderId.get(f.teams.home.id);
@@ -145,14 +208,44 @@ export async function recomputeElo(
         // Teams we don't hold — non-league cup entrants — are skipped rather
         // than invented, so they can't drag a real team's rating around.
         if (!home || !away) continue;
-        played.push({
-          home,
-          away,
-          hs: f.goals.home,
-          as: f.goals.away,
-          at: new Date(f.fixture.date).getTime(),
+        keep.push({
+          competition_id: c.id,
+          season: previous,
+          provider_fixture_id: f.fixture.id,
+          home_team_id: home,
+          away_team_id: away,
+          home_score: f.goals.home,
+          away_score: f.goals.away,
+          kicked_off_at: new Date(f.fixture.date).toISOString(),
         });
       }
+
+      // Rows first, then the marker. A failure between the two leaves rows
+      // with no claim that the season is complete, so the next run fetches
+      // it again — which is the right way round.
+      for (let i = 0; i < keep.length; i += 500) {
+        const { error } = await supabase
+          .from('historical_matches')
+          .upsert(keep.slice(i, i + 500), { onConflict: 'provider_fixture_id' });
+        if (error) throw new Error(`storing ${c.code} ${previous}: ${error.message}`);
+      }
+      await supabase
+        .from('historical_imports')
+        .upsert(
+          { competition_id: c.id, season: previous, match_count: keep.length },
+          { onConflict: 'competition_id,season' },
+        );
+
+      report.seasonsImported += 1;
+      played.push(
+        ...keep.map((k) => ({
+          home: k.home_team_id,
+          away: k.away_team_id,
+          hs: k.home_score,
+          as: k.away_score,
+          at: new Date(k.kicked_off_at).getTime(),
+        })),
+      );
       if (!report.seasonsUsed.includes(previous)) {
         report.seasonsUsed.push(previous);
       }
@@ -170,6 +263,7 @@ export async function recomputeElo(
       }
     }
   }
+
   report.historicalMatches = played.length;
 
   // ---- This season's finished fixtures, from our own tables ----
