@@ -128,6 +128,11 @@ export async function recomputeElo(
 
   // ---- Last season, straight from the provider ----
   let historyIncomplete = false;
+  // Whether anything that broke the history was worth waking somebody for.
+  // A refused request is not: the minute ceiling is enforced per IP and
+  // Workers share outbound addresses, so a run can be turned away because
+  // of traffic that isn't ours.
+  let incompleteForGoodReason = false;
   const played: Played[] = [];
   for (const c of competitions ?? []) {
     if (!c.provider_league_id) continue;
@@ -157,8 +162,12 @@ export async function recomputeElo(
       // wrong, for every club, silently. Record it and refuse to write.
       historyIncomplete = true;
       const message = `${c.code} ${previous}: ${err instanceof Error ? err.message : String(err)}`;
-      if (isTransientApiError(err)) report.warnings.push(message);
-      else report.errors.push(message);
+      if (isTransientApiError(err)) {
+        report.warnings.push(message);
+      } else {
+        incompleteForGoodReason = true;
+        report.errors.push(message);
+      }
     }
   }
   report.historicalMatches = played.length;
@@ -206,9 +215,20 @@ export async function recomputeElo(
   // Free stops a job at 50 — roughly thirty clubs were rated each week and
   // the rest kept whatever they had.
   if (historyIncomplete) {
-    report.errors.push(
-      'history incomplete — ratings left as they were rather than rewritten from partial data',
-    );
+    // Not writing is the right answer either way: ratings are computed from
+    // the whole history at once, so a season that didn't arrive doesn't make
+    // them slightly worse, it makes them wrong for every club.
+    //
+    // Whether it's worth an email is a different question. If the only thing
+    // that went wrong was a request being refused, the job did its job — it
+    // declined to write from partial data and will try again next week, and
+    // last week's ratings are still perfectly good. Alerting on that trains
+    // somebody to ignore the alert that matters.
+    const note =
+      'history incomplete — ratings left as they were rather than rewritten from partial data';
+    if (incompleteForGoodReason) report.errors.push(note);
+    else report.warnings.push(`${note} (every cause was a refused request)`);
+
     report.teamsRated = 0;
     return report;
   }
