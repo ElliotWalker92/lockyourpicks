@@ -22,6 +22,7 @@ export type Database = {
           is_cup: boolean
           name: string
           provider_league_id: number | null
+          sets_calendar: boolean
           tier: number | null
         }
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           is_cup?: boolean
           name: string
           provider_league_id?: number | null
+          sets_calendar?: boolean
           tier?: number | null
         }
         Update: {
@@ -40,6 +42,7 @@ export type Database = {
           is_cup?: boolean
           name?: string
           provider_league_id?: number | null
+          sets_calendar?: boolean
           tier?: number | null
         }
         Relationships: []

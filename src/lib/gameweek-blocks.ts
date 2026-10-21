@@ -130,6 +130,52 @@ export function blocksFrom<T>(
 }
 
 /**
+ * Slot fixtures into blocks that are already decided.
+ *
+ * `blocksFrom` cuts the calendar; this puts everything else where it falls.
+ * The separation is the point: a competition a group opted into should be
+ * draftable in whichever round it lands in, without moving the edges of
+ * that round for the groups who didn't.
+ *
+ * A fixture goes in the last block that had started by the time it kicks
+ * off, which is the same rule the fixture ingest uses to map a kickoff to a
+ * gameweek. One before the season's first block belongs to that first block
+ * — there is nothing earlier for it to join.
+ */
+export function attachToBlocks<T>(
+  blocks: Block<T>[],
+  items: T[],
+  kickoffOf: (item: T) => Date,
+): Block<T>[] {
+  if (!blocks.length || !items.length) return blocks;
+
+  const out = blocks.map((b) => ({ ...b, items: [...b.items] }));
+
+  for (const item of items) {
+    const at = kickoffOf(item);
+    const t = at.getTime();
+
+    let index = 0;
+    for (let i = 0; i < out.length; i++) {
+      if (out[i].start.getTime() <= t) index = i;
+      else break;
+    }
+
+    out[index].items.push(item);
+    if (at > out[index].end) out[index].end = at;
+  }
+
+  // Kickoff order within a block, so a block's items still read as a card.
+  for (const block of out) {
+    block.items.sort(
+      (a, b) => kickoffOf(a).getTime() - kickoffOf(b).getTime(),
+    );
+  }
+
+  return out;
+}
+
+/**
  * Noon on the last Sunday that leaves a decent run at the draft.
  *
  * Sunday because that is when a football week resets and people are around;

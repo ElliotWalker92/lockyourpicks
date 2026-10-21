@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  attachToBlocks,
   blocksFrom,
   draftWindows,
   MIN_FIXTURES_PER_GAMEWEEK,
@@ -27,6 +28,7 @@ export type FixtureLike = {
   id: string;
   kickoff_at: string;
   gameweek_id: string;
+  competition_id: string;
 };
 
 /** Numbers are reassigned through this offset so the unique index never collides. */
@@ -59,7 +61,7 @@ async function allSeasonFixtures(
   for (let offset = 0; offset < 10_000; offset += 1000) {
     const { data } = await supabase
       .from('fixtures')
-      .select('id, kickoff_at, gameweek_id')
+      .select('id, kickoff_at, gameweek_id, competition_id')
       .in('gameweek_id', ids)
       .order('kickoff_at', { ascending: true })
       .range(offset, offset + 999);
@@ -182,7 +184,25 @@ export async function syncGameweeks(
   const loose = fixtures.filter((f) => !frozen.has(f.gameweek_id));
   if (!loose.length) return { frozen: frozen.size, recut: 0 };
 
-  const blocks = blocksFrom(loose, (f) => new Date(f.kickoff_at));
+  // Only the spine decides where the rounds fall — see migration 0039.
+  // Everything else is slotted into whichever round it lands in, so a
+  // competition one group opted into cannot move another group's deadlines.
+  const { data: calendarComps } = await supabase
+    .from('competitions')
+    .select('id')
+    .eq('sets_calendar', true);
+  const spineIds = new Set((calendarComps ?? []).map((c) => c.id));
+
+  const kickoff = (f: FixtureLike) => new Date(f.kickoff_at);
+  const spine = loose.filter((f) => spineIds.has(f.competition_id));
+  const rest = loose.filter((f) => !spineIds.has(f.competition_id));
+
+  // If nothing is marked — an older database, or a season of nothing but
+  // extras — fall back to cutting from everything rather than refusing to
+  // cut at all. A calendar built from the wrong fixtures beats none.
+  const blocks = spine.length
+    ? attachToBlocks(blocksFrom(spine, kickoff), rest, kickoff)
+    : blocksFrom(loose, kickoff);
 
   // The first loose gameweek's draft opens when the last frozen one locks.
   const lastFrozenClose = all

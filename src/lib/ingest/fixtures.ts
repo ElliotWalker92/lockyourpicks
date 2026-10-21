@@ -11,7 +11,11 @@ import {
   type ApiTeam,
 } from '@/lib/api-football';
 import type { Database } from '@/lib/types';
-import { blocksFrom, draftWindows } from '@/lib/gameweek-blocks';
+import {
+  attachToBlocks,
+  blocksFrom,
+  draftWindows,
+} from '@/lib/gameweek-blocks';
 import { syncGameweeks } from './gameweeks';
 
 export type IngestReport = {
@@ -53,7 +57,7 @@ export async function ingestFixtures(
 
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('id, code, provider_league_id, is_cup')
+    .select('id, code, provider_league_id, is_cup, sets_calendar')
     .eq('is_active', true);
 
   // Season years are named by their starting year: 2026/27 is season 2026.
@@ -209,7 +213,22 @@ export async function ingestFixtures(
   }));
 
   if (!boundaries.length) {
-    const blocks = blocksFrom(allFixtures, (f) => new Date(f.fixture.fixture.date));
+    // Cut from the spine only, the same as a re-cut does — see 0039 and
+    // syncGameweeks. On a fresh season this is what fixes the shape of the
+    // whole year, so it must not depend on which extras happen to be on.
+    const spineIds = new Set(
+      (competitions ?? [])
+        .filter((c) => c.sets_calendar !== false)
+        .map((c) => c.id),
+    );
+    const kickoff = (f: { fixture: ApiFixture }) =>
+      new Date(f.fixture.fixture.date);
+    const spine = allFixtures.filter((f) => spineIds.has(f.competitionId));
+    const rest = allFixtures.filter((f) => !spineIds.has(f.competitionId));
+
+    const blocks = spine.length
+      ? attachToBlocks(blocksFrom(spine, kickoff), rest, kickoff)
+      : blocksFrom(allFixtures, kickoff);
     const windows = draftWindows(blocks);
     const fresh: { id: string; from: number }[] = [];
 
