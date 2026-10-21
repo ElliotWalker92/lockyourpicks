@@ -35,6 +35,24 @@ const TIER_SEED: Record<number, number> = {
 const DEFAULT_SEED = 1300;
 
 /**
+ * How many results a club with no division of ours needs before we'll put a
+ * rating on it.
+ *
+ * Elo starts every club from a seed and moves it by at most K a game, so a
+ * club seeded at DEFAULT_SEED with one result is 1300 nudged by twenty
+ * points: a guess with a rounding error on it, not a measurement. Eastleigh,
+ * Scunthorpe, Halifax, Carlisle and Boreham Wood all sat between 1283 and
+ * 1300 on one to three cup ties, which reads as "about League One" and was
+ * nothing of the sort.
+ *
+ * Five is the same bar the model uses before it will price a home or away
+ * record (MIN_TABLE_GAMES), and for the same reason. A club that does have a
+ * division of ours needs none of this: its seed is real information, because
+ * it says which division.
+ */
+const MIN_UNSEEDED_RESULTS = 5;
+
+/**
  * K-factor. 20 is the common club-football value — responsive enough to track
  * a season's form without letting one cup upset rewrite a team's rating.
  */
@@ -302,22 +320,38 @@ export async function recomputeElo(
   const ratings = new Map<string, number>();
   for (const m of played) applyResult(ratings, m, seed);
 
-  // Teams with no history keep their division seed rather than 1500 — but
-  // only if there is a division to seed from. `seedOf` is built from
-  // fixtures in competitions that carry a tier, so a club that exists in our
-  // tables purely as an FA Cup entrant from the non-league pyramid is not in
-  // it, and we have nothing at all to go on: no results, no division.
+  // ---- Who we'll actually put a number on ----
+  //
+  // A club has a basis if it plays in a division of ours, which tells us
+  // roughly where it sits, or if we hold enough of its results for the
+  // replay to have told us itself. `seedOf` is built from fixtures in
+  // competitions that carry a tier, so a club in our tables purely as an FA
+  // Cup entrant from the non-league pyramid is not in it.
   //
   // Such a club used to get DEFAULT_SEED, which put Cray Wanderers of the
-  // Isthmian League between the Championship and League One. Before that the
-  // column default did worse and sat them level with Arsenal. Both are the
-  // same mistake — answering a question we cannot answer — so now they get
-  // no rating, and the model declines to price their tie. See 0040.
+  // Isthmian League between the Championship and League One; before that the
+  // column default did worse and sat them level with Arsenal. One or two cup
+  // ties didn't rescue it either — a seed nudged by twenty points a game is
+  // still the seed. All of it is the same mistake, answering a question we
+  // cannot answer, so now they get no rating and the model declines to price
+  // their ties. See 0040 and 0041.
+  const results = new Map<string, number>();
+  for (const m of played) {
+    results.set(m.home, (results.get(m.home) ?? 0) + 1);
+    results.set(m.away, (results.get(m.away) ?? 0) + 1);
+  }
+
   const unrated: { id: string; name: string }[] = [];
   for (const t of teams ?? []) {
-    if (ratings.has(t.id)) continue;
-    if (seedOf.has(t.id)) ratings.set(t.id, seed(t.id));
-    else unrated.push({ id: t.id, name: nameOf.get(t.id) ?? t.id });
+    if (seedOf.has(t.id)) {
+      // No history is fine here: the division seed is the answer.
+      if (!ratings.has(t.id)) ratings.set(t.id, seed(t.id));
+      continue;
+    }
+    if ((results.get(t.id) ?? 0) >= MIN_UNSEEDED_RESULTS) continue;
+    // Drops a rating the replay produced as well as declining to invent one.
+    ratings.delete(t.id);
+    unrated.push({ id: t.id, name: nameOf.get(t.id) ?? t.id });
   }
   report.unrated = unrated.map((t) => t.name).sort();
 
