@@ -9,7 +9,8 @@ import { HOME_ADV, matchProbabilities, type Probabilities } from '@/lib/elo';
  */
 
 export type ModelLayers = {
-  elo: Probabilities;
+  /** Null when either side has never been rated — see buildModel. */
+  elo: Probabilities | null;
   table: (Probabilities & { sample: number }) | null;
   form: Probabilities | null;
   crowd: (Probabilities & { sample: number }) | null;
@@ -47,7 +48,7 @@ const MIN_TABLE_GAMES = 5;
  * where everyone predicted every match. The threshold is low for that reason,
  * and the crowd never gets a large weight regardless.
  */
-const MIN_CROWD = 6;
+export const MIN_CROWD = 6;
 
 export type FormRun = {
   /** Most recent last: 'W' | 'D' | 'L'. */
@@ -179,22 +180,31 @@ export function buildModel({
   crowdCounts,
   neutral = false,
 }: {
-  homeElo: number;
-  awayElo: number;
+  /** Null for a club that has never been rated. Not a number to invent. */
+  homeElo: number | null;
+  awayElo: number | null;
   homeTable?: TableRecord | null;
   awayTable?: TableRecord | null;
   homeForm: FormRun;
   awayForm: FormRun;
   crowdCounts: { home: number; draw: number; away: number };
   neutral?: boolean;
-}): ModelLayers {
-  const elo = matchProbabilities(homeElo, awayElo, { neutral });
+}): ModelLayers | null {
+  // A club nobody has rated carries the column default, 1500 — which is the
+  // Premier League seed, not a measurement. Treating that as a rating told
+  // players that Alvechurch and Arsenal were level. An unrated side has no
+  // Elo layer at all rather than a made-up one.
+  const elo =
+    homeElo === null || awayElo === null
+      ? null
+      : matchProbabilities(homeElo, awayElo, { neutral });
   const table = tableProbabilities(homeTable, awayTable);
   const form = formProbabilities(homeForm, awayForm);
   const crowd = crowdProbabilities(crowdCounts);
 
   // Start from the base and drop any layer we haven't got.
   const weights = { ...BASE_WEIGHTS };
+  if (!elo) weights.elo = 0;
   if (!table) weights.table = 0;
   else if (table.sample < MIN_TABLE_GAMES) {
     weights.table = BASE_WEIGHTS.table * (table.sample / MIN_TABLE_GAMES);
@@ -205,24 +215,39 @@ export function buildModel({
     weights.crowd = BASE_WEIGHTS.crowd * (crowd.sample / MIN_CROWD);
   }
 
-  // Redistribute whatever's left over onto Elo, which is the layer we trust
-  // most and the only one always present.
   const used = weights.elo + weights.table + weights.form + weights.crowd;
-  weights.elo += 1 - used;
+
+  // Nothing to say. Better than saying something: the alternative is a bar
+  // drawn from whatever single weak source happened to survive, which reads
+  // exactly as confidently as one drawn from all four.
+  if (used === 0) return null;
+
+  if (elo) {
+    // Redistribute the leftover onto Elo, which is the layer we trust most
+    // and the only one that spans competitions.
+    weights.elo += 1 - used;
+  } else {
+    // No Elo to lean on, so the leftover goes back across whatever is left,
+    // in the proportions they already had.
+    const scale = 1 / used;
+    weights.table *= scale;
+    weights.form *= scale;
+    weights.crowd *= scale;
+  }
 
   const blended = normalise({
     home:
-      elo.home * weights.elo +
+      (elo?.home ?? 0) * weights.elo +
       (table?.home ?? 0) * weights.table +
       (form?.home ?? 0) * weights.form +
       (crowd?.home ?? 0) * weights.crowd,
     draw:
-      elo.draw * weights.elo +
+      (elo?.draw ?? 0) * weights.elo +
       (table?.draw ?? 0) * weights.table +
       (form?.draw ?? 0) * weights.form +
       (crowd?.draw ?? 0) * weights.crowd,
     away:
-      elo.away * weights.elo +
+      (elo?.away ?? 0) * weights.elo +
       (table?.away ?? 0) * weights.table +
       (form?.away ?? 0) * weights.form +
       (crowd?.away ?? 0) * weights.crowd,

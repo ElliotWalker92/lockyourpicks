@@ -30,7 +30,8 @@ export type BoardTeam = {
   id: string;
   name: string;
   crest_url: string | null;
-  elo_rating: number;
+  /** Null for a club nothing has been computed for — see migration 0040. */
+  elo_rating: number | null;
   form: ('W' | 'D' | 'L')[];
   /** League record split by venue. Absent for a side with no table. */
   table: TeamTable | null;

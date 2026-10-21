@@ -50,6 +50,13 @@ export type EloReport = {
   historicalMatches: number;
   currentSeasonMatches: number;
   teamsRated: number;
+  /**
+   * Clubs we deliberately left without a rating: no results we hold, and no
+   * division to seed them from. Not an error — it is the honest answer — but
+   * worth seeing, because a club appearing here that plays in a league we
+   * cover means its fixtures aren't being ingested.
+   */
+  unrated: string[];
   spread: { top: [string, number][]; bottom: [string, number][] };
   /** Refusals that the next run retries; they still block a rewrite. */
   warnings: string[];
@@ -87,6 +94,7 @@ export async function recomputeElo(
     historicalMatches: 0,
     currentSeasonMatches: 0,
     teamsRated: 0,
+    unrated: [],
     spread: { top: [], bottom: [] },
     warnings: [],
     errors: [],
@@ -294,10 +302,24 @@ export async function recomputeElo(
   const ratings = new Map<string, number>();
   for (const m of played) applyResult(ratings, m, seed);
 
-  // Teams with no history keep their division seed rather than 1500.
+  // Teams with no history keep their division seed rather than 1500 — but
+  // only if there is a division to seed from. `seedOf` is built from
+  // fixtures in competitions that carry a tier, so a club that exists in our
+  // tables purely as an FA Cup entrant from the non-league pyramid is not in
+  // it, and we have nothing at all to go on: no results, no division.
+  //
+  // Such a club used to get DEFAULT_SEED, which put Cray Wanderers of the
+  // Isthmian League between the Championship and League One. Before that the
+  // column default did worse and sat them level with Arsenal. Both are the
+  // same mistake — answering a question we cannot answer — so now they get
+  // no rating, and the model declines to price their tie. See 0040.
+  const unrated: string[] = [];
   for (const t of teams ?? []) {
-    if (!ratings.has(t.id)) ratings.set(t.id, seed(t.id));
+    if (ratings.has(t.id)) continue;
+    if (seedOf.has(t.id)) ratings.set(t.id, seed(t.id));
+    else unrated.push(nameOf.get(t.id) ?? t.id);
   }
+  report.unrated = unrated.sort();
 
   const rows = Array.from(ratings.entries()).map(([id, rating]) => ({
     id,
