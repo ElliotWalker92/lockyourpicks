@@ -32,17 +32,35 @@ const TIER_SEED: Record<number, number> = {
   3: 1220, // League One
   4: 1120, // League Two
 };
-const DEFAULT_SEED = 1300;
+/**
+ * What we assume about a club with no division of ours.
+ *
+ * Since 0041 this is never shown to anybody: a club with no tier and fewer
+ * than MIN_UNSEEDED_RESULTS results gets no rating at all. It still has to
+ * be a number, though, because the club plays in the replay as somebody
+ * else's cup opponent, and that opponent's rating moves by how good we
+ * thought the other side was.
+ *
+ * At 1300 it sat between the Championship and League One, so a Football
+ * League club that beat a non-league side last season gained as though it
+ * had beaten a League One side, and a club that lost to one was barely
+ * punished. 1000 is one step on from the gradient the tiers already use —
+ * 1500, 1350, 1220, 1120, gaps of 150, 130, 100 — which puts it about where
+ * the National League sits. Round, and deliberately an estimate: FA Cup
+ * first-round entrants run from the National League down to the Isthmian
+ * and Southern Leagues, and nothing in our data says which.
+ */
+const DEFAULT_SEED = 1000;
 
 /**
  * How many results a club with no division of ours needs before we'll put a
  * rating on it.
  *
  * Elo starts every club from a seed and moves it by at most K a game, so a
- * club seeded at DEFAULT_SEED with one result is 1300 nudged by twenty
+ * club seeded at DEFAULT_SEED with one result is that seed nudged by twenty
  * points: a guess with a rounding error on it, not a measurement. Eastleigh,
  * Scunthorpe, Halifax, Carlisle and Boreham Wood all sat between 1283 and
- * 1300 on one to three cup ties, which reads as "about League One" and was
+ * 1300 on one to three cup ties, which read as "about League One" and was
  * nothing of the sort.
  *
  * Five is the same bar the model uses before it will price a home or away
