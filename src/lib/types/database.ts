@@ -19,6 +19,7 @@ export type Database = {
           code: string
           id: string
           is_active: boolean
+          is_core: boolean
           is_cup: boolean
           name: string
           provider_league_id: number | null
@@ -29,6 +30,7 @@ export type Database = {
           code: string
           id?: string
           is_active?: boolean
+          is_core?: boolean
           is_cup?: boolean
           name: string
           provider_league_id?: number | null
@@ -39,6 +41,7 @@ export type Database = {
           code?: string
           id?: string
           is_active?: boolean
+          is_core?: boolean
           is_cup?: boolean
           name?: string
           provider_league_id?: number | null
@@ -345,6 +348,39 @@ export type Database = {
             columns: ["season_id"]
             isOneToOne: false
             referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      league_competitions: {
+        Row: {
+          added_at: string
+          competition_id: string
+          league_id: string
+        }
+        Insert: {
+          added_at?: string
+          competition_id: string
+          league_id: string
+        }
+        Update: {
+          added_at?: string
+          competition_id?: string
+          league_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_competitions_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_competitions_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
             referencedColumns: ["id"]
           },
         ]

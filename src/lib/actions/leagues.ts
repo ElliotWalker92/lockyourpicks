@@ -75,6 +75,26 @@ export async function createLeague(
 
   if (memberError) return { error: memberError.message };
 
+  // The English core arrives with the league, seeded by trigger (0042), so
+  // this only ever adds the extras. A failure here is worth reporting but
+  // not worth losing the league over — the group exists and plays the core,
+  // which is the game; the owner can tick the extras again on its page.
+  const extras = formData
+    .getAll('competition_id')
+    .map((v) => String(v))
+    .filter(Boolean);
+
+  if (extras.length > 0) {
+    const { error: compError } = await callRpc(
+      supabase,
+      'set_league_competitions',
+      { p_league_id: leagueId, p_competition_ids: extras },
+    );
+    if (compError) {
+      console.error('createLeague: competitions', compError.message);
+    }
+  }
+
   revalidatePath('/leagues');
   redirect(`/leagues/${leagueId}`);
 }
@@ -336,4 +356,46 @@ export async function undoAutoPicks(
   revalidatePath('/dashboard');
   revalidatePath('/draft');
   return { error: null, success: data?.message ?? 'Done.' };
+}
+
+/**
+ * Which competitions the group plays.
+ *
+ * The form posts the extras it wants ticked; the core is not in the form at
+ * all, because it is not a decision. `set_league_competitions` adds it back
+ * regardless of what arrives, refuses anything we don't offer, and refuses
+ * the whole change while a round is open — turning a competition on
+ * mid-gameweek would hand new fixtures to whoever picks next and nothing to
+ * the players who have already gone.
+ */
+export async function setLeagueCompetitions(
+  _prev: { error: string | null; success: string | null },
+  formData: FormData,
+): Promise<{ error: string | null; success: string | null }> {
+  const leagueId = String(formData.get('league_id') ?? '');
+  if (!leagueId) return { error: 'Missing group.', success: null };
+
+  const extras = formData
+    .getAll('competition_id')
+    .map((v) => String(v))
+    .filter(Boolean);
+
+  const supabase = await createClient();
+  const { data, error } = await callRpc<{ competitions: string[] }>(
+    supabase,
+    'set_league_competitions',
+    { p_league_id: leagueId, p_competition_ids: extras },
+  );
+
+  if (error) return { error: error.message, success: null };
+
+  revalidatePath(`/leagues/${leagueId}`);
+  revalidatePath('/draft');
+  revalidatePath('/dashboard');
+
+  const codes = data?.competitions ?? [];
+  return {
+    error: null,
+    success: `Saved — ${codes.length} competition${codes.length === 1 ? '' : 's'}: ${codes.join(', ')}.`,
+  };
 }

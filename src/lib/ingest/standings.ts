@@ -5,6 +5,7 @@ import {
   isTransientApiError,
   type ApiStandingRow,
 } from '@/lib/api-football';
+import { competitionsInPlay } from '@/lib/competitions';
 import type { Database } from '@/lib/types';
 
 export type StandingsReport = {
@@ -56,7 +57,7 @@ export async function ingestStandings(
   let competitionQuery = supabase
     .from('competitions')
     .select('id, code, provider_league_id')
-    .eq('is_active', true)
+    .in('id', (await competitionsInPlay(supabase)).map((c) => c.id))
     .eq('is_cup', false)
     .order('tier');
   if (competitionIds) competitionQuery = competitionQuery.in('id', competitionIds);

@@ -8,6 +8,7 @@ import {
 import { JoinCode } from '@/components/JoinCode';
 import { LockIcon } from '@/components/LockIcon';
 import { callRpc } from '@/lib/supabase/rpc';
+import { competitionsOnOffer } from '@/lib/competitions';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Group' };
@@ -23,8 +24,19 @@ export default async function LeaguesPage() {
     .eq('is_active', true)
     .maybeSingle();
   const { data: floorValue } = season
-    ? await callRpc<number>(supabase, 'fixture_floor', { p_season: season.id })
+    ? await callRpc<number>(supabase, 'fixture_floor', {
+        p_season: season.id,
+        // No league yet — the form quotes the core, which is the only thing
+        // a league is guaranteed to have. See migration 0042.
+        p_league_id: null,
+      })
     : { data: 0 };
+  // Named on the create form so somebody can see what they're signing up to
+  // before being asked what to add.
+  const extras = (await competitionsOnOffer(supabase)).filter(
+    (c) => !c.is_core,
+  );
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -110,7 +122,7 @@ export default async function LeaguesPage() {
           <h2 className="label mb-4">
             Start a group
           </h2>
-          <CreateLeagueForm floor={floorValue ?? 0} />
+          <CreateLeagueForm floor={floorValue ?? 0} extras={extras} />
         </section>
 
         <section className="card p-5">

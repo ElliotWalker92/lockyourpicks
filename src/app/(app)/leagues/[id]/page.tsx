@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ArrangeDivisions } from '@/components/ArrangeDivisions';
+import { LeagueCompetitions } from '@/components/LeagueCompetitions';
 import { LeagueShape } from '@/components/LeagueShape';
 import { UndoAutoPicks } from '@/components/UndoAutoPicks';
 import { callRpc } from '@/lib/supabase/rpc';
@@ -12,6 +13,7 @@ import {
   SlipSet,
   type SlipGroup,
 } from '@/components/SharePicks';
+import { competitionsOnOffer, leagueCompetitionIds } from '@/lib/competitions';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'League' };
@@ -85,9 +87,33 @@ export default async function LeaguePage({
   // How much room the fixture list leaves, for the shape form. Asked for
   // only when there's somebody who can act on it.
   const { data: floorValue } = isOwner
-    ? await callRpc<number>(supabase, 'fixture_floor', { p_season: seasonId })
+    ? await callRpc<number>(supabase, 'fixture_floor', {
+        p_season: seasonId,
+        p_league_id: id,
+      })
     : { data: 0 };
   const fixtureFloor = floorValue ?? 0;
+
+  // What the group plays, and what it could. Asked for together so the form
+  // can show the core as settled and the extras as the only choice.
+  const [onOffer, playing] = isOwner
+    ? await Promise.all([
+        competitionsOnOffer(supabase),
+        leagueCompetitionIds(supabase, id),
+      ])
+    : [[], []];
+
+  // A live draft pins the fixture pool: see LeagueCompetitions.
+  const { count: openDrafts } = isOwner
+    ? await supabase
+        .from('drafts')
+        .select('id, divisions!inner(league_id)', {
+          count: 'exact',
+          head: true,
+        })
+        .eq('status', 'active')
+        .eq('divisions.league_id', id)
+    : { count: 0 };
 
   // What the clock has picked for people in the round still open, so the
   // undo can say what it will do before it does it.
@@ -377,6 +403,17 @@ export default async function LeaguePage({
               leagueId={league.id}
               divisionSize={league.division_size}
               floor={fixtureFloor}
+            />
+          </div>
+
+          <div className="mt-4 border-t border-grey-300 pt-4">
+            <h3 className="label mb-3">Competitions</h3>
+            <LeagueCompetitions
+              leagueId={league.id}
+              onOffer={onOffer}
+              playing={playing}
+              divisionSize={league.division_size}
+              roundOpen={(openDrafts ?? 0) > 0}
             />
           </div>
 

@@ -6,6 +6,7 @@ import {
   mapStatus,
 } from '@/lib/api-football';
 import { ingestStandings } from '@/lib/ingest/standings';
+import { competitionsInPlay } from '@/lib/competitions';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
@@ -98,7 +99,7 @@ export async function ingestResults(
   const { data: competitions } = await supabase
     .from('competitions')
     .select('provider_league_id')
-    .eq('is_active', true);
+    .in('id', (await competitionsInPlay(supabase)).map((c) => c.id));
   const ours = new Set(
     (competitions ?? [])
       .map((c) => c.provider_league_id)

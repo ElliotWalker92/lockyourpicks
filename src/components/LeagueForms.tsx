@@ -38,7 +38,14 @@ function Error({ state }: { state: LeagueState }) {
   );
 }
 
-export function CreateLeagueForm({ floor = 0 }: { floor?: number }) {
+export function CreateLeagueForm({
+  floor = 0,
+  extras = [],
+}: {
+  floor?: number;
+  /** Optional competitions beyond the English core. */
+  extras?: { id: string; name: string }[];
+}) {
   const [state, action] = useActionState(createLeague, { error: null });
   const [size, setSize] = useState(3);
 
@@ -87,6 +94,40 @@ export function CreateLeagueForm({ floor = 0 }: { floor?: number }) {
           nobody else in the division can have it. {size} &times;{' '}
           {picksForDivisionSize(size)} = {fixturesNeeded(size)} a week
           {floor > 0 && <>, and the thinnest gameweek carries {floor}</>}.
+        </p>
+      </div>
+
+      {/* The English game is not offered as a choice, because it isn't one.
+          Naming it is still worth doing: somebody setting up a group should
+          know what they are getting before they are asked what to add. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">Competitions</span>
+        <p className="text-xs leading-relaxed text-grey-500">
+          The Premier League, the Championship, Leagues One and Two, the FA
+          Cup and the EFL Cup are always in &mdash; that&rsquo;s the game, and
+          it&rsquo;s what carries {fixturesNeeded(size)} fixtures a week for
+          you.
+          {extras.length > 0 && ' Add more if you want a bigger card:'}
+        </p>
+        {extras.length > 0 && (
+          <ul className="flex flex-col gap-1.5">
+            {extras.map((c) => (
+              <li key={c.id}>
+                <label className="flex items-center gap-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    name="competition_id"
+                    value={c.id}
+                    className="h-4 w-4 shrink-0 accent-lime-dark"
+                  />
+                  {c.name}
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-grey-500">
+          You can change this later, between rounds.
         </p>
       </div>
 

@@ -10,6 +10,7 @@ import {
   type ApiFixture,
   type ApiTeam,
 } from '@/lib/api-football';
+import { competitionsInPlay } from '@/lib/competitions';
 import type { Database } from '@/lib/types';
 import {
   attachToBlocks,
@@ -58,7 +59,7 @@ export async function ingestFixtures(
   const { data: competitions } = await supabase
     .from('competitions')
     .select('id, code, provider_league_id, is_cup, sets_calendar')
-    .eq('is_active', true);
+    .in('id', (await competitionsInPlay(supabase)).map((c) => c.id));
 
   // Season years are named by their starting year: 2026/27 is season 2026.
   const seasonYear = new Date(season.starts_on).getUTCFullYear();

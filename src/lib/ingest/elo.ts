@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   isTransientApiError, getFixtures } from '@/lib/api-football';
+import { competitionsInPlay } from '@/lib/competitions';
 import { HOME_ADV } from '@/lib/elo';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
@@ -147,7 +148,7 @@ export async function recomputeElo(
   const { data: competitions } = await supabase
     .from('competitions')
     .select('id, code, tier, provider_league_id')
-    .eq('is_active', true);
+    .in('id', (await competitionsInPlay(supabase)).map((c) => c.id));
 
   const { data: teams } = await supabase
     .from('teams')

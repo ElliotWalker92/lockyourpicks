@@ -21,6 +21,7 @@ import {
 } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
 import { activeLeagueId } from '@/lib/active-league';
+import { leagueCompetitionIds } from '@/lib/competitions';
 import { viewingFor } from '@/lib/viewing';
 
 /** One row per seat of every draft in the group — see migration 0035. */
@@ -48,6 +49,34 @@ function Empty({
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * Every fixture in a gameweek, narrowed to what a league plays.
+ *
+ * Built here rather than inline because the narrowing is conditional: an
+ * empty list means the read failed, and `.in('competition_id', [])` would
+ * match nothing and empty the board.
+ */
+function gameweekFixtures(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  gameweekId: string,
+  playing: string[],
+) {
+  const query = supabase
+    .from('fixtures')
+    .select(
+      `id, kickoff_at, status, home_score, away_score, result,
+       home:teams!fixtures_home_team_id_fkey(id, name, crest_url, elo_rating),
+       away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating),
+       competition:competitions(code, name, tier)`,
+    )
+    .eq('gameweek_id', gameweekId);
+
+  return (playing.length ? query.in('competition_id', playing) : query).order(
+    'kickoff_at',
+    { ascending: true },
   );
 }
 
@@ -540,6 +569,18 @@ export default async function DraftPage({
     );
   }
 
+  // Only the competitions this league plays. Narrowing here keeps the board
+  // honest; make_pick and auto_pick check the same table themselves, because
+  // a fixture id comes from the client and a filter in a page is a
+  // suggestion. See migration 0042.
+  //
+  // An empty list cannot be right — every league holds the core — so it
+  // means the read failed, and the board shows the whole gameweek rather
+  // than nothing at all. Showing a fixture somebody's league doesn't play is
+  // a cosmetic fault that make_pick will catch; showing an empty board is
+  // the game not working.
+  const playing = await leagueCompetitionIds(supabase, view.leagueId);
+
   const [{ data: fixtureRows }, { data: picks }, { data: members }] =
     await Promise.all([
       // Every fixture in the gameweek, not just the pickable ones.
@@ -553,16 +594,7 @@ export default async function DraftPage({
       // the counter above it still said 3/3.
       //
       // The board now narrows this list itself instead.
-      supabase
-        .from('fixtures')
-        .select(
-          `id, kickoff_at, status, home_score, away_score, result,
-           home:teams!fixtures_home_team_id_fkey(id, name, crest_url, elo_rating),
-           away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating),
-           competition:competitions(code, name, tier)`,
-        )
-        .eq('gameweek_id', gameweek.id)
-        .order('kickoff_at', { ascending: true }),
+      gameweekFixtures(supabase, gameweek.id, playing),
       supabase
         .from('picks')
         .select(
