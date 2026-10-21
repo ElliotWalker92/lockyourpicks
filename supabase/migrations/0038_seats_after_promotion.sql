@@ -120,4 +120,4 @@ end;
 $$;
 
 revoke all on function public.apply_promotion_relegation(uuid, uuid, uuid)
-  from public, anon;
+  from public, anon, authenticated;
