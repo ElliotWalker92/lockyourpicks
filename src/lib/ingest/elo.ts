@@ -313,19 +313,26 @@ export async function recomputeElo(
   // column default did worse and sat them level with Arsenal. Both are the
   // same mistake — answering a question we cannot answer — so now they get
   // no rating, and the model declines to price their tie. See 0040.
-  const unrated: string[] = [];
+  const unrated: { id: string; name: string }[] = [];
   for (const t of teams ?? []) {
     if (ratings.has(t.id)) continue;
     if (seedOf.has(t.id)) ratings.set(t.id, seed(t.id));
-    else unrated.push(nameOf.get(t.id) ?? t.id);
+    else unrated.push({ id: t.id, name: nameOf.get(t.id) ?? t.id });
   }
-  report.unrated = unrated.sort();
+  report.unrated = unrated.map((t) => t.name).sort();
 
   const rows = Array.from(ratings.entries()).map(([id, rating]) => ({
     id,
     elo_rating: Math.round(rating * 100) / 100,
-    elo_updated_at: new Date().toISOString(),
   }));
+
+  // Clearing matters as much as writing. These clubs were given
+  // DEFAULT_SEED under the old rule and stamped, so leaving them out of the
+  // payload would leave a 1300 sitting there unchallenged — which read as a
+  // considered rating rather than a default and put Wimborne Town at the top
+  // of auto_pick's queue. A null rating is the job saying so out loud; see
+  // migration 0041.
+  const clear = unrated.map((t) => ({ id: t.id, elo_rating: null }));
 
   // One statement. Row by row this was one request per team, and Workers
   // Free stops a job at 50 — roughly thirty clubs were rated each week and
@@ -350,7 +357,7 @@ export async function recomputeElo(
   }
 
   const { error: eloError } = await callRpc<number>(supabase, 'apply_team_elo', {
-    p_rows: rows.map(({ id, elo_rating }) => ({ id, elo_rating })),
+    p_rows: [...rows, ...clear],
   });
   if (eloError) report.errors.push(`apply elo: ${eloError.message}`);
 
