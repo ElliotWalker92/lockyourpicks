@@ -7,7 +7,10 @@ import {
   ZoneLegend,
   type Zone,
 } from '@/components/StandingsTable';
+import { activeLeagueId } from '@/lib/active-league';
+import { leagueCompetitionIds } from '@/lib/competitions';
 import { createClient } from '@/lib/supabase/server';
+import { membershipsFor } from '@/lib/viewing';
 
 export const metadata = { title: 'Leagues' };
 
@@ -68,12 +71,38 @@ export default async function StandingsPage({
     .eq('is_active', true)
     .maybeSingle();
 
-  const { data: competitions } = await supabase
+  // Only the tables this reader's group actually plays. A competition on
+  // offer that nobody has turned on has no rows in `standings` either — the
+  // jobs don't fetch it (0042) — so listing it would offer an empty table.
+  //
+  // Falls open on an empty answer, same rule as the board: a reader in no
+  // group yet, or a read that failed, gets the whole list rather than none.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const groups =
+    user && season
+      ? await membershipsFor(supabase, user.id, season.id)
+      : [];
+  const preferred = await activeLeagueId();
+  const leagueId =
+    groups.find((g) => g.leagueId === preferred)?.leagueId ??
+    groups[0]?.leagueId ??
+    null;
+  const playing = leagueId
+    ? await leagueCompetitionIds(supabase, leagueId)
+    : [];
+
+  const query = supabase
     .from('competitions')
     .select('id, code, name, tier')
     .eq('is_active', true)
-    .eq('is_cup', false)
-    .order('tier');
+    .eq('is_cup', false);
+  const { data: competitions } = await (playing.length
+    ? query.in('id', playing)
+    : query
+  ).order('tier');
 
   const all = competitions ?? [];
   const selected = all.find((x) => x.code === c) ?? all[0];

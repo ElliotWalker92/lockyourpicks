@@ -17,6 +17,7 @@ export type Database = {
       competitions: {
         Row: {
           code: string
+          elo_seed: number | null
           id: string
           is_active: boolean
           is_core: boolean
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           code: string
+          elo_seed: number | null
           id?: string
           is_active?: boolean
           is_core?: boolean
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           code?: string
+          elo_seed?: number | null
           id?: string
           is_active?: boolean
           is_core?: boolean

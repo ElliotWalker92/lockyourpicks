@@ -20,36 +20,31 @@ import type { Database } from '@/lib/types';
  *     fixtures have no gameweek and would pollute the fixtures table)
  *   - this season's finished fixtures, read from our own database
  *
- * Starting ratings are set by division rather than giving everyone 1500.
- * A League Two side is not the equal of a Premier League side, and seeding
- * them level would take most of a season to correct — during which every
- * probability shown to players would be wrong in the same direction.
+ * Starting ratings come from the level of the competitions a club plays in,
+ * rather than giving everyone 1500. A League Two side is not the equal of a
+ * Premier League side, and seeding them level would take most of a season to
+ * correct — during which every probability shown to players would be wrong
+ * in the same direction. The levels are `competitions.elo_seed`, on the row
+ * rather than in a map here; see migration 0043 for why.
  */
 
-/** Roughly the real gap: ~380 points ≈ the favourite winning about 90%. */
-const TIER_SEED: Record<number, number> = {
-  1: 1500, // Premier League
-  2: 1350, // Championship
-  3: 1220, // League One
-  4: 1120, // League Two
-};
 /**
  * What we assume about a club with no division of ours.
  *
- * Since 0041 this is never shown to anybody: a club with no tier and fewer
- * than MIN_UNSEEDED_RESULTS results gets no rating at all. It still has to
- * be a number, though, because the club plays in the replay as somebody
- * else's cup opponent, and that opponent's rating moves by how good we
- * thought the other side was.
+ * Since 0041 this is never shown to anybody: a club in no competition that
+ * carries a level, with fewer than MIN_UNSEEDED_RESULTS results, gets no
+ * rating at all. It still has to be a number, though, because the club
+ * plays in the replay as somebody else's cup opponent, and that opponent's
+ * rating moves by how good we thought the other side was.
  *
  * At 1300 it sat between the Championship and League One, so a Football
  * League club that beat a non-league side last season gained as though it
  * had beaten a League One side, and a club that lost to one was barely
- * punished. 1000 is one step on from the gradient the tiers already use —
- * 1500, 1350, 1220, 1120, gaps of 150, 130, 100 — which puts it about where
- * the National League sits. Round, and deliberately an estimate: FA Cup
- * first-round entrants run from the National League down to the Isthmian
- * and Southern Leagues, and nothing in our data says which.
+ * punished. 1000 is one step on from the gradient the English divisions use
+ * — 1500, 1350, 1220, 1120, gaps of 150, 130, 100 — which puts it about
+ * where the National League sits. Round, and deliberately an estimate: FA
+ * Cup first-round entrants run from the National League down to the
+ * Isthmian and Southern Leagues, and nothing in our data says which.
  */
 const DEFAULT_SEED = 1000;
 
@@ -58,7 +53,7 @@ const DEFAULT_SEED = 1000;
  * rating on it.
  *
  * Elo starts every club from a seed and moves it by at most K a game, so a
- * club seeded at DEFAULT_SEED with one result is that seed nudged by twenty
+ * club on DEFAULT_SEED with one result is that seed nudged by twenty
  * points: a guess with a rounding error on it, not a measurement. Eastleigh,
  * Scunthorpe, Halifax, Carlisle and Boreham Wood all sat between 1283 and
  * 1300 on one to three cup ties, which read as "about League One" and was
@@ -147,7 +142,7 @@ export async function recomputeElo(
 
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('id, code, tier, provider_league_id')
+    .select('id, code, provider_league_id')
     .in('id', (await competitionsInPlay(supabase)).map((c) => c.id));
 
   const { data: teams } = await supabase
@@ -161,20 +156,22 @@ export async function recomputeElo(
     nameOf.set(t.id, t.name);
   }
 
-  // Seed by the division a team is currently in.
-  const seedOf = new Map<string, number>();
-  for (const c of competitions ?? []) {
-    if (!c.provider_league_id || c.tier === null) continue;
-    const { data: fx } = await supabase
-      .from('fixtures')
-      .select('home_team_id, away_team_id')
-      .eq('competition_id', c.id);
-    for (const f of fx ?? []) {
-      const s = TIER_SEED[c.tier] ?? DEFAULT_SEED;
-      seedOf.set(f.home_team_id, s);
-      seedOf.set(f.away_team_id, s);
-    }
-  }
+  // Seed by the level of the competitions a club plays in. The level is a
+  // column on the competition now rather than a map in this file keyed on
+  // `tier` — see 0043, which also explains why a domestic cup contributes
+  // nothing and a European one does.
+  //
+  // One request, not one per competition: the job runs on Workers, which
+  // stops an invocation at fifty subrequests, and asking per competition
+  // was fine at six and wasteful at seventeen.
+  const { data: seeds, error: seedError } = await callRpc<
+    { team_id: string; elo_seed: number }[]
+  >(supabase, 'team_elo_seeds');
+  if (seedError) throw new Error(`team seeds: ${seedError.message}`);
+
+  const seedOf = new Map<string, number>(
+    (seeds ?? []).map((r) => [r.team_id, r.elo_seed]),
+  );
   const seed = (id: string) => seedOf.get(id) ?? DEFAULT_SEED;
 
   // ---- Last season, from our own store ----
@@ -341,11 +338,12 @@ export async function recomputeElo(
 
   // ---- Who we'll actually put a number on ----
   //
-  // A club has a basis if it plays in a division of ours, which tells us
-  // roughly where it sits, or if we hold enough of its results for the
-  // replay to have told us itself. `seedOf` is built from fixtures in
-  // competitions that carry a tier, so a club in our tables purely as an FA
-  // Cup entrant from the non-league pyramid is not in it.
+  // A club has a basis if it plays in a competition that carries a level,
+  // which tells us roughly where it sits, or if we hold enough of its
+  // results for the replay to have told us itself. `seedOf` comes from
+  // team_elo_seeds, which only counts competitions with an elo_seed — so a
+  // club in our tables purely as an FA Cup entrant from the non-league
+  // pyramid is not in it, since the FA Cup carries no level of its own.
   //
   // Such a club used to get DEFAULT_SEED, which put Cray Wanderers of the
   // Isthmian League between the Championship and League One; before that the
