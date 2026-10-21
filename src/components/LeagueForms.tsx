@@ -127,7 +127,8 @@ export function CreateLeagueForm({
           </ul>
         )}
         <p className="text-xs text-grey-500">
-          You can change this later, between rounds.
+          You can change this later at any time &mdash; it comes into effect
+          from the next gameweek.
         </p>
       </div>
 

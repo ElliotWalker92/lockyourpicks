@@ -15,10 +15,11 @@ import { fixturesNeeded } from '@/lib/division-shape';
  * extras are the only thing to choose, and each one is a line saying what it
  * adds rather than a code.
  *
- * The warning about a round being open is shown before the attempt rather
- * than returned after it. `set_league_competitions` refuses it either way,
- * but a disabled button that explains itself is better than a save that
- * fails for a reason you could have been told.
+ * A round in progress is not a reason to refuse the change, only a reason
+ * to say when it lands. Each round is opened with a copy of the set and
+ * keeps it to the end (0044), the same way it keeps the picks-per-player it
+ * opened with — so turning something on now cannot hand fixtures to whoever
+ * picks next and nothing to the players who have already gone.
  */
 export function LeagueCompetitions({
   leagueId,
@@ -29,10 +30,10 @@ export function LeagueCompetitions({
 }: {
   leagueId: string;
   onOffer: Competition[];
-  /** Competition ids this league plays today, core included. */
+  /** Competition ids this league plays from the next round on, core included. */
   playing: string[];
   divisionSize: number;
-  /** A draft is live, so the fixture pool can't move under it. */
+  /** A round is mid-draft, so a change won't show until the one after. */
   roundOpen: boolean;
 }) {
   const core = onOffer.filter((c) => c.is_core);
@@ -84,19 +85,18 @@ export function LeagueCompetitions({
                   value={c.id}
                   checked={picked.includes(c.id)}
                   onChange={() => toggle(c.id)}
-                  disabled={roundOpen}
                   className="mt-0.5 h-4 w-4 shrink-0 accent-lime-dark"
                 />
                 <span>
                   <span className="font-medium">{c.name}</span>
                   {playing.includes(c.id) && !picked.includes(c.id) && (
                     <span className="ml-2 text-xs text-loss">
-                      will be turned off
+                      off from next gameweek
                     </span>
                   )}
                   {!playing.includes(c.id) && picked.includes(c.id) && (
                     <span className="ml-2 text-xs text-grey-500">
-                      will be turned on
+                      on from next gameweek
                     </span>
                   )}
                 </span>
@@ -106,29 +106,21 @@ export function LeagueCompetitions({
         </ul>
       )}
 
-      {roundOpen ? (
-        <p className="text-sm text-grey-500">
-          Picks are open for this gameweek. You can change this once the round
-          has kicked off &mdash; adding fixtures mid-draft would give them to
-          whoever picks next and nothing to the players who have already gone.
-        </p>
-      ) : (
-        extras.length > 0 && (
-          <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={pending || !unsaved}
-              className="btn btn-sm btn-ink"
-            >
-              {pending ? 'Saving…' : 'Save'}
-            </button>
-            {unsaved && (
-              <span className="text-sm text-grey-500">
-                Takes effect from the next round.
-              </span>
-            )}
-          </div>
-        )
+      {extras.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <button
+            type="submit"
+            disabled={pending || !unsaved}
+            className="btn btn-sm btn-ink"
+          >
+            {pending ? 'Saving…' : 'Save'}
+          </button>
+          <span className="text-sm text-grey-500">
+            {roundOpen
+              ? 'Comes into effect from the next gameweek — this round keeps the fixtures it opened with.'
+              : 'Comes into effect from the next gameweek.'}
+          </span>
+        </div>
       )}
 
       {state.error && <p className="text-sm text-loss">{state.error}</p>}

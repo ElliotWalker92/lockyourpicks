@@ -21,7 +21,6 @@ import {
 } from '@/lib/ingest/form';
 import { createClient } from '@/lib/supabase/server';
 import { activeLeagueId } from '@/lib/active-league';
-import { leagueCompetitionIds } from '@/lib/competitions';
 import { viewingFor } from '@/lib/viewing';
 
 /** One row per seat of every draft in the group — see migration 0035. */
@@ -569,17 +568,23 @@ export default async function DraftPage({
     );
   }
 
-  // Only the competitions this league plays. Narrowing here keeps the board
-  // honest; make_pick and auto_pick check the same table themselves, because
-  // a fixture id comes from the client and a filter in a page is a
-  // suggestion. See migration 0042.
+  // The competitions this round opened with, not the ones the league plays
+  // today — an owner can change the set mid-round and it lands on the next
+  // one (0044). Asked of `draft_competitions` rather than read off the draft
+  // row here, so the board, make_pick and auto_pick all get their answer
+  // from the same place.
   //
-  // An empty list cannot be right — every league holds the core — so it
-  // means the read failed, and the board shows the whole gameweek rather
-  // than nothing at all. Showing a fixture somebody's league doesn't play is
-  // a cosmetic fault that make_pick will catch; showing an empty board is
-  // the game not working.
-  const playing = await leagueCompetitionIds(supabase, view.leagueId);
+  // An empty list cannot be right, so it means the read failed, and the
+  // board shows the whole gameweek rather than nothing at all. Showing a
+  // fixture somebody's round doesn't play is a cosmetic fault make_pick will
+  // catch; showing an empty board is the game not working.
+  const { data: card, error: cardError } = await callRpc<string[]>(
+    supabase,
+    'draft_competitions',
+    { p_draft_id: draft.id },
+  );
+  if (cardError) console.error('draft card:', cardError.message);
+  const playing = card ?? [];
 
   const [{ data: fixtureRows }, { data: picks }, { data: members }] =
     await Promise.all([

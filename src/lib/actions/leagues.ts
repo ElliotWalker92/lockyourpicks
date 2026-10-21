@@ -363,10 +363,11 @@ export async function undoAutoPicks(
  *
  * The form posts the extras it wants ticked; the core is not in the form at
  * all, because it is not a decision. `set_league_competitions` adds it back
- * regardless of what arrives, refuses anything we don't offer, and refuses
- * the whole change while a round is open — turning a competition on
- * mid-gameweek would hand new fixtures to whoever picks next and nothing to
- * the players who have already gone.
+ * regardless of what arrives and refuses anything we don't offer.
+ *
+ * Allowed at any time, including mid-round: a round is opened with a copy of
+ * the set and keeps it to the end (0044), so a change here lands on the next
+ * one and cannot hand fixtures to whoever picks next.
  */
 export async function setLeagueCompetitions(
   _prev: { error: string | null; success: string | null },
@@ -396,6 +397,6 @@ export async function setLeagueCompetitions(
   const codes = data?.competitions ?? [];
   return {
     error: null,
-    success: `Saved — ${codes.length} competition${codes.length === 1 ? '' : 's'}: ${codes.join(', ')}.`,
+    success: `Saved — from the next gameweek you'll be playing ${codes.length} competition${codes.length === 1 ? '' : 's'}: ${codes.join(', ')}.`,
   };
 }
