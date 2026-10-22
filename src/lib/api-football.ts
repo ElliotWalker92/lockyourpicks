@@ -103,9 +103,25 @@ async function throttle() {
  * quietly goes missing from an otherwise successful run. Waiting is the
  * whole fix, because the limit is per minute.
  */
-const RATE_LIMIT_RETRIES = 3;
-/** Rising, with jitter: a fixed wait makes every retry collide again. */
-const RATE_LIMIT_BACKOFF_MS = [8_000, 20_000, 40_000];
+/**
+ * One short retry, and then give up on this call.
+ *
+ * It was three, rising 8s / 20s / 40s — 68 seconds of sleeping for a single
+ * refused request, against an ingest route whose own budget is 60. So one
+ * 429 on the first call used the entire run and the job died having fetched
+ * nothing, which is what following thirteen competitions instead of six made
+ * likely enough to see.
+ *
+ * The ladder was solving the wrong problem anyway. The provider's minute
+ * ceiling is enforced per IP and Workers share outbound addresses, so a
+ * refusal is usually somebody else's traffic and waiting inside the run buys
+ * one call at the cost of every call after it. These jobs already converge
+ * across runs — fixtures are upserted, a stored season is never re-fetched —
+ * so being refused is cheap and sleeping is not.
+ */
+const RATE_LIMIT_RETRIES = 1;
+/** With jitter: a fixed wait makes every retry collide again. */
+const RATE_LIMIT_BACKOFF_MS = [3_000];
 
 /**
  * A failure that will probably not be there next time.

@@ -16,8 +16,12 @@ import nextHandler from './.open-next/worker.js';
  */
 
 const ROUTES: Record<string, string> = {
-  // Fixture list refresh — Tuesdays, just after a gameweek rolls over.
-  '0 4 * * 2': '/api/cron/ingest',
+  // Fixture list refresh. Daily, not weekly: a run that is refused fetches
+  // nothing and the next one does the lot, so how fast the data converges is
+  // how often this gets a turn. Thirteen competitions through an outbound IP
+  // we share with other Workers means being refused is routine rather than
+  // exceptional — see the retry note in api-football.ts.
+  '0 4 * * *': '/api/cron/ingest',
   // Results and settlement.
   '*/15 * * * *': '/api/cron/results',
   // Open due drafts, and auto-pick turns whose clock has run out.

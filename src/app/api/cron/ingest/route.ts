@@ -5,7 +5,7 @@ import { runCron } from '@/lib/cron';
 import { ingestFixtures } from '@/lib/ingest/fixtures';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /**
  * Fixture ingestion. Intended to run on a schedule (weekly is plenty for

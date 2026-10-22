@@ -29,7 +29,7 @@
   //   elo       — Tuesdays 05:00, after fixtures land
   "triggers": {
     "crons": [
-      "0 4 * * 2",
+      "0 4 * * *",
       "*/15 * * * *",
       "*/10 * * * *",
       "0 5 * * 2",

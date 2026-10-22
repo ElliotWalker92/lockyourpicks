@@ -34,6 +34,8 @@ export type IngestReport = {
   teamsUpserted: number;
   fixturesUpserted: number;
   kickoffsSynced: number;
+  /** Refusals that cost this run but will not be there next time. */
+  warnings?: string[];
 };
 
 /**
@@ -74,7 +76,6 @@ export async function ingestFixtures(
   // Season years are named by their starting year: 2026/27 is season 2026.
   const seasonYear = new Date(season.starts_on).getUTCFullYear();
 
-  const apiLeagues = await getLeaguesForSeason(seasonYear);
   const report: IngestReport = {
     season: season.name,
     gameweeks: 0,
@@ -83,6 +84,22 @@ export async function ingestFixtures(
     fixturesUpserted: 0,
     kickoffsSynced: 0,
   };
+
+  // One call that every competition depends on, so a refusal here ends the
+  // run — but ending a run is not the same as something being wrong. The
+  // provider's minute ceiling is per IP and Workers share addresses, so this
+  // is usually somebody else's traffic; nothing is written, nothing is
+  // stale, and the next run does the lot. Waking somebody for it trains
+  // them to ignore the alert that matters.
+  let apiLeagues;
+  try {
+    apiLeagues = await getLeaguesForSeason(seasonYear);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!isTransientApiError(err)) throw err;
+    report.warnings = [`competition list: ${message} — nothing fetched this run`];
+    return report;
+  }
 
   const teams = new Map<number, ApiTeam>();
   const allFixtures: { competitionId: string; fixture: ApiFixture }[] = [];
