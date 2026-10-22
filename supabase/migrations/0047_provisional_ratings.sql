@@ -49,6 +49,14 @@ comment on column public.teams.elo_provisional is
 --  Same query as 0043 with the one extra fact the caller needs: whether any
 --  of the competitions behind this club's seed was a league rather than a
 --  cup. A league places a club; entering a cup does not.
+--
+--  Dropped first, not replaced. `create or replace` cannot change a
+--  function's return type, and this adds a column to it — Postgres raises
+--  "cannot change return type of existing function", which inside the
+--  transaction the SQL editor wraps a script in takes the alter table above
+--  down with it. 0042 got this right for fixture_floor and this did not.
+drop function if exists public.team_elo_seeds();
+
 create or replace function public.team_elo_seeds()
 returns table (team_id uuid, elo_seed integer, from_league boolean)
 language sql stable security definer set search_path = public as $$
