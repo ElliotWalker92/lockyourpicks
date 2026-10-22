@@ -57,7 +57,15 @@ export async function ingestStandings(
   let competitionQuery = supabase
     .from('competitions')
     .select('id, code, provider_league_id')
-    .in('id', (await competitionsInPlay(supabase)).map((c) => c.id))
+    .in(
+      'id',
+      // Not the ratings-only ones: the table layer only ever prices a
+      // fixture somebody can pick, and none of theirs is. Fetching them
+      // would spend provider calls on tables no query reads. See 0049.
+      (await competitionsInPlay(supabase))
+        .filter((c) => !c.ratings_only)
+        .map((c) => c.id),
+    )
     .eq('is_cup', false)
     .order('tier');
   if (competitionIds) competitionQuery = competitionQuery.in('id', competitionIds);

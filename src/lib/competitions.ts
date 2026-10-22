@@ -51,6 +51,10 @@ export async function leagueCompetitionIds(
  * competition at all — and is separate from whether any given league has
  * turned it on. The admin screens show this list; the per-league choice is
  * made against it.
+ *
+ * Excludes the ones we follow only to rate their clubs. They are fetched and
+ * replayed and nobody plays them, so offering them would be offering
+ * something the database will refuse — see migration 0049.
  */
 export async function competitionsOnOffer(
   supabase: Client,
@@ -59,6 +63,7 @@ export async function competitionsOnOffer(
     .from('competitions')
     .select('id, code, name, tier, is_cup, is_core')
     .eq('is_active', true)
+    .eq('ratings_only', false)
     .order('is_core', { ascending: false })
     .order('tier', { ascending: true, nullsFirst: false })
     .order('code');
