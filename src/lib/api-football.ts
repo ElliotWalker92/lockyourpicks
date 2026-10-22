@@ -164,15 +164,29 @@ async function request<T>(
 }
 
 /**
- * Every English competition with its per-season coverage.
+ * Every competition the provider publishes for a season year.
  *
  * Worth calling before fixtures: competitions don't share a current season.
  * In August 2026 the FA Cup still reported 2025 as current while the leagues
  * had rolled to 2026, so assuming one season number across the board silently
- * returns nothing for the cup.
+ * returns nothing for the cup. Asking by season answers that directly — a
+ * competition in the result has coverage for the year asked about.
+ *
+ * This used to ask for `country: 'England'`, which was true of everything we
+ * held and stopped being true the moment a group could turn the Champions
+ * League on: its country is "World", so it was absent from the list and the
+ * ingest reported "provider has no league with id 2" for a league the
+ * provider has. One unfiltered-by-country call covers every competition we
+ * could ever hold, and it is still one call — around 870 competitions for a
+ * current season, which is the same request budget as before.
+ *
+ * Note the response is trimmed to the season asked for: each competition
+ * comes back with that one season in its `seasons` array, not its whole
+ * history. `hasSeason` is therefore trivially true for anything returned,
+ * and absence is what carries the information.
  */
-export async function getEnglandLeagues(): Promise<ApiLeague[]> {
-  return request<ApiLeague>('/leagues', { country: 'England' });
+export async function getLeaguesForSeason(year: number): Promise<ApiLeague[]> {
+  return request<ApiLeague>('/leagues', { season: year });
 }
 
 /** Current season year for a competition, or null if it reports none. */

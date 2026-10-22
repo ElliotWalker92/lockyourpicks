@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   isTransientApiError,
   currentSeasonOf,
-  getEnglandLeagues,
+  getLeaguesForSeason,
   getFixtures,
   hasSeason,
   mapStatus,
@@ -58,13 +58,15 @@ export async function ingestFixtures(
 
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('id, code, provider_league_id, is_cup, sets_calendar')
+    .select(
+      'id, code, provider_league_id, is_cup, sets_calendar, prune_to_known_sides',
+    )
     .in('id', (await competitionsInPlay(supabase)).map((c) => c.id));
 
   // Season years are named by their starting year: 2026/27 is season 2026.
   const seasonYear = new Date(season.starts_on).getUTCFullYear();
 
-  const apiLeagues = await getEnglandLeagues();
+  const apiLeagues = await getLeaguesForSeason(seasonYear);
   const report: IngestReport = {
     season: season.name,
     gameweeks: 0,
@@ -84,17 +86,23 @@ export async function ingestFixtures(
       (l) => l.league.id === competition.provider_league_id,
     );
 
+    // The list is already narrowed to this season, so absence means one of
+    // two things and there is no way to tell them apart from here: the
+    // provider has no such competition, or it has not published our season
+    // for it yet. Both leave the fixtures we already hold alone and both are
+    // worth a look, so the message names both rather than guessing.
     if (!apiLeague) {
       report.competitions.push({
         code: competition.code,
         season: null,
         fixtures: 0,
-        error: `provider has no league with id ${competition.provider_league_id}`,
+        error: `provider league ${competition.provider_league_id} has no ${seasonYear} season (or no such league)`,
       });
       continue;
     }
 
     if (!hasSeason(apiLeague, seasonYear)) {
+      // Belt and braces: the filter above should make this unreachable.
       report.competitions.push({
         code: competition.code,
         season: null,
@@ -138,17 +146,25 @@ export async function ingestFixtures(
     }
   }
 
-  // ---- Cup ties involving one of the 92 only ----
+  // ---- Cup ties involving a club we hold a league for ----
   //
   // The provider lists every round of the FA Cup, qualifying rounds
   // included, where both sides are non-league. Those brought in 224 clubs
   // and a hundred-odd fixtures a weekend that nobody can sensibly call and
-  // the model knows nothing about. A cup tie is kept when at least one side
+  // the model knows nothing about. A tie is kept when at least one side
   // appears in this run's league fixtures. If a league fetch failed, fewer
   // ties survive this run — they come back on the next one, which is the
   // safe way round.
+  //
+  // Only for the competitions that ask for it, which is the two English
+  // cups. Applied to a European competition it would drop Real Madrid v
+  // Bayern — no league of ours holds either side — while keeping Arsenal's
+  // tie, so a group that turned the Champions League on would get half of
+  // it. See migration 0045.
   const cupIds = new Set(
-    (competitions ?? []).filter((c) => c.is_cup).map((c) => c.id),
+    (competitions ?? [])
+      .filter((c) => c.prune_to_known_sides)
+      .map((c) => c.id),
   );
   const leagueSides = new Set<number>();
   for (const { competitionId, fixture } of allFixtures) {

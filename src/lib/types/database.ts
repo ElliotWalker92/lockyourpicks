@@ -23,6 +23,7 @@ export type Database = {
           is_core: boolean
           is_cup: boolean
           name: string
+          prune_to_known_sides: boolean
           provider_league_id: number | null
           sets_calendar: boolean
           tier: number | null
@@ -35,6 +36,7 @@ export type Database = {
           is_core?: boolean
           is_cup?: boolean
           name: string
+          prune_to_known_sides: boolean
           provider_league_id?: number | null
           sets_calendar?: boolean
           tier?: number | null
@@ -47,6 +49,7 @@ export type Database = {
           is_core?: boolean
           is_cup?: boolean
           name?: string
+          prune_to_known_sides?: boolean
           provider_league_id?: number | null
           sets_calendar?: boolean
           tier?: number | null
