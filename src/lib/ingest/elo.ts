@@ -95,6 +95,12 @@ export type EloReport = {
    * cover means its fixtures aren't being ingested.
    */
   unrated: string[];
+  /**
+   * Clubs in no fixture at all, so reachable from nowhere in the app. Their
+   * ratings are cleared and they are counted rather than named: it is a
+   * tally of leftovers, not a list of problems.
+   */
+  unreachable: number;
   spread: { top: [string, number][]; bottom: [string, number][] };
   /** Refusals that the next run retries; they still block a rewrite. */
   warnings: string[];
@@ -134,6 +140,7 @@ export async function recomputeElo(
     teamsRated: 0,
     teamsProvisional: 0,
     unrated: [],
+    unreachable: 0,
     spread: { top: [], bottom: [] },
     warnings: [],
     errors: [],
@@ -176,8 +183,15 @@ export async function recomputeElo(
   >(supabase, 'team_elo_seeds');
   if (seedError) throw new Error(`team seeds: ${seedError.message}`);
 
+  // One row per club in any fixture we hold, whether or not its
+  // competitions price it — so this is also the answer to "which clubs can
+  // be shown anywhere in the app", which nothing else here knows. See 0048.
+  const inAFixture = new Set((seeds ?? []).map((r) => r.team_id));
+
   const seedOf = new Map<string, number>(
-    (seeds ?? []).map((r) => [r.team_id, r.elo_seed]),
+    (seeds ?? [])
+      .filter((r) => r.elo_seed !== null)
+      .map((r) => [r.team_id, r.elo_seed]),
   );
   const seed = (id: string) => seedOf.get(id) ?? DEFAULT_SEED;
 
@@ -375,7 +389,19 @@ export async function recomputeElo(
   }
 
   const unrated: { id: string; name: string }[] = [];
+  const unreachable: { id: string; name: string }[] = [];
+
   for (const t of teams ?? []) {
+    // In no fixture at all, so unreachable: nothing in the app surfaces a
+    // club except through a fixture. Not a problem to report — it is mostly
+    // clubs that arrived through a cup round we no longer ingest — but not
+    // something to carry a rating either, which is how Olympiakos came to
+    // sit at 1015 in the report's bottom five.
+    if (!inAFixture.has(t.id)) {
+      ratings.delete(t.id);
+      unreachable.push({ id: t.id, name: nameOf.get(t.id) ?? t.id });
+      continue;
+    }
     if (seedOf.has(t.id)) {
       // No history is fine here: the division seed is the answer.
       if (!ratings.has(t.id)) ratings.set(t.id, seed(t.id));
@@ -386,7 +412,12 @@ export async function recomputeElo(
     ratings.delete(t.id);
     unrated.push({ id: t.id, name: nameOf.get(t.id) ?? t.id });
   }
+
+  // Only the ones somebody could actually be shown. That is the whole point
+  // of the list: a club here that plays in a league we cover means its
+  // fixtures aren't arriving.
   report.unrated = unrated.map((t) => t.name).sort();
+  report.unreachable = unreachable.length;
 
   const rows = Array.from(ratings.entries()).map(([id, rating]) => ({
     id,
@@ -400,7 +431,7 @@ export async function recomputeElo(
   // considered rating rather than a default and put Wimborne Town at the top
   // of auto_pick's queue. A null rating is the job saying so out loud; see
   // migration 0041.
-  const clear = unrated.map((t) => ({
+  const clear = [...unrated, ...unreachable].map((t) => ({
     id: t.id,
     elo_rating: null,
     provisional: false,
