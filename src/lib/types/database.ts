@@ -25,6 +25,7 @@ export type Database = {
           name: string
           prune_to_known_sides: boolean
           provider_league_id: number | null
+          skip_rounds: string[]
           sets_calendar: boolean
           tier: number | null
         }
@@ -38,6 +39,7 @@ export type Database = {
           name: string
           prune_to_known_sides: boolean
           provider_league_id?: number | null
+          skip_rounds?: string[]
           sets_calendar?: boolean
           tier?: number | null
         }
@@ -51,6 +53,7 @@ export type Database = {
           name?: string
           prune_to_known_sides?: boolean
           provider_league_id?: number | null
+          skip_rounds?: string[]
           sets_calendar?: boolean
           tier?: number | null
         }

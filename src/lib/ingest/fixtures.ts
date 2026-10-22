@@ -22,7 +22,15 @@ import { syncGameweeks } from './gameweeks';
 export type IngestReport = {
   season: string;
   gameweeks: number;
-  competitions: { code: string; season: number | null; fixtures: number; error?: string }[];
+  competitions: {
+    code: string;
+    season: number | null;
+    fixtures: number;
+    /** Fixtures dropped as the qualifying path — see competitions.skip_rounds. */
+    skippedRounds?: number;
+    warning?: string;
+    error?: string;
+  }[];
   teamsUpserted: number;
   fixturesUpserted: number;
   kickoffsSynced: number;
@@ -59,7 +67,7 @@ export async function ingestFixtures(
   const { data: competitions } = await supabase
     .from('competitions')
     .select(
-      'id, code, provider_league_id, is_cup, sets_calendar, prune_to_known_sides',
+      'id, code, provider_league_id, is_cup, sets_calendar, prune_to_known_sides, skip_rounds',
     )
     .in('id', (await competitionsInPlay(supabase)).map((c) => c.id));
 
@@ -120,7 +128,16 @@ export async function ingestFixtures(
         seasonYear,
       );
 
-      for (const f of fixtures) {
+      // The qualifying path, which the provider publishes under the same
+      // league id as the competition proper. Skipped before the teams are
+      // collected, so a club that only appears in it never reaches our
+      // tables and never inherits the competition's seed. See 0046.
+      const skip = new Set(competition.skip_rounds ?? []);
+      const wanted = skip.size
+        ? fixtures.filter((f) => !skip.has(f.league.round))
+        : fixtures;
+
+      for (const f of wanted) {
         teams.set(f.teams.home.id, f.teams.home);
         teams.set(f.teams.away.id, f.teams.away);
         allFixtures.push({ competitionId: competition.id, fixture: f });
@@ -129,7 +146,12 @@ export async function ingestFixtures(
       report.competitions.push({
         code: competition.code,
         season: seasonYear,
-        fixtures: fixtures.length,
+        fixtures: wanted.length,
+        // Reported rather than silent: the names are the provider's wording,
+        // so this going to zero is how a change in it becomes visible.
+        ...(skip.size
+          ? { skippedRounds: fixtures.length - wanted.length }
+          : {}),
       });
     } catch (err) {
       // A refused pull leaves the fixtures we already hold untouched, and
