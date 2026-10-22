@@ -67,8 +67,8 @@ function gameweekFixtures(
     .from('fixtures')
     .select(
       `id, kickoff_at, status, home_score, away_score, result,
-       home:teams!fixtures_home_team_id_fkey(id, name, crest_url, elo_rating),
-       away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating),
+       home:teams!fixtures_home_team_id_fkey(id, name, crest_url, elo_rating, elo_provisional),
+       away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating, elo_provisional),
        competition:competitions(code, name, tier)`,
     )
     .eq('gameweek_id', gameweekId);

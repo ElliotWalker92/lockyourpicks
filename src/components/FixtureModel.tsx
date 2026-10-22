@@ -15,6 +15,11 @@ export type ModelTeam = {
   name: string;
   /** Null for a club nothing has been computed for — see migration 0040. */
   elo: number | null;
+  /**
+   * The rating rests on a seed we can't anchor: a club with no division of
+   * ours, known only from a cup. See migration 0047.
+   */
+  eloProvisional: boolean;
   form: ('W' | 'D' | 'L')[];
   table: TeamTable | null;
 };
@@ -124,9 +129,16 @@ export function FixtureModel({
       }
     : null;
 
+  // As provisional as its weaker side: Arsenal v Real Madrid is provisional
+  // because of Real Madrid.
+  const provisional =
+    (home.elo !== null && home.eloProvisional) ||
+    (away.elo !== null && away.eloProvisional);
+
   const model = buildModel({
     homeElo: home.elo,
     awayElo: away.elo,
+    eloProvisional: provisional,
     homeTable,
     awayTable,
     homeForm,
@@ -188,7 +200,7 @@ export function FixtureModel({
             {/* Names the layers actually carrying weight. Claiming all four
                 when one of them contributed nothing is a small lie that
                 makes the bar look better founded than it is. */}
-            {usedLayers(model.weights)}
+            {usedLayers(model.weights, model.eloProvisional)}
           </p>
         </div>
 
@@ -247,6 +259,13 @@ export function FixtureModel({
               </>
             )}
           </span>
+          {model.eloProvisional && (
+            <span className="w-full text-xs text-grey-400">
+              Rough on {unplaced(home, away)} &mdash; no league of ours to
+              place {bothUnplaced(home, away) ? 'them' : 'it'} against, so
+              this counts for less.
+            </span>
+          )}
         </div>
 
         {/* Table */}
@@ -348,6 +367,23 @@ export function FixtureModel({
   );
 }
 
+/** The side, or sides, we hold no league for. */
+function unplaced(home: ModelTeam, away: ModelTeam) {
+  const h = home.elo !== null && home.eloProvisional;
+  const a = away.elo !== null && away.eloProvisional;
+  if (h && a) return `${home.name} and ${away.name}`;
+  return h ? home.name : away.name;
+}
+
+function bothUnplaced(home: ModelTeam, away: ModelTeam) {
+  return (
+    home.elo !== null &&
+    home.eloProvisional &&
+    away.elo !== null &&
+    away.eloProvisional
+  );
+}
+
 /** Which other divisions have taken this one, and which way they called it. */
 function TakenElsewhere({
   picks,
@@ -374,9 +410,9 @@ const FORM_MAX = 5;
  * "Elo, the table, form and the crowd combined" — but only the layers with
  * weight behind them, so a fixture missing one doesn't claim it anyway.
  */
-function usedLayers(weights: ModelLayers['weights']) {
+function usedLayers(weights: ModelLayers['weights'], provisional = false) {
   const names = [
-    [weights.elo, 'Elo'],
+    [weights.elo, provisional ? 'Elo (rough)' : 'Elo'],
     [weights.table, 'the table'],
     [weights.form, 'form'],
     [weights.crowd, 'the crowd'],

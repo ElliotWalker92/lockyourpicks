@@ -17,6 +17,8 @@ export type ModelLayers = {
   blended: Probabilities;
   /** Weights actually used, after any small-sample adjustment. */
   weights: { elo: number; table: number; form: number; crowd: number };
+  /** Whether the Elo layer is the hedged kind. Mirrors the input. */
+  eloProvisional: boolean;
 };
 
 /**
@@ -49,6 +51,19 @@ const MIN_TABLE_GAMES = 5;
  * and the crowd never gets a large weight regardless.
  */
 export const MIN_CROWD = 6;
+
+/**
+ * What a provisional Elo rating is worth, as a share of its usual weight.
+ *
+ * A club with no division of ours — a European side known only from the
+ * Champions League — has a rating that is a seed plus a little arithmetic
+ * over results against other clubs we cannot place either. It is not
+ * nothing: Real Madrid really is a good side and the number says so. It is
+ * also not a measurement, and at full weight it had the model calling
+ * Arsenal v Real Madrid near-certain. A third is enough to count and not
+ * enough to carry a fixture on its own. See migration 0047.
+ */
+const PROVISIONAL_ELO_SHARE = 1 / 3;
 
 export type FormRun = {
   /** Most recent last: 'W' | 'D' | 'L'. */
@@ -173,6 +188,7 @@ function normalise(p: Probabilities): Probabilities {
 export function buildModel({
   homeElo,
   awayElo,
+  eloProvisional = false,
   homeTable = null,
   awayTable = null,
   homeForm,
@@ -183,6 +199,11 @@ export function buildModel({
   /** Null for a club that has never been rated. Not a number to invent. */
   homeElo: number | null;
   awayElo: number | null;
+  /**
+   * True when either side's rating rests on a seed we cannot anchor — see
+   * PROVISIONAL_ELO_SHARE. A fixture is as provisional as its weaker side.
+   */
+  eloProvisional?: boolean;
   homeTable?: TableRecord | null;
   awayTable?: TableRecord | null;
   homeForm: FormRun;
@@ -205,6 +226,7 @@ export function buildModel({
   // Start from the base and drop any layer we haven't got.
   const weights = { ...BASE_WEIGHTS };
   if (!elo) weights.elo = 0;
+  else if (eloProvisional) weights.elo *= PROVISIONAL_ELO_SHARE;
   if (!table) weights.table = 0;
   else if (table.sample < MIN_TABLE_GAMES) {
     weights.table = BASE_WEIGHTS.table * (table.sample / MIN_TABLE_GAMES);
@@ -222,17 +244,26 @@ export function buildModel({
   // exactly as confidently as one drawn from all four.
   if (used === 0) return null;
 
-  if (elo) {
+  const others = weights.table + weights.form + weights.crowd;
+
+  if (elo && !eloProvisional) {
     // Redistribute the leftover onto Elo, which is the layer we trust most
     // and the only one that spans competitions.
     weights.elo += 1 - used;
-  } else {
-    // No Elo to lean on, so the leftover goes back across whatever is left,
-    // in the proportions they already had.
-    const scale = 1 / used;
+  } else if (others > 0) {
+    // The leftover goes across whatever else there is, in the proportions
+    // they already had. Pointedly not onto Elo when it is provisional:
+    // scaling every surviving layer up together would hand the hedged layer
+    // most of its weight straight back.
+    const scale = (1 - weights.elo) / others;
     weights.table *= scale;
     weights.form *= scale;
     weights.crowd *= scale;
+  } else {
+    // A provisional rating and nothing else. It carries the fixture because
+    // there is nothing to share with — the hedge is then the label on it,
+    // not the weight.
+    weights.elo = 1;
   }
 
   const blended = normalise({
@@ -253,7 +284,7 @@ export function buildModel({
       (crowd?.away ?? 0) * weights.crowd,
   });
 
-  return { elo, table, form, crowd, blended, weights };
+  return { elo, table, form, crowd, blended, weights, eloProvisional };
 }
 
 export { HOME_ADV };

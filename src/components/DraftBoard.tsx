@@ -32,6 +32,8 @@ export type BoardTeam = {
   crest_url: string | null;
   /** Null for a club nothing has been computed for — see migration 0040. */
   elo_rating: number | null;
+  /** The rating rests on a seed we can't anchor — see migration 0047. */
+  elo_provisional: boolean;
   form: ('W' | 'D' | 'L')[];
   /** League record split by venue. Absent for a side with no table. */
   table: TeamTable | null;
@@ -837,12 +839,14 @@ export function DraftBoard({
                               home={{
                                 name: f.home.name,
                                 elo: f.home.elo_rating,
+                                eloProvisional: f.home.elo_provisional,
                                 form: f.home.form,
                                 table: f.home.table,
                               }}
                               away={{
                                 name: f.away.name,
                                 elo: f.away.elo_rating,
+                                eloProvisional: f.away.elo_provisional,
                                 form: f.away.form,
                                 table: f.away.table,
                               }}

@@ -781,6 +781,7 @@ export type Database = {
       teams: {
         Row: {
           crest_url: string | null
+          elo_provisional: boolean
           elo_rating: number | null
           elo_updated_at: string | null
           id: string
@@ -790,6 +791,7 @@ export type Database = {
         }
         Insert: {
           crest_url?: string | null
+          elo_provisional?: boolean
           elo_rating?: number | null
           elo_updated_at?: string | null
           id?: string
@@ -799,6 +801,7 @@ export type Database = {
         }
         Update: {
           crest_url?: string | null
+          elo_provisional?: boolean
           elo_rating?: number | null
           elo_updated_at?: string | null
           id?: string

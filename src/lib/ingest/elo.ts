@@ -83,6 +83,12 @@ export type EloReport = {
   currentSeasonMatches: number;
   teamsRated: number;
   /**
+   * Of those, how many rest on a seed we cannot anchor — a club with no
+   * division of ours, known only from a cup. The model shows these but
+   * weights them down and says so.
+   */
+  teamsProvisional: number;
+  /**
    * Clubs we deliberately left without a rating: no results we hold, and no
    * division to seed them from. Not an error — it is the honest answer — but
    * worth seeing, because a club appearing here that plays in a league we
@@ -126,6 +132,7 @@ export async function recomputeElo(
     historicalMatches: 0,
     currentSeasonMatches: 0,
     teamsRated: 0,
+    teamsProvisional: 0,
     unrated: [],
     spread: { top: [], bottom: [] },
     warnings: [],
@@ -165,7 +172,7 @@ export async function recomputeElo(
   // stops an invocation at fifty subrequests, and asking per competition
   // was fine at six and wasteful at seventeen.
   const { data: seeds, error: seedError } = await callRpc<
-    { team_id: string; elo_seed: number }[]
+    { team_id: string; elo_seed: number; from_league: boolean }[]
   >(supabase, 'team_elo_seeds');
   if (seedError) throw new Error(`team seeds: ${seedError.message}`);
 
@@ -173,6 +180,15 @@ export async function recomputeElo(
     (seeds ?? []).map((r) => [r.team_id, r.elo_seed]),
   );
   const seed = (id: string) => seedOf.get(id) ?? DEFAULT_SEED;
+
+  // A division of ours places a club on our scale. A cup does not: entering
+  // the Champions League says a club is decent, not where it sits, and its
+  // results there are against other clubs we cannot place either. Those
+  // ratings are real arithmetic over a guess, so they are marked and the
+  // model weights them down — see migration 0047.
+  const placed = new Set(
+    (seeds ?? []).filter((r) => r.from_league).map((r) => r.team_id),
+  );
 
   // ---- Last season, from our own store ----
   //
@@ -375,6 +391,7 @@ export async function recomputeElo(
   const rows = Array.from(ratings.entries()).map(([id, rating]) => ({
     id,
     elo_rating: Math.round(rating * 100) / 100,
+    provisional: !placed.has(id),
   }));
 
   // Clearing matters as much as writing. These clubs were given
@@ -383,7 +400,11 @@ export async function recomputeElo(
   // considered rating rather than a default and put Wimborne Town at the top
   // of auto_pick's queue. A null rating is the job saying so out loud; see
   // migration 0041.
-  const clear = unrated.map((t) => ({ id: t.id, elo_rating: null }));
+  const clear = unrated.map((t) => ({
+    id: t.id,
+    elo_rating: null,
+    provisional: false,
+  }));
 
   // One statement. Row by row this was one request per team, and Workers
   // Free stops a job at 50 — roughly thirty clubs were rated each week and
@@ -413,6 +434,7 @@ export async function recomputeElo(
   if (eloError) report.errors.push(`apply elo: ${eloError.message}`);
 
   report.teamsRated = rows.length;
+  report.teamsProvisional = rows.filter((r) => r.provisional).length;
   const sorted = rows
     .map((r) => [nameOf.get(r.id) ?? r.id, r.elo_rating] as [string, number])
     .sort((a, b) => b[1] - a[1]);
