@@ -52,9 +52,9 @@ export async function leagueCompetitionIds(
  * turned it on. The admin screens show this list; the per-league choice is
  * made against it.
  *
- * Excludes the ones we follow only to rate their clubs. They are fetched and
- * replayed and nobody plays them, so offering them would be offering
- * something the database will refuse — see migration 0049.
+ * Everything active that isn't already compulsory, including the six we
+ * follow for ratings whether or not anybody plays them. Being followed is
+ * not a reason to withhold it — see migration 0050.
  */
 export async function competitionsOnOffer(
   supabase: Client,
@@ -63,7 +63,6 @@ export async function competitionsOnOffer(
     .from('competitions')
     .select('id, code, name, tier, is_cup, is_core')
     .eq('is_active', true)
-    .eq('ratings_only', false)
     .order('is_core', { ascending: false })
     .order('tier', { ascending: true, nullsFirst: false })
     .order('code');
@@ -90,4 +89,27 @@ export async function competitionsInPlay(
   );
   if (error) throw new Error(`competitions in play: ${error.message}`);
   return data ?? [];
+}
+
+/**
+ * The competitions whose league tables are worth fetching.
+ *
+ * Narrower than `competitionsInPlay`. The model's table layer only ever
+ * prices a fixture somebody can pick, so a competition we follow purely to
+ * rate its clubs — and that no group has put on its board — has a table no
+ * query will ever read. Once a group does take it, its table is wanted like
+ * any other, which is why this is a question about who plays it rather than
+ * a flag on the row.
+ */
+export async function competitionsWithTables(
+  supabase: Client,
+): Promise<string[]> {
+  const inPlay = await competitionsInPlay(supabase);
+  const { data } = await supabase
+    .from('league_competitions')
+    .select('competition_id');
+  const played = new Set((data ?? []).map((r) => r.competition_id));
+  return inPlay
+    .filter((c) => c.is_core || played.has(c.id))
+    .map((c) => c.id);
 }
