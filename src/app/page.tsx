@@ -45,10 +45,17 @@ export default async function Home() {
 
   const [{ count: competitions }, { count: clubs }, { count: gameweeks }] =
     await Promise.all([
+      // The core, not everything active. Since 0049 the competitions table
+      // also holds six leagues followed only so Elo can place their clubs,
+      // and five a group may opt into — so `is_active` counted seventeen and
+      // the page offered a visitor eleven competitions they would not get.
+      // The core is what joining actually gives you, and it is a floor: a
+      // group that adds more gets more.
       supabase
         .from('competitions')
         .select('*', { count: 'exact', head: true })
-        .eq('is_active', true),
+        .eq('is_active', true)
+        .eq('is_core', true),
       // The league clubs, not every row in teams: a cup tie against a
       // non-league side adds a team, and 92 is the claim being made.
       supabase
