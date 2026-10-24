@@ -6,7 +6,7 @@ import {
   mapStatus,
 } from '@/lib/api-football';
 import { ingestStandings } from '@/lib/ingest/standings';
-import { competitionsInPlay } from '@/lib/competitions';
+import { competitionsInPlay, competitionsPlayed } from '@/lib/competitions';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
@@ -188,10 +188,19 @@ export async function ingestResults(
   // without a result? A refused call that the next run picks up is noise;
   // a match finished hours ago and still blank is the thing worth an email,
   // because it stops a gameweek settling and nobody gets their points.
+  //
+  // Which is why it only counts fixtures somebody can pick. Since the six
+  // ratings leagues arrived, the fixture table holds matches no board shows
+  // and no pick references, and a missing result for one of those stops
+  // nothing — settlement works on picks. The first alert this job ever sent
+  // was for Toulouse v Troyes, rescheduled a day later in Ligue 1, which
+  // nobody plays. An alert about something that cannot hurt anybody is how
+  // you learn to ignore the one that can.
   const overdue = await supabase
     .from('fixtures')
     .select('kickoff_at', { count: 'exact' })
     .in('status', ['scheduled', 'live'])
+    .in('competition_id', await competitionsPlayed(supabase))
     .lt('kickoff_at', new Date(Date.now() - OVERDUE_AFTER_MS).toISOString())
     .order('kickoff_at')
     .limit(1);

@@ -92,24 +92,30 @@ export async function competitionsInPlay(
 }
 
 /**
- * The competitions whose league tables are worth fetching.
+ * The competitions somebody can actually pick from.
  *
- * Narrower than `competitionsInPlay`. The model's table layer only ever
- * prices a fixture somebody can pick, so a competition we follow purely to
- * rate its clubs — and that no group has put on its board — has a table no
- * query will ever read. Once a group does take it, its table is wanted like
- * any other, which is why this is a question about who plays it rather than
- * a flag on the row.
+ * Narrower than `competitionsInPlay`, which includes the ones we follow only
+ * to rate their clubs. Two things want this rather than that: league tables,
+ * because the model's table layer only ever prices a fixture somebody can
+ * pick; and the results job's health check, because a result that never
+ * arrives matters when it stops a gameweek settling, and a competition
+ * nobody plays cannot stop anything.
+ *
+ * Core is tested as well as membership, rather than relying on core being
+ * seeded into every league. It is — but on a database with no leagues yet
+ * that would return nothing, and a health check over nothing reports no
+ * problems rather than no data, which is the failure you don't find out
+ * about.
  */
-export async function competitionsWithTables(
+export async function competitionsPlayed(
   supabase: Client,
 ): Promise<string[]> {
-  const inPlay = await competitionsInPlay(supabase);
-  const { data } = await supabase
-    .from('league_competitions')
-    .select('competition_id');
-  const played = new Set((data ?? []).map((r) => r.competition_id));
-  return inPlay
+  const [{ data: comps }, { data: rows }] = await Promise.all([
+    supabase.from('competitions').select('id, is_core').eq('is_active', true),
+    supabase.from('league_competitions').select('competition_id'),
+  ]);
+  const played = new Set((rows ?? []).map((r) => r.competition_id));
+  return (comps ?? [])
     .filter((c) => c.is_core || played.has(c.id))
     .map((c) => c.id);
 }
