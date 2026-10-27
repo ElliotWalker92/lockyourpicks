@@ -16,7 +16,7 @@ import {
 import { competitionsOnOffer, leagueCompetitionIds } from '@/lib/competitions';
 import { createClient } from '@/lib/supabase/server';
 
-export const metadata = { title: 'League' };
+export const metadata = { title: 'Group' };
 
 export default async function LeaguePage({
   params,
