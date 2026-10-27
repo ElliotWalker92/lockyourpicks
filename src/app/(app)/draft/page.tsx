@@ -2,9 +2,9 @@ import Link from 'next/link';
 
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
-import { FixtureLine, OutcomeChip } from '@/components/Fixture';
 import { LiveScores } from '@/components/LiveScores';
-import { tallyOf, verdictOf } from '@/lib/scoring';
+import { Slip, type SlipPick, type SlipPlayer } from '@/components/Slip';
+import { tallyOf } from '@/lib/scoring';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
 import { SlipWaiting } from '@/components/SlipWaiting';
@@ -33,6 +33,18 @@ type TurnScheduleRow = {
 };
 
 export const metadata = { title: 'Picks' };
+
+/** Written the same way wherever a closing time is said. */
+function closingTime(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London',
+  });
+}
 
 function Empty({
   title,
@@ -124,7 +136,7 @@ export default async function DraftPage({
     <div
       role="tablist"
       aria-label="Picks scope"
-      className="mt-4 inline-flex rounded-lg border border-grey-300 bg-card p-0.5"
+      className="inline-flex rounded-lg border border-grey-300 bg-card p-0.5"
     >
       {[
         { key: 'division', label: view?.divisionName ?? 'Your division' },
@@ -150,7 +162,11 @@ export default async function DraftPage({
 
   // Takes the round strip, which can't be built until we know what gameweek
   // is live — and the empty states below render before we do.
-  const heading = (strip?: React.ReactNode) => (
+  //
+  // Only the empty states and the whole-group view use this. Once there is a
+  // draft to show, the board renders its own header and takes the toggle and
+  // the strip into it, so the live screen has one header rather than four.
+  const heading = (strip?: React.ReactNode, label?: string) => (
     <div>
       <h1 className="display-lg">Picks</h1>
       <p className="mt-2 text-grey-700">
@@ -158,8 +174,11 @@ export default async function DraftPage({
           ? `Every division in ${view?.leagueName ?? 'your group'}, this gameweek.`
           : 'Three fixtures a round. Once one’s gone in your division, it’s gone.'}
       </p>
-      {scopeToggle}
-      {strip && <div className="mt-4">{strip}</div>}
+      {label && <p className="mt-2 text-sm text-grey-500">{label}</p>}
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="shrink-0">{scopeToggle}</div>
+        <div className="w-full min-w-0 sm:w-auto sm:flex-1">{strip}</div>
+      </div>
     </div>
   );
 
@@ -188,19 +207,20 @@ export default async function DraftPage({
   );
 
   const rounds = await loadRounds(supabase, [view.anchorDivisionId]);
-  const roundStrip = (
+  const roundStrip = (inset: boolean) => (
     <RoundStrip
       rounds={rounds}
       live={gameweek?.number ?? null}
       selected="live"
       scope={wholeGroup || wholeGroupOnly ? 'group' : 'division'}
+      inset={inset}
     />
   );
 
   if (!gameweek) {
     return (
       <div className="flex flex-col gap-8">
-        {heading(roundStrip)}
+        {heading(roundStrip(false))}
         <Empty title="No gameweek scheduled">
           The season has no upcoming gameweeks. Run fixture ingestion, or check
           the season dates.
@@ -228,7 +248,7 @@ export default async function DraftPage({
       // The running order and the clock come too: a watcher's slip says who
       // each division is waiting on and when the seats behind them are due.
       .select(
-        'id, division_id, status, pick_order, current_turn, turn_expires_at',
+        'id, division_id, status, pick_order, current_turn, turn_expires_at, picks_per_player',
       )
       .eq('gameweek_id', gameweek.id)
       .in('division_id', (divisions ?? []).map((d) => d.id));
@@ -238,7 +258,8 @@ export default async function DraftPage({
       ? await supabase
           .from('picks')
           .select(
-            `draft_id, user_id, predicted_outcome, pick_number, points_awarded,
+            `id, draft_id, user_id, predicted_outcome, pick_number, points_awarded,
+             is_auto_pick,
              fixtures(
                home_score, away_score, result, status,
                home:teams!fixtures_home_team_id_fkey(name, crest_url),
@@ -256,21 +277,25 @@ export default async function DraftPage({
 
     const { data: groupProfiles } = await supabase
       .from('profiles')
-      .select('id, display_name, avatar_color')
+      .select('id, display_name, avatar_color, avatar_url')
       .in(
         'id',
         (groupMembers ?? []).map((m) => m.user_id).length
           ? (groupMembers ?? []).map((m) => m.user_id)
           : ['00000000-0000-0000-0000-000000000000'],
       );
+    const groupProfileOf = (id: string) =>
+      groupProfiles?.find((p) => p.id === id);
     const groupNameOf = (id: string) =>
-      groupProfiles?.find((p) => p.id === id)?.display_name ?? 'Player';
+      groupProfileOf(id)?.display_name ?? 'Player';
 
     type GroupPickRow = {
+      id: string;
       draft_id: string;
       user_id: string;
       predicted_outcome: 'HOME' | 'DRAW' | 'AWAY';
       points_awarded: number | null;
+      is_auto_pick: boolean;
       fixtures: unknown;
     };
 
@@ -286,6 +311,7 @@ export default async function DraftPage({
       const home = one(fixture.home);
       const away = one(fixture.away);
       return {
+        id: row.id,
         home: home.name,
         away: away.name,
         homeCrest: home.crest_url,
@@ -302,6 +328,7 @@ export default async function DraftPage({
         result: fixture.result,
         status: fixture.status,
         points: row.points_awarded,
+        isAuto: row.is_auto_pick,
       };
     };
 
@@ -354,10 +381,15 @@ export default async function DraftPage({
           const seat = order.indexOf(m.user_id);
           const mine = seat >= 0 ? (due[seat] ?? null) : null;
           return {
+            userId: m.user_id,
             player: groupNameOf(m.user_id),
+            colour: groupProfileOf(m.user_id)?.avatar_color ?? '#c8f135',
+            avatarUrl: groupProfileOf(m.user_id)?.avatar_url ?? null,
             points: tally.decided > 0 ? tally.landed : null,
             provisional: tally.decided > 0 && !tally.settled,
             decided: tally.decided,
+            settled: tally.settled,
+            perPlayer: theDraft?.picks_per_player ?? 3,
             picks,
             // How many turns have to finish before this one starts, so a
             // waiting player can be told what they're waiting on rather
@@ -387,18 +419,12 @@ export default async function DraftPage({
     return (
       <div className="flex flex-col gap-8">
         <LiveScores gameweekId={gameweek.id} />
-        {heading(roundStrip)}
-        <p className="text-sm text-grey-500">
-          {gameweek.name ?? `Gameweek ${gameweek.number}`} &middot; closes{' '}
-          {new Date(gameweek.draft_closes_at).toLocaleString('en-GB', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'Europe/London',
-          })}
-        </p>
+        {heading(
+          roundStrip(false),
+          `${gameweek.name ?? `Gameweek ${gameweek.number}`} · closes ${closingTime(
+            gameweek.draft_closes_at,
+          )}`,
+        )}
 
         {!anyPicks ? (
           <Empty title="Nothing picked yet">
@@ -428,79 +454,48 @@ export default async function DraftPage({
                   )}
                 </h2>
 
-                {section.groups.map((player) => (
-                  <div key={player.player} className="card px-4 py-3">
-                    <p className="mb-1.5 flex items-baseline justify-between gap-3">
-                      <span className="font-medium">{player.player}</span>
-                      {player.points !== null && (
-                        <span className="flex items-baseline gap-1.5">
-                          <span className="numeric text-sm">
-                            {player.points}
-                          </span>
-                          <span className="text-xs text-grey-500">
-                            {player.provisional
-                              ? `from ${player.decided}`
-                              : `pt${player.points === 1 ? '' : 's'}`}
-                          </span>
-                        </span>
-                      )}
-                    </p>
-                    {player.picks.length === 0 ? (
-                      <SlipWaiting
-                        ahead={player.ahead}
-                        dueAt={player.dueAt}
-                        projected={player.projected}
-                      />
-                    ) : (
-                      <ul className="flex flex-col divide-y divide-grey-100">
-                        {player.picks.map((pick, index) => {
-                          const verdict = verdictOf({
-                            predicted_outcome: pick.outcome,
-                            points_awarded: pick.points,
-                            result: pick.result,
-                          });
-                          return (
-                            <li
-                              key={index}
-                              className="flex items-center gap-2 py-1.5 text-sm"
-                            >
-                              <FixtureLine
-                                home={pick.home}
-                                away={pick.away}
-                                homeCrest={pick.homeCrest}
-                                awayCrest={pick.awayCrest}
-                                outcome={pick.outcome}
-                                className="flex-1 text-grey-700"
-                              />
-                              {pick.homeScore !== null && (
-                                <span
-                                  className={`shrink-0 font-mono text-xs tabular-nums ${
-                                    pick.status === 'live'
-                                      ? 'font-semibold text-hot'
-                                      : 'text-grey-500'
-                                  }`}
-                                >
-                                  {pick.homeScore}&ndash;{pick.awayScore}
-                                </span>
-                              )}
-                              <OutcomeChip outcome={pick.outcome} />
-                              {verdict.decided && (
-                                <span
-                                  className={`w-4 shrink-0 text-right font-medium ${
-                                    verdict.correct ? 'text-win' : 'text-loss'
-                                  }`}
-                                  title={verdict.correct ? 'Correct' : 'Wrong'}
-                                >
-                                  {verdict.correct ? '✓' : '✕'}
-                                </span>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                ))}
+                {/* The same slip the board draws, and the results page —
+                    one component, so a change to a row lands in all three
+                    rather than in whichever of them someone remembered. */}
+                <Slip
+                  players={section.groups.map((player): SlipPlayer => ({
+                    key: player.userId,
+                    name: player.player,
+                    colour: player.colour,
+                    avatarUrl: player.avatarUrl,
+                    tally:
+                      player.points === null
+                        ? null
+                        : {
+                            landed: player.points,
+                            decided: player.decided,
+                            settled: player.settled,
+                          },
+                    perPlayer: player.perPlayer,
+                    picks: player.picks.map((pick): SlipPick => ({
+                      key: pick.id,
+                      home: pick.home,
+                      away: pick.away,
+                      homeCrest: pick.homeCrest,
+                      awayCrest: pick.awayCrest,
+                      outcome: pick.outcome,
+                      homeScore: pick.homeScore,
+                      awayScore: pick.awayScore,
+                      result: pick.result,
+                      status: pick.status,
+                      points: pick.points,
+                      isAuto: pick.isAuto,
+                    })),
+                    waiting:
+                      player.picks.length === 0 ? (
+                        <SlipWaiting
+                          ahead={player.ahead}
+                          dueAt={player.dueAt}
+                          projected={player.projected}
+                        />
+                      ) : undefined,
+                  }))}
+                />
               </section>
             ))}
 
@@ -519,7 +514,13 @@ export default async function DraftPage({
                   sections={sections.map(({ title, accent, groups }) => ({
                     title,
                     accent,
-                    groups,
+                    groups: groups.map((g) => ({
+                      player: g.player,
+                      points: g.points,
+                      provisional: g.provisional,
+                      decided: g.decided,
+                      picks: g.picks,
+                    })),
                   }))}
                   gameweek={`Gameweek ${gameweek.number}`}
                   subtitle={view.leagueName}
@@ -532,26 +533,15 @@ export default async function DraftPage({
     );
   }
 
-  const gameweekLabel = (
-    <p className="text-sm text-grey-500">
-      {view.divisionName} &middot; {gameweek.name ?? `Gameweek ${gameweek.number}`}{' '}
-      &middot; closes{' '}
-      {new Date(gameweek.draft_closes_at).toLocaleString('en-GB', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Europe/London',
-      })}
-    </p>
-  );
-
   if (!draft) {
     return (
       <div className="flex flex-col gap-8">
-        {heading(roundStrip)}
-        {gameweekLabel}
+        {heading(
+          roundStrip(false),
+          `${view.divisionName} · ${gameweek.name ?? `Gameweek ${gameweek.number}`} · closes ${closingTime(
+            gameweek.draft_closes_at,
+          )}`,
+        )}
         <Empty title="Picks aren’t open yet">
           <p>
             {view.paused
@@ -747,8 +737,6 @@ export default async function DraftPage({
     <div className="flex flex-col gap-8">
       {/* Scores and ticks reach the slip without a reload — see 0021. */}
       <LiveScores gameweekId={gameweek.id} />
-      {heading(roundStrip)}
-      {gameweekLabel}
       <DraftBoard
         schedule={mySchedule}
         draft={draft}
@@ -760,6 +748,12 @@ export default async function DraftPage({
         crowd={crowd}
         gameweekLabel={gameweek.name ?? `Gameweek ${gameweek.number}`}
         divisionName={view.divisionName ?? 'Your division'}
+        roundLabel={`${gameweek.name ?? `Gameweek ${gameweek.number}`} · ${
+          view.divisionName ?? 'Your division'
+        }`}
+        closesAt={closingTime(gameweek.draft_closes_at)}
+        scopeToggle={scopeToggle}
+        roundStrip={roundStrip(true)}
         now={nowIso}
       />
     </div>

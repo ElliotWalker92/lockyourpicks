@@ -56,7 +56,7 @@ export const TOUR: TourStep[] = [
     path: '/dashboard',
     target: 'stats',
     title: 'Where you stand',
-    body: 'Your place in your division and across the whole league, your points, and how last round went. Top of a division goes up, bottom goes down.',
+    body: 'Where you sit across every division, and what last round scored out of what was going. Your own division’s table is further down — top goes up, bottom goes down.',
   },
   {
     id: 'my-picks',
@@ -103,7 +103,7 @@ export const TOUR: TourStep[] = [
     path: '/draft',
     target: 'lock-in',
     title: 'Locking in',
-    body: 'Change your mind as often as you like until you lock in. After that they’re set and the turn passes on.',
+    body: 'Your three slots, and the button. It follows you down the board rather than sitting at the top of the page, so it’s there whenever the third one lands. Change your mind as often as you like until you press it.',
   },
   {
     id: 'table',

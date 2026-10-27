@@ -2,20 +2,23 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
 
 import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
-import { FixtureLine, OutcomeChip, TeamName } from '@/components/Fixture';
+import { FixtureLine, TeamName } from '@/components/Fixture';
 import { LockIcon } from '@/components/LockIcon';
+import { Slip, type SlipPick, type SlipPlayer } from '@/components/Slip';
 import {
   SharePicks,
   type SharePick,
   type SlipGroup,
 } from '@/components/SharePicks';
 import { createClient } from '@/lib/supabase/client';
+import { abbreviate } from '@/lib/team-codes';
 import { formatDeadline } from '@/lib/turn-windows';
-import { tallyOf, verdictOf } from '@/lib/scoring';
+import { tallyOf } from '@/lib/scoring';
 import type { TeamTable } from '@/lib/ingest/form';
 import type { Outcome } from '@/lib/types';
 
@@ -24,6 +27,13 @@ const OUTCOME_BTN: Record<Outcome, string> = {
   HOME: 'btn-lime',
   DRAW: 'btn-draw',
   AWAY: 'btn-away',
+};
+
+/** The same key again, for the filled slots in the lock-in bar. */
+const SLOT_FILLED: Record<Outcome, string> = {
+  HOME: 'border-lime bg-lime text-on-accent',
+  DRAW: 'border-grey-300 bg-grey-300 text-on-accent',
+  AWAY: 'border-away bg-away text-white',
 };
 
 export type BoardTeam = {
@@ -63,14 +73,6 @@ const byTimeThenName = (a: BoardFixture, b: BoardFixture) =>
   a.kickoff_at.localeCompare(b.kickoff_at) ||
   a.home.name.localeCompare(b.home.name) ||
   a.away.name.localeCompare(b.away.name);
-
-const dayOf = (f: BoardFixture) =>
-  new Date(f.kickoff_at).toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'Europe/London',
-  });
 
 export type BoardPick = {
   id: string;
@@ -140,6 +142,10 @@ export function DraftBoard({
   crowd,
   gameweekLabel,
   divisionName,
+  roundLabel,
+  closesAt,
+  scopeToggle,
+  roundStrip,
   now,
   schedule,
 }: {
@@ -155,7 +161,20 @@ export function DraftBoard({
   /** For the shareable card — 'Gameweek 2'. */
   gameweekLabel: string;
   divisionName: string;
-  /** Five minutes before the first kickoff, ISO. Nobody picks past it. */
+  /** 'Gameweek 21 · Division 1' — the header's first line. */
+  roundLabel: string;
+  /** When picking shuts for everyone, already formatted. */
+  closesAt: string;
+  /**
+   * Rendered inside the header rather than above it.
+   *
+   * Both are server-rendered links the board has no business constructing,
+   * and both answer "which round am I looking at" — so they belong in the
+   * one header block with everything else that answers it, not as two more
+   * bands of chrome stacked on top of the page.
+   */
+  scopeToggle: ReactNode;
+  roundStrip: ReactNode;
   /**
    * One entry per seat, in pick order: when that turn ends, and whether
    * that is its real expiry or what it would get if the turns ahead ran
@@ -261,7 +280,10 @@ export function DraftBoard({
   const onTurn = userAtTurn(draft.pick_order, draft.current_turn);
   const isMyTurn = draft.status === 'active' && onTurn === currentUserId;
   const order = fullOrder(draft.pick_order);
-  const myPicks = picks.filter((p) => p.user_id === currentUserId);
+  const myPicks = picks
+    .filter((p) => p.user_id === currentUserId)
+    .sort((a, b) => a.pick_number - b.pick_number);
+  const owed = draft.picks_per_player - myPicks.length;
 
   // When each seat still to pick is due, worked out by the database and
   // handed over — see migration 0035. This used to be recomputed here from
@@ -275,10 +297,22 @@ export function DraftBoard({
     [order, schedule],
   );
 
+  const mySeat = order.indexOf(currentUserId);
+  const myDue = mySeat >= 0 ? deadlines[mySeat] : null;
+  const turnsAhead =
+    mySeat >= 0 && draft.status !== 'complete'
+      ? Math.max(mySeat - draft.current_turn, 0)
+      : 0;
+
+  const fixtureOf = useMemo(() => {
+    const map = new Map(fixtures.map((f) => [f.id, f]));
+    return (id: string) => map.get(id);
+  }, [fixtures]);
+
   // The shared card has to say exactly what the list above it says, so the
   // call is derived once here rather than formatted again at the boundary.
   const toSharePick = (pick: BoardPick): SharePick[] => {
-    const f = fixtures.find((x) => x.id === pick.fixture_id);
+    const f = fixtureOf(pick.fixture_id);
     if (!f) return [];
     return [
       {
@@ -301,10 +335,7 @@ export function DraftBoard({
     ];
   };
 
-  const sharePicks: SharePick[] = myPicks
-    .slice()
-    .sort((a, b) => a.pick_number - b.pick_number)
-    .flatMap(toSharePick);
+  const sharePicks: SharePick[] = myPicks.flatMap(toSharePick);
 
   // The whole division's slip, in drafting order — the accumulator the group
   // actually talks about, rather than three separate lists of three.
@@ -359,25 +390,24 @@ export function DraftBoard({
   }
 
   /**
-   * A block per league, each split into days.
+   * One block per league, kick-off ordered.
    *
-   * Grouping by day alone meant reading forty Saturday rows to find the one
-   * League Two match you were after: on a normal gameweek nearly every
-   * fixture is on the same afternoon, so a day heading barely divides
-   * anything. A league is ten to twelve rows, it's what you already know
-   * when you open the board, and its Friday and Monday games now come with
-   * it instead of being filed under separate days further down the page.
+   * It used to be league, then day, then fixtures — two levels of heading
+   * over a list where nearly every row says the same thing anyway, since a
+   * normal gameweek is one Saturday afternoon. The day moved into the
+   * kick-off cell instead, where it costs nothing and sits with the time it
+   * belongs to, and the second level of heading went.
    *
-   * Everything is placed in one pass over a kick-off-ordered list, so each
-   * league's days come out in date order and each day's fixtures in time
-   * order without sorting a second time.
+   * A league is ten to twelve rows, it's what you already know when you open
+   * the board, and its Friday and Monday games now come with it rather than
+   * being filed under separate days further down the page.
    */
   const byLeague = useMemo(() => {
     type Group = {
       code: string;
       name: string;
       tier: number;
-      days: Map<string, BoardFixture[]>;
+      fixtures: BoardFixture[];
     };
     const leagues = new Map<string, Group>();
 
@@ -390,24 +420,16 @@ export function DraftBoard({
           name: f.competition?.name ?? 'Other',
           // Cups carry no tier, and belong after the four divisions.
           tier: f.competition?.tier ?? 99,
-          days: new Map(),
+          fixtures: [],
         };
         leagues.set(code, group);
       }
-
-      const day = dayOf(f);
-      if (!group.days.has(day)) group.days.set(day, []);
-      group.days.get(day)!.push(f);
+      group.fixtures.push(f);
     }
 
-    return [...leagues.values()]
-      .sort((a, b) => a.tier - b.tier || a.code.localeCompare(b.code))
-      .map((group) => ({
-        code: group.code,
-        name: group.name,
-        count: [...group.days.values()].reduce((n, l) => n + l.length, 0),
-        days: [...group.days.entries()],
-      }));
+    return [...leagues.values()].sort(
+      (a, b) => a.tier - b.tier || a.code.localeCompare(b.code),
+    );
   }, [available]);
 
   const time = (iso: string) =>
@@ -417,69 +439,306 @@ export function DraftBoard({
       timeZone: 'Europe/London',
     });
 
-  return (
-    <div className="flex flex-col gap-8">
-      {/* ---- Turn state ---- */}
-      <section
-        className={`card p-5 ${isMyTurn ? 'border-hot bg-hot/5' : ''}`}
-      >
-        {draft.status === 'complete' ? (
-          <p className="font-medium">
-            Draft complete — all picks are in for this gameweek.
-          </p>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="display-md">
-                {isMyTurn ? (
-                  <>
-                    Your pick &mdash; <span className="font-semibold">choose one</span>
-                  </>
-                ) : (
-                  <>Waiting on {onTurn ? nameOf(onTurn) : '—'}</>
-                )}
-              </h2>
-              {remaining && (
-                <p className="text-sm text-grey-500">
-                  {remaining === 'expired' ? (
-                    <span className="text-loss">
-                      Turn expired &mdash; auto-pick due
-                    </span>
-                  ) : (
-                    <>
-                      Turn ends in{' '}
-                      <span className="font-mono font-medium">{remaining}</span>
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
+  const dayShort = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', {
+      weekday: 'short',
+      timeZone: 'Europe/London',
+    });
 
-            <ol className="mt-4 flex flex-wrap gap-1.5">
-              {order.map((userId, turn) => {
-                const done = turn < draft.current_turn;
-                const current = turn === draft.current_turn;
-                return (
-                  <li
-                    key={turn}
-                    title={`Pick ${turn + 1}: ${nameOf(userId)}`}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
-                      current
-                        ? 'ring-2 ring-ink ring-offset-1'
-                        : ''
-                    } ${done ? 'opacity-35' : ''}`}
-                    style={{
-                      background: colourOf(userId),
-                      color: '#111',
-                    }}
-                  >
-                    {initialsOf(userId)}
-                  </li>
-                );
-              })}
-            </ol>
+  const dayLong = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Europe/London',
+    });
+
+  // ---- The header's own words ----
+  const headline =
+    draft.status === 'complete'
+      ? 'All picked'
+      : isMyTurn
+        ? owed > 0
+          ? `Your turn — take ${owed}`
+          : 'Your turn — lock in'
+        : `${onTurn ? nameOf(onTurn) : 'Someone'} is picking`;
+
+  const standing = (() => {
+    if (draft.status === 'complete') {
+      return 'Everyone in this division is in. Points land as results come in.';
+    }
+    if (isMyTurn) {
+      return owed > 0
+        ? `Pick ${owed} from the board, then lock in. Once a fixture is taken in ${divisionName} nobody else can have it.`
+        : 'Locking in passes the turn on — you can’t change them after.';
+    }
+    if (owed === 0) {
+      return `You’re all in. ${onTurn ? nameOf(onTurn) : 'The next player'} is on the clock.`;
+    }
+    const due = myDue
+      ? `${myDue.projected ? 'about ' : 'by '}${formatDeadline(myDue.at)}`
+      : null;
+    if (turnsAhead <= 1) {
+      return `You’re next${due ? ` — ${due}` : ''}. Have a look at the board while you wait.`;
+    }
+    return `${turnsAhead} turns ahead of you${due ? ` — you’re up ${due}` : ''}. Have a look at the board while you wait.`;
+  })();
+
+  // ---- The slip, through the one component that draws them all ----
+  const slipPlayers: SlipPlayer[] = order.map((userId, seat) => {
+    const mine = userId === currentUserId;
+    const theirs = picks
+      .filter((p) => p.user_id === userId)
+      .sort((a, b) => a.pick_number - b.pick_number);
+    const theirOwed = draft.picks_per_player - theirs.length;
+    const picking = draft.status === 'active' && onTurn === userId;
+    const due = deadlines[seat];
+
+    const slipPicks: SlipPick[] = theirs.flatMap((pick) => {
+      const f = fixtureOf(pick.fixture_id);
+      if (!f) return [];
+      return [
+        {
+          key: pick.id,
+          home: f.home.name,
+          away: f.away.name,
+          homeCrest: f.home.crest_url,
+          awayCrest: f.away.crest_url,
+          outcome: pick.predicted_outcome,
+          homeScore: f.home_score,
+          awayScore: f.away_score,
+          result: f.result,
+          status: f.status,
+          points: pick.points_awarded,
+          isAuto: pick.is_auto_pick,
+          // Only your own, and only while the turn is yours. Slip itself
+          // withholds it once a match has been decided.
+          onRemove:
+            mine && isMyTurn ? () => drop(pick.id) : undefined,
+          removeDisabled: pending,
+        },
+      ];
+    });
+
+    return {
+      key: userId,
+      name: nameOf(userId),
+      colour: colourOf(userId),
+      mine,
+      picking,
+      // Same rule the dashboard and the results page use, from one place.
+      tally: tallyOf(
+        theirs.map((p) => ({
+          predicted_outcome: p.predicted_outcome,
+          points_awarded: p.points_awarded,
+          result: fixtureOf(p.fixture_id)?.result,
+        })),
+      ),
+      perPlayer: draft.picks_per_player,
+      picks: slipPicks,
+      waiting:
+        theirOwed > 0 ? (
+          <>
+            <span>
+              {mine && isMyTurn
+                ? `${theirOwed} more to take — choose from the board.`
+                : `${theirOwed} still to come.`}
+            </span>
+            {/* The deadline belongs on the seat waiting on it. For whoever
+                is on the clock it's their real expiry; for the rest it's
+                what they'd get if everyone ahead used their turn in full,
+                and it says so rather than presenting a guess as a promise. */}
+            {due && (
+              <span className={picking ? 'font-medium text-ink' : undefined}>
+                {due.projected ? 'about ' : 'by '}
+                {formatDeadline(due.at)}
+              </span>
+            )}
           </>
-        )}
+        ) : undefined,
+    };
+  });
+
+  /**
+   * Your three slots and the button, in one piece used twice.
+   *
+   * On a phone it's a bar pinned to the bottom of the screen; on a desktop
+   * it's the top of the sticky rail. Same markup either way, because the
+   * problem it solves is the same at both widths: Lock in used to sit above
+   * the board, so taking three fixtures left it off-screen behind you with
+   * nothing to say it was there.
+   */
+  const slots = (
+    <div className="flex shrink-0 gap-1.5">
+      {Array.from({ length: draft.picks_per_player }, (_, i) => {
+        const pick = myPicks[i];
+        if (!pick) {
+          return (
+            <span
+              key={`empty-${i}`}
+              aria-hidden
+              className="flex h-8 w-8 items-center justify-center rounded-md border-[1.5px] border-dashed border-grey-300 text-sm text-grey-500 sm:h-9 sm:w-9 lg:h-11 lg:flex-1"
+            >
+              +
+            </span>
+          );
+        }
+        const f = fixtureOf(pick.fixture_id);
+        const called =
+          pick.predicted_outcome === 'DRAW'
+            ? 'DRW'
+            : abbreviate(
+                (pick.predicted_outcome === 'HOME' ? f?.home : f?.away)?.name ??
+                  '',
+              );
+        const label =
+          pick.predicted_outcome === 'DRAW'
+            ? `a draw between ${f?.home.name} and ${f?.away.name}`
+            : `${(pick.predicted_outcome === 'HOME' ? f?.home : f?.away)?.name} to beat ${
+                (pick.predicted_outcome === 'HOME' ? f?.away : f?.home)?.name
+              }`;
+        const canDrop = isMyTurn && f?.result === null;
+        return (
+          <button
+            key={pick.id}
+            type="button"
+            disabled={!canDrop || pending}
+            onClick={() => drop(pick.id)}
+            title={canDrop ? `Drop your pick: ${label}` : label}
+            aria-label={canDrop ? `Drop your pick: ${label}` : label}
+            className={`h-8 w-8 rounded-md border-[1.5px] text-[9px] font-bold disabled:cursor-default disabled:opacity-100 sm:h-9 sm:w-9 lg:h-11 lg:flex-1 lg:text-[11px] ${
+              SLOT_FILLED[pick.predicted_outcome]
+            }`}
+          >
+            {called}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  /** What the bar says next to the slots, and whether there's a button. */
+  const lockInButton = isMyTurn ? (
+    <button
+      type="button"
+      onClick={lockIn}
+      disabled={pending || owed > 0}
+      data-tour="lock-in"
+      className={`shrink-0 ${owed > 0 ? 'btn btn-ink' : 'btn btn-hot'}`}
+    >
+      <LockIcon className="h-4 w-4" />
+      {pending ? 'Working…' : 'Lock in'}
+    </button>
+  ) : null;
+
+  /**
+   * What the bar says beside the slots.
+   *
+   * Measured rather than guessed: on a 375px phone the slots, the button and
+   * the gutters leave about 110px for this, so both lines are written to fit
+   * it. The first draft said "2 of 3 taken" over "1 more, then lock in" and
+   * both ended in an ellipsis.
+   */
+  const barCaption = isMyTurn
+    ? owed > 0
+      ? {
+          lead: `${myPicks.length} of ${draft.picks_per_player}`,
+          note: `${owed} more to take`,
+        }
+      : {
+          lead: `All ${draft.picks_per_player} in`,
+          note: 'Lock in to pass on',
+        }
+    : owed === 0
+      ? {
+          lead: 'You’re all in',
+          note: `Waiting on ${onTurn ? nameOf(onTurn) : 'the next player'}`,
+        }
+      : {
+          lead: turnsAhead <= 1 ? 'You’re next' : `${turnsAhead} turns away`,
+          note:
+            remaining && remaining !== 'expired'
+              ? `${remaining} on the clock`
+              : 'Nothing to do yet',
+        };
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* ---- One header ----
+              Page heading, subtitle, gameweek line, round strip and turn
+              card were five stacked blocks all answering the same two
+              questions: which round is this, and whose turn is it. They are
+              one block now, and it sits above the thing you came to do
+              rather than in front of it. */}
+      <section className={`card p-5 ${isMyTurn ? 'border-hot' : ''}`}>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <p className="label">{roundLabel}</p>
+          {/* `ml-auto` alone right-aligned this against nothing once it
+              wrapped onto its own line on a phone, which read as a stray
+              fragment. It only takes the right-hand slot when it shares a
+              line. */}
+          <p className="w-full text-sm text-grey-500 sm:ml-auto sm:w-auto">
+            {isMyTurn && remaining ? (
+              remaining === 'expired' ? (
+                <span className="text-loss">
+                  Turn expired &mdash; auto-pick due
+                </span>
+              ) : (
+                <span className="font-medium text-hot">
+                  Turn ends in{' '}
+                  <span className="font-mono">{remaining}</span>
+                </span>
+              )
+            ) : (
+              <>closes {closesAt}</>
+            )}
+          </p>
+        </div>
+
+        <h1 className="display-lg mt-1">{headline}</h1>
+        <p className="mt-2 max-w-prose text-sm leading-relaxed text-grey-700">
+          {standing}
+        </p>
+
+        {/* The running order. Yours is ringed; whoever is on the clock is
+            first in the list, so the row reads as a queue. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <ol className="flex flex-wrap gap-1.5">
+            {order.map((userId, turn) => {
+              const done = turn < draft.current_turn;
+              const current = turn === draft.current_turn;
+              return (
+                <li
+                  key={turn}
+                  title={`Pick ${turn + 1}: ${nameOf(userId)}`}
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ${
+                    current ? 'ring-2 ring-ink ring-offset-1' : ''
+                  } ${done ? 'opacity-35' : ''}`}
+                  style={{ background: colourOf(userId), color: '#111' }}
+                >
+                  {initialsOf(userId)}
+                </li>
+              );
+            })}
+          </ol>
+          <span className="text-xs text-grey-500">
+            {order.map((id) => nameOf(id)).join(', ')}
+          </span>
+        </div>
+
+        {/* Each in its own wrapper, rather than both dropped straight into
+            one flex container.
+            
+            They arrive as props, so the elements inside them were created by
+            the page, not here — and React key-validates a children array
+            whose members have a different owner, which it does not do for
+            ordinary static JSX. Two `{...}` siblings are such an array, and
+            it warned on every render. A wrapper each makes them single
+            children, and gives the strip the leftover width to scroll in. */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-grey-100 pt-4">
+          <div className="shrink-0">{scopeToggle}</div>
+          <div className="w-full min-w-0 sm:w-auto sm:flex-1">{roundStrip}</div>
+        </div>
       </section>
 
       {error && (
@@ -491,382 +750,307 @@ export function DraftBoard({
         </p>
       )}
 
-      {/* ---- The slip ----
-              One list, not three. "Your picks", "The week's slip" and "Gone"
-              were the same nine picks sliced three ways: your own, then
-              everyone's once the last player finished, then everyone else's
-              struck through. So the same fixture appeared twice under two
-              framings, the slip stayed hidden for most of the week, and a
-              rival's pick read as a loss rather than as their call.
+      {/* ---- Board and rail ----
+              Two columns from `lg`, one below it. When it's your turn the
+              board leads at every width: it's the only part of the page you
+              can act on, and it used to sit behind the whole division's slip
+              — nine rows of other people's picks between you and the thing
+              you opened the app for. When it isn't your turn the order flips,
+              because then there is nothing to do and the slip is the news. */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-7">
+        <div
+          className={`min-w-0 flex-1 ${isMyTurn ? '' : 'order-2 lg:order-1'}`}
+        >
+          <section data-tour="available">
+            <h2 className="label mb-3 flex flex-wrap items-baseline gap-x-2">
+              The board
+              <span className="font-normal normal-case tracking-normal text-grey-400">
+                {available.length} fixtures left
+              </span>
+            </h2>
 
-              This is the slip from the first pick, filling as the division
-              drafts. Yours is the card that's lit. */}
-      <section data-tour="slip">
-        <h2 className="label mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <LockIcon open={!everyoneIn} className="h-3 w-3" />
-          The slip
-          <span className="font-normal normal-case tracking-normal text-grey-400">
-            {picks.length}/{expectedPicks} in
-          </span>
-        </h2>
-        <p className="mb-3 text-sm text-grey-700">
-          {everyoneIn
-            ? `Everyone's in — all ${expectedPicks} picks from ${divisionName}, in drafting order.`
-            : `${divisionName}, in drafting order. Once a fixture is on here it's gone.`}
-        </p>
-
-        <ol className="flex flex-col gap-2">
-          {order.map((userId, seat) => {
-            const mine = userId === currentUserId;
-            const theirs = picks
-              .filter((p) => p.user_id === userId)
-              .sort((a, b) => a.pick_number - b.pick_number);
-            const owed = draft.picks_per_player - theirs.length;
-            const picking = draft.status === 'active' && onTurn === userId;
-            const due = deadlines[seat];
-
-            // Same rule the dashboard and the results page use, from one place.
-            const tally = tallyOf(
-              theirs.map((p) => ({
-                predicted_outcome: p.predicted_outcome,
-                points_awarded: p.points_awarded,
-                result: fixtures.find((f) => f.id === p.fixture_id)?.result,
-              })),
-            );
-
-            return (
-              <li
-                key={userId}
-                className={`overflow-hidden rounded-lg border ${
-                  mine ? 'border-hot bg-hot/5' : 'border-grey-300 bg-card'
-                }`}
-              >
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <span
-                    aria-hidden
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-on-accent"
-                    style={{ background: colourOf(userId) }}
-                  >
-                    {initialsOf(userId)}
-                  </span>
-                  <span className="min-w-0 truncate text-sm font-medium">
-                    {nameOf(userId)}
-                  </span>
-                  {mine && (
-                    <span className="shrink-0 text-xs text-grey-500">you</span>
-                  )}
-                  {picking && (
-                    <span className="shrink-0 rounded-full bg-hot px-2 py-0.5 text-[10px] font-semibold text-white">
-                      picking
-                    </span>
-                  )}
-
-                  {/* Once anything has finished, what they've landed matters
-                      more than how many they've taken. */}
-                  {tally.decided > 0 ? (
-                    <span className="ml-auto flex shrink-0 items-baseline gap-1.5">
-                      <span className="numeric text-base">{tally.landed}</span>
-                      <span className="text-xs text-grey-500">
-                        {tally.settled
-                          ? `pt${tally.landed === 1 ? '' : 's'}`
-                          : `from ${tally.decided}`}
+            {available.length === 0 ? (
+              <p className="card px-4 py-3 text-sm text-grey-700">
+                Nothing left on the board for this gameweek &mdash; every
+                fixture your division plays has been taken or has kicked off.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-7">
+                {byLeague.map((league) => (
+                  <div key={league.code}>
+                    {/* The heading carries the league, so the rows below it
+                        no longer each need a competition badge. */}
+                    <h3 className="mb-3 flex items-baseline justify-between gap-3 border-b border-grey-300 pb-1.5">
+                      <span className="font-display text-sm font-bold tracking-tight text-ink">
+                        {league.name}
                       </span>
-                    </span>
-                  ) : (
-                    <span className="ml-auto shrink-0 font-mono text-xs text-grey-500">
-                      {theirs.length}/{draft.picks_per_player}
-                    </span>
-                  )}
-                </div>
-
-                <ul className="divide-y divide-grey-100 border-t border-grey-100">
-                  {theirs.map((pick) => {
-                    const f = fixtures.find((x) => x.id === pick.fixture_id);
-                    if (!f) return null;
-                    const verdict = verdictOf({
-                      predicted_outcome: pick.predicted_outcome,
-                      points_awarded: pick.points_awarded,
-                      result: f.result,
-                    });
-                    const live = f.status === 'live';
-                    return (
-                      <li
-                        key={pick.id}
-                        className="flex items-center gap-2 px-3 py-2 text-sm"
-                      >
-                        <FixtureLine
-                          home={f.home.name}
-                          away={f.away.name}
-                          homeCrest={f.home.crest_url}
-                          awayCrest={f.away.crest_url}
-                          outcome={pick.predicted_outcome}
-                          className="flex-1 text-grey-700"
-                        />
-                        {pick.is_auto_pick && (
-                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
-                            auto
-                          </span>
-                        )}
-
-                        {/* The score as it stands, hot while the game is on. */}
-                        {f.home_score !== null && (
-                          <span
-                            className={`shrink-0 font-mono text-xs tabular-nums ${
-                              live ? 'font-semibold text-hot' : 'text-grey-500'
-                            }`}
-                          >
-                            {f.home_score}&ndash;{f.away_score}
-                          </span>
-                        )}
-
-                        <OutcomeChip outcome={pick.predicted_outcome} />
-
-                        {/* Only your own, and only while the turn is yours —
-                            and never once a match has started. */}
-                        {mine && isMyTurn && !verdict.decided && (
-                          <button
-                            type="button"
-                            onClick={() => drop(pick.id)}
-                            disabled={pending}
-                            className="shrink-0 text-xs text-grey-500 underline underline-offset-2 transition hover:text-loss"
-                          >
-                            Remove
-                          </button>
-                        )}
-
-                        {verdict.decided && (
-                          <span
-                            className={`w-4 shrink-0 text-right font-medium ${
-                              verdict.correct ? 'text-win' : 'text-loss'
-                            }`}
-                            title={verdict.correct ? 'Correct' : 'Wrong'}
-                          >
-                            {verdict.correct ? '✓' : '✕'}
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-
-                  {owed > 0 && (
-                    <li className="flex flex-wrap items-baseline gap-x-2 px-3 py-2 text-sm text-grey-400">
-                      <span>
-                        {mine && isMyTurn
-                          ? `${owed} more to pick — choose below.`
-                          : `${owed} still to come.`}
+                      <span className="shrink-0 text-xs font-medium text-grey-500">
+                        {league.fixtures.length} left
                       </span>
+                    </h3>
 
-                      {/* The deadline belongs on the seat waiting on it. For
-                          whoever is on the clock it's their real expiry; for
-                          the rest it's what they'd get if everyone ahead used
-                          their turn in full, and it says so rather than
-                          presenting a guess as a promise. */}
-                      {due && (
-                        <span
-                          className={
-                            picking ? 'font-medium text-ink' : undefined
-                          }
-                        >
-                          {due.projected ? 'about ' : 'by '}
-                          {formatDeadline(due.at)}
-                        </span>
-                      )}
-                    </li>
-                  )}
-                </ul>
-              </li>
-            );
-          })}
-        </ol>
-
-        {isMyTurn && (
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={lockIn}
-              disabled={pending || myPicks.length < draft.picks_per_player}
-              data-tour="lock-in"
-              className="btn btn-ink"
-            >
-              <LockIcon className="h-4 w-4" />
-              {pending ? 'Working…' : 'Lock in my picks'}
-            </button>
-            <p className="text-sm text-grey-500">
-              {myPicks.length < draft.picks_per_player
-                ? `${draft.picks_per_player - myPicks.length} more to pick.`
-                : 'Locking in passes the turn on — you can’t change them after.'}
-            </p>
-          </div>
-        )}
-
-        {/* One card at a time. Until the division is finished the only
-            complete thing to send is your own set; after that it's the
-            slip, which contains yours anyway. */}
-        {everyoneIn ? (
-          <SharePicks
-            groups={divisionSlip}
-            gameweek={gameweekLabel}
-            subtitle={divisionName}
-            locked
-            heading="Send the slip"
-            note={`All ${expectedPicks} picks on one card. Share sends the picture on a phone, or saves it to attach.`}
-          />
-        ) : (
-          myPicks.length >= draft.picks_per_player && (
-            <SharePicks
-              groups={[{ player: nameOf(currentUserId), picks: sharePicks }]}
-              gameweek={gameweekLabel}
-              subtitle={`${nameOf(currentUserId)} · ${divisionName}`}
-              locked={!isMyTurn}
-            />
-          )
-        )}
-      </section>
-
-      {/* ---- Available ---- */}
-      <section data-tour="available">
-        <h2 className="label mb-3">
-          Available ({available.length})
-        </h2>
-
-        {!isMyTurn && draft.status === 'active' && (
-          <p className="mb-3 text-sm text-grey-500">
-            You can look, but you can&rsquo;t pick until it&rsquo;s your turn.
-          </p>
-        )}
-
-        <div className="flex flex-col gap-8">
-          {byLeague.map((league) => (
-            <div key={league.code}>
-              {/* The heading carries the league, so the rows below it no
-                  longer each need a competition badge. */}
-              <h3 className="mb-3 flex items-baseline justify-between gap-3 border-b border-grey-300 pb-1.5">
-                <span className="text-sm font-semibold text-ink">
-                  {league.name}
-                </span>
-                <span className="shrink-0 text-xs font-medium text-grey-500">
-                  {league.count} left
-                </span>
-              </h3>
-
-              <div className="flex flex-col gap-4">
-                {league.days.map(([day, dayFixtures]) => (
-                <div key={day}>
-                  <h4 className="mb-2 text-xs font-medium text-grey-500">
-                    {day}
-                  </h4>
-                  <ul className="flex flex-col gap-1.5">
-                    {dayFixtures.map((f) => {
-                      const busy = submitting === f.id;
-                      return (
-                        <li
-                          key={f.id}
-                          className="overflow-hidden rounded-lg border border-grey-300 bg-card text-sm"
-                        >
-                         {/* On a phone the fixture takes the first line and the
-                             three buttons take the second as equal thirds, so
-                             they can't be squeezed however long the clubs are.
-                             Once there's room it all sits on one line. */}
-                         <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <span className="w-11 shrink-0 font-mono text-xs text-grey-500">
-                              {time(f.kickoff_at)}
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setOpenModel(openModel === f.id ? null : f.id)
-                              }
-                              aria-expanded={openModel === f.id}
-                              // The tour points at the first of these.
-                              data-tour="fixture"
-                              className="min-w-0 flex-1 text-left transition hover:text-lime-dark"
-                              title="Show the model's read on this fixture"
-                            >
-                              <FixtureLine
-                                home={f.home.name}
-                                away={f.away.name}
-                                homeCrest={f.home.crest_url}
-                                awayCrest={f.away.crest_url}
-                                crestClass="h-5 w-5"
-                              />
-                            </button>
-                          </div>
-
-                          {/* Outcome buttons sit with the fixture: one tap to
-                              pick, rather than opening the row first and then
-                              choosing. */}
-                          <span
-                            // The tour points at the first of these it
-                            // finds, which is the top fixture on the board.
-                            data-tour="pick-buttons"
-                            className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0"
+                    <ul className="flex flex-col gap-1.5">
+                      {league.fixtures.map((f) => {
+                        const busy = submitting === f.id;
+                        const open = openModel === f.id;
+                        return (
+                          <li
+                            key={f.id}
+                            className="overflow-hidden rounded-lg border border-grey-300 bg-card text-sm"
                           >
-                            {(
-                              [
-                                ['HOME', f.home.name],
-                                ['DRAW', 'Draw'],
-                                ['AWAY', f.away.name],
-                              ] as [Outcome, string][]
-                            ).map(([outcome, label]) => (
+                            {/* On a phone the fixture takes the first line
+                                and the three buttons take the second as
+                                equal thirds, so they can't be squeezed
+                                however long the clubs are. Once there's
+                                room it all sits on one line. */}
+                            <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
                               <button
-                                key={outcome}
                                 type="button"
-                                disabled={!isMyTurn || pending}
-                                onClick={() => submit(f.id, outcome)}
-                                title={
-                                  outcome === 'DRAW'
-                                    ? 'Call it a draw'
-                                    : `${label} to win`
-                                }
-                                className={`btn btn-sm ${OUTCOME_BTN[outcome]} ${
-                                  busy ? 'opacity-60' : ''
-                                }`}
+                                onClick={() => setOpenModel(open ? null : f.id)}
+                                aria-expanded={open}
+                                // The tour points at the first of these.
+                                data-tour="fixture"
+                                className="flex min-w-0 flex-1 items-center gap-2 text-left transition hover:text-lime-dark"
+                                title="Show the model’s read on this fixture"
                               >
-                                {outcome === 'DRAW' ? (
-                                  label
-                                ) : (
-                                  <TeamName name={label} />
-                                )}
-                              </button>
-                            ))}
-                          </span>
-                         </div>
+                                <span
+                                  className="flex w-9 shrink-0 flex-col leading-tight"
+                                  title={dayLong(f.kickoff_at)}
+                                >
+                                  <span className="text-[10px] text-grey-500">
+                                    {dayShort(f.kickoff_at)}
+                                  </span>
+                                  <span className="font-mono text-xs">
+                                    {time(f.kickoff_at)}
+                                  </span>
+                                </span>
 
-                          {openModel === f.id && (
-                            <FixtureModel
-                              home={{
-                                name: f.home.name,
-                                elo: f.home.elo_rating,
-                                eloProvisional: f.home.elo_provisional,
-                                form: f.home.form,
-                                table: f.home.table,
-                              }}
-                              away={{
-                                name: f.away.name,
-                                elo: f.away.elo_rating,
-                                eloProvisional: f.away.elo_provisional,
-                                form: f.away.form,
-                                table: f.away.table,
-                              }}
-                              crowdCounts={
-                                crowd[f.id] ?? { home: 0, draw: 0, away: 0 }
-                              }
-                              otherPicks={elsewhere[f.id] ?? []}
-                            />
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
+                                <FixtureLine
+                                  home={f.home.name}
+                                  away={f.away.name}
+                                  homeCrest={f.home.crest_url}
+                                  awayCrest={f.away.crest_url}
+                                  crestClass="h-5 w-5"
+                                  className="min-w-0 flex-1"
+                                />
+
+                                {/* Tapping the clubs opened the model long
+                                    before anything said so. A chevron is
+                                    the whole fix. */}
+                                <span
+                                  aria-hidden
+                                  className="shrink-0 text-grey-500"
+                                >
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.4"
+                                    strokeLinecap="round"
+                                    className={`h-3.5 w-3.5 transition-transform ${
+                                      open ? 'rotate-180' : ''
+                                    }`}
+                                  >
+                                    <path d="M6 9l6 6 6-6" />
+                                  </svg>
+                                </span>
+                              </button>
+
+                              {/* Outcome buttons sit with the fixture: one
+                                  tap to pick, rather than opening the row
+                                  first and then choosing. */}
+                              <span
+                                // The tour points at the first of these it
+                                // finds, which is the top fixture on the board.
+                                data-tour="pick-buttons"
+                                className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0"
+                              >
+                                {(
+                                  [
+                                    ['HOME', f.home.name],
+                                    ['DRAW', 'Draw'],
+                                    ['AWAY', f.away.name],
+                                  ] as [Outcome, string][]
+                                ).map(([outcome, label]) => (
+                                  <button
+                                    key={outcome}
+                                    type="button"
+                                    disabled={!isMyTurn || pending}
+                                    onClick={() => submit(f.id, outcome)}
+                                    title={
+                                      outcome === 'DRAW'
+                                        ? 'Call it a draw'
+                                        : `${label} to win`
+                                    }
+                                    className={`btn btn-sm ${OUTCOME_BTN[outcome]} ${
+                                      busy ? 'opacity-60' : ''
+                                    }`}
+                                  >
+                                    {outcome === 'DRAW' ? (
+                                      label
+                                    ) : (
+                                      <TeamName name={label} />
+                                    )}
+                                  </button>
+                                ))}
+                              </span>
+                            </div>
+
+                            {open && (
+                              <FixtureModel
+                                home={{
+                                  name: f.home.name,
+                                  elo: f.home.elo_rating,
+                                  eloProvisional: f.home.elo_provisional,
+                                  form: f.home.form,
+                                  table: f.home.table,
+                                }}
+                                away={{
+                                  name: f.away.name,
+                                  elo: f.away.elo_rating,
+                                  eloProvisional: f.away.elo_provisional,
+                                  form: f.away.form,
+                                  table: f.away.table,
+                                }}
+                                crowdCounts={
+                                  crowd[f.id] ?? { home: 0, draw: 0, away: 0 }
+                                }
+                                otherPicks={elsewhere[f.id] ?? []}
+                              />
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 ))}
               </div>
-            </div>
-          ))}
+            )}
+          </section>
+
         </div>
-      </section>
+
+        <aside
+          className={`w-full lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:w-[20rem] lg:shrink-0 lg:overflow-y-auto ${
+            isMyTurn ? '' : 'order-1 lg:order-2'
+          }`}
+        >
+          <div className="flex flex-col gap-5">
+            {/* The desktop home of the lock-in. There is room for it beside
+                the board here, so it needs no pinned bar — it simply never
+                leaves the screen. */}
+            {draft.status !== 'complete' && (
+              <div
+                className={`card hidden p-4 lg:block ${
+                  isMyTurn ? 'border-hot' : ''
+                }`}
+              >
+                <div className="flex items-baseline gap-2">
+                  <p className="label">
+                    {isMyTurn ? 'Your turn' : 'Your picks'}
+                  </p>
+                  {isMyTurn && remaining && remaining !== 'expired' && (
+                    <p className="ml-auto font-mono text-sm font-medium text-hot">
+                      {remaining}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-3 flex">{slots}</div>
+
+                <p className="mt-3 text-xs leading-relaxed text-grey-700">
+                  {isMyTurn
+                    ? owed > 0
+                      ? `${myPicks.length} of ${draft.picks_per_player} taken. ${owed} more and you can lock in${
+                          myPicks.length > 0 ? ' — tap a pick to drop it' : ''
+                        }.`
+                      : 'All in. Locking in passes the turn on — you can’t change them after.'
+                    : `${barCaption.lead}. ${barCaption.note}.`}
+                </p>
+
+                {lockInButton && (
+                  <div className="mt-3 [&>button]:w-full">{lockInButton}</div>
+                )}
+              </div>
+            )}
+
+            {/* ---- The slip ----
+                    One list, from the first pick, filling as the division
+                    drafts. Yours is the card that's lit. */}
+            <section data-tour="slip">
+              <h2 className="label mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <LockIcon open={!everyoneIn} className="h-3 w-3" />
+                The slip
+                <span className="font-normal normal-case tracking-normal text-grey-400">
+                  {picks.length}/{expectedPicks} in
+                </span>
+              </h2>
+
+              <Slip players={slipPlayers} />
+
+              {/* One card at a time. Until the division is finished the only
+                  complete thing to send is your own set; after that it's the
+                  slip, which contains yours anyway. */}
+              <div className="mt-4">
+                {everyoneIn ? (
+                  <SharePicks
+                    groups={divisionSlip}
+                    gameweek={gameweekLabel}
+                    subtitle={divisionName}
+                    locked
+                    heading="Send the slip"
+                    note={`All ${expectedPicks} picks on one card. Share sends the picture on a phone, or saves it to attach.`}
+                  />
+                ) : (
+                  owed === 0 && (
+                    <SharePicks
+                      groups={[
+                        { player: nameOf(currentUserId), picks: sharePicks },
+                      ]}
+                      gameweek={gameweekLabel}
+                      subtitle={`${nameOf(currentUserId)} · ${divisionName}`}
+                      locked={!isMyTurn}
+                    />
+                  )
+                )}
+              </div>
+            </section>
+          </div>
+        </aside>
+      </div>
+
+      {/* Clears the pinned bar. It belongs at the end of the page, not at
+          the end of the board column: on a phone the rail stacks *under*
+          the board, so a spacer inside the board only pushed the slip down
+          and left the share buttons — the ones the group chat runs on — sat
+          underneath the bar. */}
+      {draft.status !== 'complete' && (
+        <div aria-hidden className="h-16 lg:hidden" />
+      )}
+
+      {/* ---- The pinned bar, phones and tablets ----
+              This is the fix for the complaint that started the redesign:
+              you could pick three fixtures and never find out that Lock in
+              was waiting for you several screens up. It cannot be scrolled
+              away from, and it carries your three slots so it doubles as a
+              live view of your own row of the slip rather than a second copy
+              of it. */}
+      {draft.status !== 'complete' && (
+        <div className="fixed inset-x-0 bottom-[var(--nav-height)] z-10 border-t border-grey-300 bg-card shadow-float sm:bottom-0 lg:hidden">
+          <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 px-4 py-2.5 sm:gap-3 sm:px-6">
+            {slots}
+            <span className="flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="truncate text-sm font-medium">
+                {barCaption.lead}
+              </span>
+              <span className="truncate text-[11px] text-grey-500">
+                {barCaption.note}
+              </span>
+            </span>
+            {lockInButton}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

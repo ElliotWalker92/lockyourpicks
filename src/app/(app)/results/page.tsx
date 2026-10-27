@@ -1,9 +1,10 @@
 import Link from 'next/link';
 
-import { FixtureLine, OutcomeChip } from '@/components/Fixture';
 import { LiveScores } from '@/components/LiveScores';
 import { LockIcon } from '@/components/LockIcon';
 import { RoundStrip } from '@/components/RoundStrip';
+import { Slip, type SlipPick, type SlipPlayer } from '@/components/Slip';
+import { tallyOf } from '@/lib/scoring';
 import { SLIP_ACCENTS } from '@/lib/slip-accents';
 import {
   SharePicks,
@@ -20,27 +21,6 @@ import { viewingFor } from '@/lib/viewing';
 export const metadata = { title: 'Picks' };
 
 const NOBODY = '00000000-0000-0000-0000-000000000000';
-
-function initialsOf(name: string) {
-  const w = name.trim().split(/\s+/).filter(Boolean);
-  if (!w.length) return '?';
-  if (w.length === 1) return w[0].charAt(0).toUpperCase();
-  return (w[0].charAt(0) + w[w.length - 1].charAt(0)).toUpperCase();
-}
-
-/**
- * What to show in place of a scoreline.
- *
- * `scheduled` is a database enum and shouldn't be on screen. The other
- * states are kept because they change what the pick is worth — a postponed
- * fixture scores nothing, and that's worth saying rather than hiding.
- */
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: 'picked',
-  live: 'live',
-  postponed: 'postponed',
-  cancelled: 'cancelled',
-};
 
 type TeamRow = { name: string; crest_url: string | null };
 type Team = TeamRow | TeamRow[];
@@ -362,124 +342,61 @@ export default async function ResultsPage({
                 No picks from this division for gameweek {selected.number}.
               </p>
             ) : (
-              section.players.map((player) => {
-          const p = profileOf(player.id);
-          return (
-            <section key={player.id} className="card overflow-hidden">
-              <div className="flex items-center gap-3 border-b border-grey-300 px-5 py-3.5">
-                <span
-                  aria-hidden
-                  className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[11px] font-semibold text-on-accent"
-                  style={{ background: p?.avatar_color ?? '#c8f135' }}
-                >
-                  {p?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.avatar_url}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    initialsOf(nameOf(player.id))
-                  )}
-                </span>
-                <h2 className="flex-1 font-medium">
-                  {nameOf(player.id)}
-                  {player.id === user!.id && (
-                    <span className="ml-2 text-xs text-grey-500">you</span>
-                  )}
-                </h2>
-                {anyScored && (
-                  <span className="flex items-baseline gap-1.5 font-display text-2xl">
-                    <LockIcon className="h-3.5 w-3.5 self-center text-grey-400" />
-                    {player.points}
-                    <span className="ml-1 text-sm text-grey-500">
-                      {player.points === 1 ? 'pt' : 'pts'}
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              <ul>
-                {player.picks.length === 0 ? (
-                  <li className="px-5 py-3 text-sm text-grey-500">
-                    No picks made.
-                  </li>
-                ) : (
-                  player.picks.map((row) => {
-                    const homeTeam = one(row.fixtures.home);
-                    const awayTeam = one(row.fixtures.away);
-                    const home = homeTeam.name;
-                    const away = awayTeam.name;
-                    const comp = row.fixtures.competition
-                      ? one(row.fixtures.competition).code
-                      : null;
-                    const finished = row.fixtures.status === 'finished';
-                    const correct = row.points_awarded === 1;
-
-                    return (
-                      <li
-                        key={row.id}
-                        className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-grey-100 px-4 py-2.5 text-sm last:border-0 sm:gap-x-4 sm:px-5"
-                      >
-                        {/* The fixture is the only elastic thing in the row;
-                            everything to its right is fixed, so the columns
-                            hold whoever is playing. The call is the bolded
-                            side rather than the club's name a second time. */}
-                        <FixtureLine
-                          home={home}
-                          away={away}
-                          homeCrest={homeTeam.crest_url}
-                          awayCrest={awayTeam.crest_url}
-                          outcome={row.predicted_outcome}
-                          className="min-w-0 flex-1"
-                        />
-
-                        {/* The competition is the one thing here a phone can
-                            do without: the crests already say who's playing,
-                            and the 34px it costs is the difference between
-                            the fixture fitting and being clipped. */}
-                        {comp && (
-                          <span className="hidden shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] font-medium text-grey-500 sm:inline">
-                            {comp}
-                          </span>
-                        )}
-
-                        <span className="min-w-10 shrink-0 text-right font-mono text-xs text-grey-500 sm:min-w-12">
-                          {finished
-                            ? `${row.fixtures.home_score}–${row.fixtures.away_score}`
-                            : (STATUS_LABEL[row.fixtures.status] ??
-                              row.fixtures.status)}
-                        </span>
-
-                        {row.is_auto_pick && (
-                          <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
-                            auto
-                          </span>
-                        )}
-
-                        <OutcomeChip outcome={row.predicted_outcome} />
-
-                        {/* Fixed width so the ticks form a column you can
-                            scan down. */}
-                        {row.points_awarded !== null && (
-                          <span
-                            className={`w-4 shrink-0 text-right font-medium ${
-                              correct ? 'text-win' : 'text-loss'
-                            }`}
-                            title={correct ? 'Correct' : 'Wrong'}
-                          >
-                            {correct ? '✓' : '✕'}
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            </section>
-          );
-              })
+              /* The same component the board and the whole-group view use.
+                 This page used to draw its own: a card per player with its
+                 own avatar size, its own points treatment and an outcome
+                 chip the board had already dropped. `prominent` is the one
+                 thing it still asks for — a round that is over is read for
+                 its score, so the figure is set bigger. */
+              <Slip
+                prominent
+                players={section.players.map((player): SlipPlayer => {
+                  const profile = profileOf(player.id);
+                  return {
+                    key: player.id,
+                    name: nameOf(player.id),
+                    colour: profile?.avatar_color ?? '#c8f135',
+                    avatarUrl: profile?.avatar_url ?? null,
+                    mine: player.id === user!.id,
+                    // tallyOf rather than a plain sum of `points_awarded`,
+                    // which is null until the whole gameweek settles — so a
+                    // correct call sat on screen reading zero all Saturday
+                    // while the board, three taps away, already said "1
+                    // from 1". One rule, from one place.
+                    tally: tallyOf(
+                      player.picks.map((r) => ({
+                        predicted_outcome: r.predicted_outcome,
+                        points_awarded: r.points_awarded,
+                        result: r.fixtures.result,
+                      })),
+                    ),
+                    picks: player.picks.map((row): SlipPick => {
+                      const homeTeam = one(row.fixtures.home);
+                      const awayTeam = one(row.fixtures.away);
+                      return {
+                        key: row.id,
+                        home: homeTeam.name,
+                        away: awayTeam.name,
+                        homeCrest: homeTeam.crest_url,
+                        awayCrest: awayTeam.crest_url,
+                        outcome: row.predicted_outcome,
+                        homeScore: row.fixtures.home_score,
+                        awayScore: row.fixtures.away_score,
+                        result: row.fixtures.result,
+                        status: row.fixtures.status,
+                        points: row.points_awarded,
+                        isAuto: row.is_auto_pick,
+                        // This list isn't grouped by competition the way
+                        // the board is, so the row has to say which one
+                        // it was.
+                        competition: row.fixtures.competition
+                          ? one(row.fixtures.competition).code
+                          : null,
+                      };
+                    }),
+                  };
+                })}
+              />
             )}
           </div>
         ))}

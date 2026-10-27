@@ -61,11 +61,19 @@ function waitFor(
     // Hidden counts as absent. The tab bar is `sm:hidden`, so on a desktop
     // the element is there to be found but has no size — which spotlit a
     // nothing-sized box in the top corner and put a card beside it.
+    //
+    // All of them, not the first: an anchor may legitimately exist twice at
+    // different widths. Lock in is rendered both in the pinned bar on a
+    // phone and in the sticky rail on a desktop, and exactly one of the two
+    // has a size. `querySelector` took whichever came first in the DOM, so
+    // on a phone it found the hidden desktop copy, decided the anchor was
+    // missing, and stepped over a step that was on screen the whole time.
     const look = () => {
-      const el = document.querySelector(selector);
-      if (!el) return null;
-      const box = el.getBoundingClientRect();
-      return box.width > 0 && box.height > 0 ? el : null;
+      for (const el of document.querySelectorAll(selector)) {
+        const box = el.getBoundingClientRect();
+        if (box.width > 0 && box.height > 0) return el;
+      }
+      return null;
     };
     const found = look();
     if (found) return resolve(found);

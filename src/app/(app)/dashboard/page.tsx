@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
-import { FixtureLine, OutcomeChip } from '@/components/Fixture';
+import { Slip, type SlipPick } from '@/components/Slip';
 import { LiveScores } from '@/components/LiveScores';
-import { tallyOf, verdictOf } from '@/lib/scoring';
+import { tallyOf } from '@/lib/scoring';
 import { FormGuide, FormGuideHeading } from '@/components/FormGuide';
 import { JoinOpenLeagueForm } from '@/components/LeagueForms';
 import { LockIcon } from '@/components/LockIcon';
@@ -368,7 +368,6 @@ export default async function DashboardPage({
     ? Math.max(0, openDivisionSize - divisionIds.length)
     : 0;
 
-  const meDiv = divisionTable.find((r) => r.userId === viewedId);
   const meLeague = leagueTable.find((r) => r.userId === viewedId);
 
   // Recent gameweeks, oldest first, for the form guide.
@@ -568,35 +567,19 @@ export default async function DashboardPage({
       )}
 
       {/* ---- Standings at a glance ----
-              Two to a row on a phone, four across once there's room. */}
-      <div
-        data-tour="stats"
-        className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
-      >
-        <Stat
-          label={membership.divisions?.name ?? 'Division'}
-          value={meDiv ? ordinal(meDiv.position) : '—'}
-          suffix={meDiv ? `of ${divisionTable.length}` : undefined}
-          note={
-            !tableIsLive
-              ? 'Nothing scored yet'
-              : meDiv?.tied
-                ? 'Level on points'
-                : 'Top goes up, bottom goes down'
-          }
-        />
+              Two tiles, not four. Your division position and your points
+              were both stated again by the division table a few hundred
+              pixels below — the same two numbers, twice on one screen, with
+              the table the more useful of the two because it shows them in
+              context. These are the two figures nothing else on the page
+              gives: where you sit across every division, and what the last
+              round actually scored out of what was available. */}
+      <div data-tour="stats" className="grid grid-cols-2 gap-3 sm:gap-4">
         <Stat
           label="League overall"
           value={meLeague ? ordinal(meLeague.position) : '—'}
           suffix={meLeague ? `of ${leagueTable.length}` : undefined}
           note={`Across ${divisionCount} division${divisionCount === 1 ? '' : 's'}`}
-        />
-        <Stat
-          label="Your points"
-          value={meDiv?.points ?? 0}
-          note={`${meDiv?.gameweeksPlayed ?? 0} gameweek${
-            (meDiv?.gameweeksPlayed ?? 0) === 1 ? '' : 's'
-          } scored`}
         />
         <Stat
           label="Last round"
@@ -659,65 +642,35 @@ export default async function DashboardPage({
                 : 'Nothing picked yet.'}
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {myPickRows.map((p) => {
-                const homeTeam = one(p.fixtures.home);
-                const awayTeam = one(p.fixtures.away);
-                const verdict = verdictOf(scoreOf(p));
-                const live = p.fixtures.status === 'live';
-                const hasScore = p.fixtures.home_score !== null;
-                return (
-                  <li
-                    key={p.id}
-                    className="flex items-center gap-2 border-b border-grey-100 pb-2 text-sm last:border-0 last:pb-0"
-                  >
-                    <FixtureLine
-                      home={homeTeam.name}
-                      away={awayTeam.name}
-                      homeCrest={homeTeam.crest_url}
-                      awayCrest={awayTeam.crest_url}
-                      outcome={p.predicted_outcome}
-                      className="min-w-0 flex-1"
-                    />
-                    {p.is_auto_pick && (
-                      <span className="shrink-0 rounded bg-grey-100 px-1.5 py-0.5 text-[10px] text-grey-500">
-                        auto
-                      </span>
-                    )}
-
-                    {/* The score as it stands, hot while the game is on. */}
-                    {hasScore && (
-                      <span
-                        className={`shrink-0 font-mono text-xs tabular-nums ${
-                          live ? 'font-semibold text-hot' : 'text-grey-500'
-                        }`}
-                      >
-                        {p.fixtures.home_score}&ndash;{p.fixtures.away_score}
-                      </span>
-                    )}
-
-                    <OutcomeChip outcome={p.predicted_outcome} />
-
-                    {/* Fixed width whether or not it's there, so the chips
-                        stay in a column while a weekend resolves. */}
-                    <span
-                      className={`w-4 shrink-0 text-right font-medium ${
-                        verdict.correct ? 'text-win' : 'text-loss'
-                      }`}
-                      title={
-                        verdict.decided
-                          ? verdict.correct
-                            ? 'Correct'
-                            : 'Wrong'
-                          : undefined
-                      }
-                    >
-                      {verdict.decided ? (verdict.correct ? '✓' : '✕') : ''}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            /* No head on this one: the card above already says whose picks
+               these are and what they've scored. Same component as the
+               board, the whole-group view and the results page. */
+            <Slip
+              players={[
+                {
+                  key: viewedId,
+                  name: null,
+                  picks: myPickRows.map((p): SlipPick => {
+                    const homeTeam = one(p.fixtures.home);
+                    const awayTeam = one(p.fixtures.away);
+                    return {
+                      key: p.id,
+                      home: homeTeam.name,
+                      away: awayTeam.name,
+                      homeCrest: homeTeam.crest_url,
+                      awayCrest: awayTeam.crest_url,
+                      outcome: p.predicted_outcome,
+                      homeScore: p.fixtures.home_score,
+                      awayScore: p.fixtures.away_score,
+                      result: p.fixtures.result,
+                      status: p.fixtures.status,
+                      points: p.points_awarded,
+                      isAuto: p.is_auto_pick,
+                    };
+                  }),
+                },
+              ]}
+            />
           )}
         </section>
 

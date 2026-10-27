@@ -18,6 +18,7 @@ export function RoundStrip({
   live,
   selected,
   scope,
+  inset = false,
 }: {
   /** Rounds already drafted, newest first. The live one is excluded. */
   rounds: Round[];
@@ -26,6 +27,15 @@ export function RoundStrip({
   /** Which chip is lit — a gameweek number, or the live board. */
   selected: number | 'live';
   scope: 'division' | 'group';
+  /**
+   * Inside a card rather than against the page.
+   *
+   * The negative margin below is right at page level and wrong in a box:
+   * the chips push out through the card's own padding and the scroll track
+   * runs under its border. The picks header puts this strip inside a card,
+   * so it asks for the bleed to be left off.
+   */
+  inset?: boolean;
 }) {
   const group = scope === 'group';
   const past = rounds.filter((r) => r.number !== live);
@@ -39,7 +49,9 @@ export function RoundStrip({
     <div
       // Bleeds to the screen edge so a long season scrolls past the gutter
       // rather than stopping short of it and looking like it has ended.
-      className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
+      className={`flex gap-2 overflow-x-auto pb-1 sm:flex-wrap ${
+        inset ? '' : '-mx-4 px-4 sm:mx-0 sm:px-0'
+      }`}
     >
       {live !== null && (
         <Link
