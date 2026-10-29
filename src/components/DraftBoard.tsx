@@ -196,6 +196,16 @@ export function DraftBoard({
   const [openModel, setOpenModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Whether the pinned bar is showing your own three in full.
+   *
+   * A fixture leaves the board the moment somebody takes it, and on a phone
+   * the slip sits below the board — so mid-turn the only record of what you
+   * hold is three colour-coded chips in the bar. This opens them out into
+   * the real rows, from wherever on the page you've got to.
+   */
+  const [slipOpen, setSlipOpen] = useState(false);
+
   const remaining = useCountdown(draft.turn_expires_at);
 
   // Any pick, by anyone, changes what's on the board — and in a draft you need
@@ -559,16 +569,24 @@ export function DraftBoard({
     };
   });
 
+  /** Your own card of the slip, for the bar to open out. */
+  const mySlip = slipPlayers.find((player) => player.mine);
+
   /**
-   * Your three slots and the button, in one piece used twice.
+   * Your three slots, in one piece drawn twice.
    *
-   * On a phone it's a bar pinned to the bottom of the screen; on a desktop
-   * it's the top of the sticky rail. Same markup either way, because the
-   * problem it solves is the same at both widths: Lock in used to sit above
-   * the board, so taking three fixtures left it off-screen behind you with
-   * nothing to say it was there.
+   * On a phone they sit in a bar pinned to the bottom of the screen; on a
+   * desktop they sit at the top of the sticky rail. Same markup either way,
+   * because the problem is the same at both widths: Lock in used to sit
+   * above the board, so taking three fixtures left it off-screen behind you
+   * with nothing to say it was there.
+   *
+   * What a chip *does* differs, and that's why this takes a callback rather
+   * than a flag. In the rail the slip is already open beside it, so a tap
+   * drops the pick. In the bar it isn't, so the chips are inert and the tap
+   * belongs to the disclosure around them.
    */
-  const slots = (
+  const slotsList = (onPick?: (pickId: string) => void) => (
     <div className="flex shrink-0 gap-1.5">
       {Array.from({ length: draft.picks_per_player }, (_, i) => {
         const pick = myPicks[i];
@@ -597,18 +615,29 @@ export function DraftBoard({
             : `${(pick.predicted_outcome === 'HOME' ? f?.home : f?.away)?.name} to beat ${
                 (pick.predicted_outcome === 'HOME' ? f?.away : f?.home)?.name
               }`;
-        const canDrop = isMyTurn && f?.result === null;
+        const shape = `flex h-8 w-8 items-center justify-center rounded-md border-[1.5px] text-[9px] font-bold sm:h-9 sm:w-9 lg:h-11 lg:flex-1 lg:text-[11px] ${
+          SLOT_FILLED[pick.predicted_outcome]
+        }`;
+
+        // Inert unless the caller has something to do with a pick. In the
+        // bar they sit inside the disclosure, where the useful thing to do
+        // with a chip is read it, not lose it to a stray thumb.
+        if (!onPick || !isMyTurn || f?.result !== null) {
+          return (
+            <span key={pick.id} aria-hidden title={label} className={shape}>
+              {called}
+            </span>
+          );
+        }
         return (
           <button
             key={pick.id}
             type="button"
-            disabled={!canDrop || pending}
-            onClick={() => drop(pick.id)}
-            title={canDrop ? `Drop your pick: ${label}` : label}
-            aria-label={canDrop ? `Drop your pick: ${label}` : label}
-            className={`h-8 w-8 rounded-md border-[1.5px] text-[9px] font-bold disabled:cursor-default disabled:opacity-100 sm:h-9 sm:w-9 lg:h-11 lg:flex-1 lg:text-[11px] ${
-              SLOT_FILLED[pick.predicted_outcome]
-            }`}
+            disabled={pending}
+            onClick={() => onPick(pick.id)}
+            title={`Drop your pick: ${label}`}
+            aria-label={`Drop your pick: ${label}`}
+            className={`${shape} disabled:cursor-default disabled:opacity-100`}
           >
             {called}
           </button>
@@ -956,7 +985,7 @@ export function DraftBoard({
                   )}
                 </div>
 
-                <div className="mt-3 flex">{slots}</div>
+                <div className="mt-3 flex">{slotsList(drop)}</div>
 
                 <p className="mt-3 text-xs leading-relaxed text-grey-700">
                   {isMyTurn
@@ -1037,16 +1066,62 @@ export function DraftBoard({
               of it. */}
       {draft.status !== 'complete' && (
         <div className="fixed inset-x-0 bottom-[var(--nav-height)] z-10 border-t border-grey-300 bg-card shadow-float sm:bottom-0 lg:hidden">
+          {/* Your own row, opened out. Three chips can say you hold two of
+              three and roughly who; they can't say Burnley away to Leeds,
+              and that fixture is no longer on the board to go and check. */}
+          {slipOpen && mySlip && mySlip.picks.length > 0 && (
+            <div
+              id="your-picks"
+              className="mx-auto max-h-[45vh] w-full max-w-5xl overflow-y-auto border-b border-grey-100 px-4 pt-3 pb-1 sm:px-6"
+            >
+              <Slip players={[{ ...mySlip, name: null }]} />
+            </div>
+          )}
+
           <div className="mx-auto flex w-full max-w-5xl items-center gap-2.5 px-4 py-2.5 sm:gap-3 sm:px-6">
-            {slots}
-            <span className="flex min-w-0 flex-1 flex-col leading-tight">
-              <span className="truncate text-sm font-medium">
-                {barCaption.lead}
+            <button
+              type="button"
+              onClick={() => setSlipOpen((open) => !open)}
+              disabled={myPicks.length === 0}
+              aria-expanded={slipOpen}
+              aria-controls="your-picks"
+              aria-label={
+                myPicks.length === 0
+                  ? `${barCaption.lead}. ${barCaption.note}.`
+                  : slipOpen
+                    ? 'Hide your picks'
+                    : `Show your ${myPicks.length} pick${
+                        myPicks.length === 1 ? '' : 's'
+                      }`
+              }
+              className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:cursor-default sm:gap-3"
+            >
+              {slotsList()}
+              <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-sm font-medium">
+                  {barCaption.lead}
+                </span>
+                <span className="truncate text-[11px] text-grey-500">
+                  {barCaption.note}
+                </span>
               </span>
-              <span className="truncate text-[11px] text-grey-500">
-                {barCaption.note}
-              </span>
-            </span>
+              {myPicks.length > 0 && (
+                <span aria-hidden className="shrink-0 text-grey-500">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    className={`h-3.5 w-3.5 transition-transform ${
+                      slipOpen ? '' : 'rotate-180'
+                    }`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </span>
+              )}
+            </button>
             {lockInButton}
           </div>
         </div>
