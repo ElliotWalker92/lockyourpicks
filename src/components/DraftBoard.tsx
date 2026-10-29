@@ -780,20 +780,28 @@ export function DraftBoard({
       )}
 
       {/* ---- Board and rail ----
-              Two columns from `lg`, one below it, and the board leads at
-              every width and in every state.
+              Two columns from `lg`, one below it, and on a phone the slip
+              comes first — in every state, your turn included.
 
-              It used to flip: the slip led while you were waiting, on the
-              grounds that there's nothing to do then and the slip is the
-              news. Two things were wrong with that. Desktop never flipped —
-              the rail is on the right whatever the state — so a phone
-              disagreed with a laptop half the time. And it moved the slip,
-              so a player who had learned where it lived found it somewhere
-              else on the week it mattered. Fixed beats optimal: the board
-              is the only part of this page you can act on, and the only
-              part you can't get at from the pinned bar. */}
+              It used to depend on whose turn it was, which is how Teal came
+              to report it as a bug: he had learned where his slip lived and
+              on his turn it was somewhere else. Whichever end it sits at
+              matters far less than its sitting at the same end every week,
+              so the order is now fixed and these two classes are
+              unconditional.
+
+              The cost is real and worth naming: with the other two already
+              in, their picks stand between you and the board on your own
+              turn. The pinned bar is what pays for it — it holds your
+              slots and Lock in wherever you've scrolled to, so the board
+              being lower down costs you a scroll rather than the thing you
+              came to do.
+
+              DOM order stays board-then-rail so that `lg:order-*` can put
+              the rail back on the right, where a desktop has always had
+              it. */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-7">
-        <div className="min-w-0 flex-1">
+        <div className="order-2 min-w-0 flex-1 lg:order-1">
           <section data-tour="available">
             <h2 className="label mb-3 flex flex-wrap items-baseline gap-x-2">
               The board
@@ -963,7 +971,7 @@ export function DraftBoard({
 
         </div>
 
-        <aside className="w-full lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:w-[20rem] lg:shrink-0 lg:overflow-y-auto">
+        <aside className="order-1 w-full lg:sticky lg:top-24 lg:order-2 lg:max-h-[calc(100vh-7rem)] lg:w-[20rem] lg:shrink-0 lg:overflow-y-auto">
           <div className="flex flex-col gap-5">
             {/* The desktop home of the lock-in. There is room for it beside
                 the board here, so it needs no pinned bar — it simply never
