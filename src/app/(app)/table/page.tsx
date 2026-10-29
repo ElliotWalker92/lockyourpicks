@@ -61,22 +61,44 @@ function initials(name: string) {
 
 export type WeekPick = { crest: string | null; label: string };
 
-/** This round's calls, as club badges. */
+/** How wide a badge is, and the gap between two of them. */
+const BADGE = 16;
+const BADGE_GAP = 2;
+
+/** What the column needs to hold the fullest round in the table. */
+const picksWidth = (most: number) =>
+  most * BADGE + Math.max(0, most - 1) * BADGE_GAP;
+
+/**
+ * This round's calls, as club badges.
+ *
+ * One size at every width, where this used to step up to 20px from `sm`.
+ * The column needs a stated minimum to stop the badges overflowing it (see
+ * `minWidth` on Column), and a minimum that changed with the viewport
+ * could only be written as a breakpoint class — which Tailwind can't
+ * generate from a count worked out at render time. A fixed badge is what
+ * makes the floor a number.
+ *
+ * `flex-wrap` is the backstop under that floor: if an engine ever holds
+ * the column narrower than asked, the badges drop onto a second line
+ * instead of painting over the P and Pts columns beside them. A taller row
+ * is a compromise; an unreadable one isn't.
+ */
 function WeekPicks({ picks }: { picks: WeekPick[] }) {
   if (picks.length === 0) {
     return <span className="text-xs text-grey-400">&mdash;</span>;
   }
   return (
-    <span className="flex items-center gap-0.5 sm:gap-1">
+    <span className="flex flex-wrap items-center gap-0.5">
       {picks.map((p, i) =>
         p.crest ? (
-          <Crest key={i} url={p.crest} alt={p.label} className="h-4 w-4 sm:h-5 sm:w-5" />
+          <Crest key={i} url={p.crest} alt={p.label} className="h-4 w-4" />
         ) : (
           // A called draw has no single club to show.
           <span
             key={i}
             title={p.label}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-grey-300 text-[8px] font-bold text-on-accent sm:h-5 sm:w-5 sm:text-[9px]"
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-grey-300 text-[8px] font-bold text-on-accent"
           >
             D
           </span>
@@ -155,6 +177,9 @@ function Table({
                   </>
                 ),
                 wide: true,
+                minWidth: picksWidth(
+                  Math.max(0, ...rows.map((r) => picksOf(r.userId).length)),
+                ),
                 value: (row: StandingRow) => (
                   <WeekPicks picks={picksOf(row.userId)} />
                 ),

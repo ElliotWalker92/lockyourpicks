@@ -65,15 +65,51 @@ export type Column<T> = {
   emphasis?: boolean;
   /** Left-aligned and elastic, for a row of badges rather than a number. */
   wide?: boolean;
+  /**
+   * A floor for the column, in pixels, for one holding fixed-size badges.
+   *
+   * Without it such a column is sized to exactly its min-content and no
+   * more: the identity cell claims all the free width (`w-full max-w-0`),
+   * which is what makes a long name truncate instead of shoving the
+   * numbers off the card. The cost is that every other column lands on its
+   * minimum with no slack at all, and badges that can't shrink have
+   * nowhere to go if an engine measures that minimum even slightly short —
+   * they paint over the next column, which is what a phone was doing to
+   * the P column on a four-pick round.
+   *
+   * A stated floor doesn't depend on measuring anything. Where the
+   * intrinsic width was already right it changes nothing; where it comes
+   * out short the column is held open anyway and the card scrolls, which
+   * it is already set up to do.
+   */
+  minWidth?: number;
   value: (row: T) => ReactNode;
 };
 
 /**
  * A number sitting straight after a row of club badges reads as part of
  * them, so the column following a `wide` one gets a wider gutter.
+ *
+ * The class and the pixels are one entry rather than two lists, because
+ * `minWidth` is a border-box figure and so has to add the same padding the
+ * class applies. Two places holding the same number is how they stop being
+ * the same number.
  */
-const afterWide = <T,>(columns: Column<T>[], i: number) =>
-  columns[i - 1]?.wide ? 'pl-5' : 'pl-3';
+const LEAD = {
+  normal: { cls: 'pl-3', px: 12 },
+  afterWide: { cls: 'pl-5', px: 20 },
+} as const;
+
+const leadOf = <T,>(columns: Column<T>[], i: number) =>
+  columns[i - 1]?.wide ? LEAD.afterWide : LEAD.normal;
+
+/** What a column's stated floor becomes once its own padding is counted. */
+const floorOf = <T,>(columns: Column<T>[], i: number) => {
+  const { minWidth } = columns[i];
+  return minWidth === undefined
+    ? undefined
+    : { minWidth: minWidth + leadOf(columns, i).px };
+};
 
 const SHOW_FROM = {
   sm: 'hidden sm:table-cell',
@@ -185,7 +221,8 @@ export function StandingsTable<T>({
             {columns.map((column, i) => (
               <th
                 key={column.label}
-                className={`py-3 font-bold ${afterWide(columns, i)} ${
+                style={floorOf(columns, i)}
+                className={`py-3 font-bold ${leadOf(columns, i).cls} ${
                   column.wide ? 'text-left' : 'text-right'
                 } ${column.from ? SHOW_FROM[column.from] : ''} ${gutterFor(
                   columns,
@@ -227,7 +264,8 @@ export function StandingsTable<T>({
                 {columns.map((column, i) => (
                   <td
                     key={column.label}
-                    className={`py-2.5 ${afterWide(columns, i)} ${
+                    style={floorOf(columns, i)}
+                    className={`py-2.5 ${leadOf(columns, i).cls} ${
                       column.wide ? '' : 'text-right tabular-nums'
                     } ${
                       column.emphasis ? 'numeric text-base' : 'text-grey-500'

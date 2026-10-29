@@ -51,7 +51,10 @@ function zoneOf(description: string | null): Zone | null {
 function Form({ run }: { run: string | null }) {
   if (!run) return <span className="text-xs text-grey-400">&mdash;</span>;
   return (
-    <span className="flex justify-end gap-1">
+    // `flex-wrap` for the reason given on WeekPicks in the Table page: a
+    // row of badges that can't shrink has to be able to drop onto another
+    // line, or it paints over the column beside it.
+    <span className="flex flex-wrap justify-end gap-1">
       {run
         .slice(0, FORM_LENGTH)
         .split('')
@@ -111,7 +114,7 @@ function Next({ game }: { game: NextGame | undefined }) {
   });
   return (
     <span
-      className="flex items-center justify-end gap-1.5"
+      className="flex flex-wrap items-center justify-end gap-1.5"
       title={`${game.home ? 'Home to' : 'Away at'} ${game.opponent} — ${game.competition}, ${when}`}
     >
       <Crest url={game.crest} className="h-5 w-5" />
