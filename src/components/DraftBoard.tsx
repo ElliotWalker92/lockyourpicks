@@ -780,16 +780,20 @@ export function DraftBoard({
       )}
 
       {/* ---- Board and rail ----
-              Two columns from `lg`, one below it. When it's your turn the
-              board leads at every width: it's the only part of the page you
-              can act on, and it used to sit behind the whole division's slip
-              — nine rows of other people's picks between you and the thing
-              you opened the app for. When it isn't your turn the order flips,
-              because then there is nothing to do and the slip is the news. */}
+              Two columns from `lg`, one below it, and the board leads at
+              every width and in every state.
+
+              It used to flip: the slip led while you were waiting, on the
+              grounds that there's nothing to do then and the slip is the
+              news. Two things were wrong with that. Desktop never flipped —
+              the rail is on the right whatever the state — so a phone
+              disagreed with a laptop half the time. And it moved the slip,
+              so a player who had learned where it lived found it somewhere
+              else on the week it mattered. Fixed beats optimal: the board
+              is the only part of this page you can act on, and the only
+              part you can't get at from the pinned bar. */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-7">
-        <div
-          className={`min-w-0 flex-1 ${isMyTurn ? '' : 'order-2 lg:order-1'}`}
-        >
+        <div className="min-w-0 flex-1">
           <section data-tour="available">
             <h2 className="label mb-3 flex flex-wrap items-baseline gap-x-2">
               The board
@@ -959,11 +963,7 @@ export function DraftBoard({
 
         </div>
 
-        <aside
-          className={`w-full lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:w-[20rem] lg:shrink-0 lg:overflow-y-auto ${
-            isMyTurn ? '' : 'order-1 lg:order-2'
-          }`}
-        >
+        <aside className="w-full lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:w-[20rem] lg:shrink-0 lg:overflow-y-auto">
           <div className="flex flex-col gap-5">
             {/* The desktop home of the lock-in. There is room for it beside
                 the board here, so it needs no pinned bar — it simply never
