@@ -48,12 +48,38 @@ function zoneOf(description: string | null): Zone | null {
  * the provider said. `slice(0, FORM_LENGTH)` before the reverse, not after:
  * taking the tail would keep the five *oldest* of anything longer.
  */
+/**
+ * What Form and Next each need to hold their badges on one line.
+ *
+ * These exist because `flex-wrap` on its own made things worse. A column
+ * here is sized to exactly its min-content — the identity cell takes all
+ * the slack, which is what makes a long club name truncate — and the
+ * min-content of a *wrapping* flex row is its widest single item, not the
+ * sum of them. So adding the wrap collapsed Form to one pill wide and
+ * stacked a five-game run over three lines on desktop.
+ *
+ * Stating the width fixes that and keeps the wrap useful: the column is
+ * held open, and the wrap only ever fires if something holds it narrower
+ * anyway. Same pairing as WeekPicks on the Table page, where the floor
+ * came first.
+ *
+ * Fixed sizes, so they can be plain numbers: a floor that changed with the
+ * viewport would have to be a breakpoint class, and Tailwind can't
+ * generate one from a figure worked out at render time.
+ */
+const PILL = 16;
+const PILL_GAP = 4;
+const formWidth = FORM_LENGTH * PILL + (FORM_LENGTH - 1) * PILL_GAP;
+
+/** A crest, the gap after it, and the H/A that says which ground. */
+const nextWidth = 20 + 6 + 8;
+
 function Form({ run }: { run: string | null }) {
   if (!run) return <span className="text-xs text-grey-400">&mdash;</span>;
   return (
-    // `flex-wrap` for the reason given on WeekPicks in the Table page: a
-    // row of badges that can't shrink has to be able to drop onto another
-    // line, or it paints over the column beside it.
+    // `flex-wrap` is the backstop under `formWidth`, not a substitute for
+    // it: a badge that can't shrink has to be able to drop onto another
+    // line rather than paint over the column beside it.
     <span className="flex flex-wrap justify-end gap-1">
       {run
         .slice(0, FORM_LENGTH)
@@ -327,10 +353,12 @@ export default async function StandingsPage({
               {
                 label: 'Form',
                 from: 'md',
+                minWidth: formWidth,
                 value: (row) => <Form run={row.form} />,
               },
               {
                 label: 'Next',
+                minWidth: nextWidth,
                 value: (row) => (
                   <Next game={nextGame.get(row.team?.id ?? '')} />
                 ),
