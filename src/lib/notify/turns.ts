@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { type PushTarget, pushConfigured, sendPush } from '@/lib/notify/push';
-import { isPlaceholderEmail, sendEmail } from '@/lib/notify/resend';
+import { deliver } from '@/lib/notify/deliver';
+import type { PushTarget } from '@/lib/notify/push';
+import { isPlaceholderEmail } from '@/lib/notify/resend';
 import { turnEmail } from '@/lib/notify/turn-email';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
@@ -38,12 +39,7 @@ type PendingTurn = {
 /**
  * Tell whoever is on the clock, and hasn't been told.
  *
- * A phone beats an inbox, so a player with a device registered gets a push
- * and no email: a turn email went to junk once already, and two nudges for
- * one turn trains people to ignore both. Email remains the channel for
- * everyone who hasn't installed the app, and the fallback whenever every
- * one of a player's devices refuses the push — a dead subscription must not
- * be the reason nobody was told.
+ * Which channel that is belongs to `deliver`, not here.
  *
  * Marked as notified only after something succeeds, so a provider outage
  * means a delayed notification rather than a silently skipped one. The cost
@@ -63,7 +59,6 @@ export async function notifyTurns(
     errors: [],
     warnings: [],
   };
-  const canPush = pushConfigured();
 
   const { data, error } = await callRpc<PendingTurn[]>(
     supabase,
@@ -75,54 +70,31 @@ export async function notifyTurns(
   report.due = pending.length;
 
   /**
-   * Tell one player, by whichever channel they have.
+   * Tell one player, and count a fallback without failing the run.
    *
-   * Push first and email only without it — see the note above. Returns
-   * whether anything got through, so the caller knows whether to stamp the
-   * row: an unstamped turn is retried, a stamped one is not.
+   * Returns whether anything got through, so the caller knows whether to
+   * stamp the row: an unstamped turn is retried, a stamped one is not.
    */
   const tell = async (
     turn: PendingTurn,
     kind: 'start' | 'warning',
   ): Promise<'push' | 'email' | 'skipped'> => {
-    const devices = canPush ? (turn.push_targets ?? []) : [];
-
-    if (devices.length > 0) {
-      const results = await Promise.all(
-        devices.map((device) =>
-          sendPush(supabase, device, {
-            title:
-              kind === 'warning'
-                ? 'Three hours left'
-                : 'You’re on the clock',
-            // Named by group, not just division. Somebody in two groups is
-            // in a "Division 1" and a "Division 2" at once, and the division
-            // alone doesn't say which one wants them.
-            body:
-              kind === 'warning'
-                ? `${turn.league_name} · ${turn.division_name} — your picks are due soon.`
-                : `${turn.league_name} · ${turn.division_name} — gameweek ${turn.gameweek}, you're up.`,
-            url: '/draft',
-            // One notification per turn per kind: a repeat replaces the
-            // earlier one rather than stacking under it.
-            tag: `${kind}-${turn.draft_id}`,
-          }),
-        ),
-      );
-
-      if (results.includes('sent')) return 'push';
-
-      report.warnings.push(
-        `${turn.email}: push failed on ${results.length} device${results.length === 1 ? '' : 's'} (${results.join(', ')}), fell back to email`,
-      );
-    }
-
-    // A player with no real address yet.
-    if (isPlaceholderEmail(turn.email)) return 'skipped';
-
-    const sent = await sendEmail({
-      to: turn.email,
-      ...turnEmail({
+    const { how, warning } = await deliver(supabase, turn, {
+      push: {
+        title: kind === 'warning' ? 'Three hours left' : 'You’re on the clock',
+        // Named by group, not just division. Somebody in two groups is in
+        // a "Division 1" and a "Division 2" at once, and the division
+        // alone doesn't say which one wants them.
+        body:
+          kind === 'warning'
+            ? `${turn.league_name} · ${turn.division_name} — your picks are due soon.`
+            : `${turn.league_name} · ${turn.division_name} — gameweek ${turn.gameweek}, you're up.`,
+        url: '/draft',
+        // One notification per turn per kind: a repeat replaces the
+        // earlier one rather than stacking under it.
+        tag: `${kind}-${turn.draft_id}`,
+      },
+      mail: turnEmail({
         name: turn.display_name ?? 'there',
         division: turn.division_name,
         league: turn.league_name,
@@ -135,9 +107,8 @@ export async function notifyTurns(
       },
     });
 
-    // No API key configured: leave it unstamped so it goes out once
-    // notifications are switched on, rather than being lost.
-    return sent ? 'email' : 'skipped';
+    if (warning) report.warnings.push(warning);
+    return how;
   };
 
   for (const turn of pending) {

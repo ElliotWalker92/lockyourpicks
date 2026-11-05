@@ -138,6 +138,30 @@ export async function setTurnNotifications(enabled: boolean): Promise<void> {
 }
 
 /**
+ * Turn the "everyone's in" message on or off.
+ *
+ * Only ever reaches someone who owns a group, so it defaults to true
+ * without that being a message anybody else can receive — and the switch
+ * is only offered to the people it applies to. Unlike the turn email this
+ * is the whole feature, both channels: a message you don't want is not
+ * made better by arriving on your phone instead.
+ */
+export async function setRoundNotifications(enabled: boolean): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from('profiles')
+    .update({ notify_round_complete: enabled })
+    .eq('id', user.id);
+
+  revalidatePath('/profile');
+}
+
+/**
  * Record that the guided tour has been offered.
  *
  * Stamped whether they finished it or skipped out halfway: the point is

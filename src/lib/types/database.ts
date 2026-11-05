@@ -580,6 +580,7 @@ export type Database = {
           id: string
           is_admin: boolean
           notify_turn: boolean
+          notify_round_complete: boolean
           tour_seen_at: string | null
           updated_at: string
         }
@@ -592,6 +593,7 @@ export type Database = {
           id: string
           is_admin?: boolean
           notify_turn?: boolean
+          notify_round_complete?: boolean
           tour_seen_at?: string | null
           updated_at?: string
         }
@@ -604,6 +606,7 @@ export type Database = {
           id?: string
           is_admin?: boolean
           notify_turn?: boolean
+          notify_round_complete?: boolean
           tour_seen_at?: string | null
           updated_at?: string
         }

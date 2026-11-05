@@ -8,6 +8,7 @@ import { signOut } from '@/lib/actions/auth';
 import { NotifyToggle } from '@/components/NotifyToggle';
 import { PushToggle } from '@/components/PushToggle';
 import { ReplayTour } from '@/components/ReplayTour';
+import { RoundNotifyToggle } from '@/components/RoundNotifyToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { serverEnv } from '@/lib/server-env';
 import { createClient } from '@/lib/supabase/server';
@@ -49,9 +50,18 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, avatar_color, avatar_url, notify_turn')
+    .select(
+      'display_name, avatar_color, avatar_url, notify_turn, notify_round_complete',
+    )
     .eq('id', user!.id)
     .single();
+
+  // The round switch is only offered to people who run a group: for
+  // anyone else it's a setting for a message they can never receive.
+  const { count: ownedGroups } = await supabase
+    .from('leagues')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', user!.id);
 
   const name = profile?.display_name ?? user!.email?.split('@')[0] ?? 'Player';
   const colour = profile?.avatar_color ?? '#c8f135';
@@ -83,13 +93,21 @@ export default async function ProfilePage() {
 
         <Section
           title="Notifications"
-          description="Two ways to hear that it's your turn. You only ever get one of them — a device that buzzes takes over from the email."
+          description="How the app reaches you. For your turn you only ever get one of them — a device that buzzes takes over from the email."
         >
           <div className="flex flex-col gap-4">
             {vapidPublicKey && <PushToggle publicKey={vapidPublicKey} />}
             <div className="border-t border-grey-300 pt-4">
               <NotifyToggle enabled={profile?.notify_turn ?? true} />
             </div>
+            {(ownedGroups ?? 0) > 0 && (
+              <div className="border-t border-grey-300 pt-4">
+                <RoundNotifyToggle
+                  enabled={profile?.notify_round_complete ?? true}
+                  groups={ownedGroups ?? 1}
+                />
+              </div>
+            )}
           </div>
         </Section>
 
