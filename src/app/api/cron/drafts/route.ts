@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { runCron } from '@/lib/cron';
 
 import { callRpc } from '@/lib/supabase/rpc';
+import { emptyRoundReport, notifyRounds } from '@/lib/notify/rounds';
 import { notifyTurns } from '@/lib/notify/turns';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,13 @@ export const maxDuration = 60;
  *                      same pass; and a Workers Free account gets five cron
  *                      triggers, all of which were already spoken for.
  *
- * All three are idempotent, so overlapping runs are harmless.
+ *   notifyRounds       tells whoever runs a group that its gameweek has
+ *                      finished drafting. Here for the same two reasons, and
+ *                      a third: run_expired_turns above is one of the two
+ *                      ways a round finishes, so the pass that completes it
+ *                      is the pass that should say so.
+ *
+ * All four are idempotent, so overlapping runs are harmless.
  */
 export async function GET(request: NextRequest) {
   return runCron(request, 'drafts', async (supabase) => {
@@ -71,10 +78,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Likewise: a round that can't be announced must not fail the job that
+    // opened the next one.
+    let rounds = emptyRoundReport();
+    try {
+      rounds = await notifyRounds(supabase);
+    } catch (err) {
+      rounds.errors.push(
+        `notifyRounds: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    errors.push(...rounds.errors);
+    warnings.push(...rounds.warnings);
+
     return {
       draftsOpened: opened ?? 0,
       turnsAutoPicked: autoPicked ?? 0,
       notified,
+      rounds: {
+        due: rounds.due,
+        sent: rounds.sent,
+        pushed: rounds.pushed,
+        skipped: rounds.skipped,
+      },
       errors,
       warnings,
     };
