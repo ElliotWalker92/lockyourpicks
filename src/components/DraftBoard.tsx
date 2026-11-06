@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { lockInPicks, makePick, removePick } from '@/lib/actions/picks';
 import { fullOrder, userAtTurn } from '@/lib/draft-order';
 import { FixtureModel } from '@/components/FixtureModel';
-import { FixtureLine, TeamName } from '@/components/Fixture';
+import { FixtureLine } from '@/components/Fixture';
 import { LockIcon } from '@/components/LockIcon';
 import { Slip, type SlipPick, type SlipPlayer } from '@/components/Slip';
 import {
@@ -913,7 +913,21 @@ export function DraftBoard({
 
                               {/* Outcome buttons sit with the fixture: one
                                   tap to pick, rather than opening the row
-                                  first and then choosing. */}
+                                  first and then choosing.
+
+                                  Codes, not club names, at every width.
+                                  Spelling both clubs out again is the row's
+                                  widest thing by far, and it says nothing
+                                  the fixture two inches to the left hasn't
+                                  just said — NFO beside "Nottingham Forest
+                                  v Manchester City" is not ambiguous. The
+                                  full name is on the button for anyone
+                                  who needs it read out.
+
+                                  A floor under each keeps the three the
+                                  same width, so the columns line up down
+                                  the whole board instead of jumping about
+                                  with the length of the clubs. */}
                               <span
                                 // The tour points at the first of these it
                                 // finds, which is the top fixture on the board.
@@ -937,15 +951,18 @@ export function DraftBoard({
                                         ? 'Call it a draw'
                                         : `${label} to win`
                                     }
-                                    className={`btn btn-sm ${OUTCOME_BTN[outcome]} ${
-                                      busy ? 'opacity-60' : ''
-                                    }`}
+                                    aria-label={
+                                      outcome === 'DRAW'
+                                        ? 'Call it a draw'
+                                        : `${label} to win`
+                                    }
+                                    className={`btn btn-sm min-w-[3.75rem] ${
+                                      OUTCOME_BTN[outcome]
+                                    } ${busy ? 'opacity-60' : ''}`}
                                   >
-                                    {outcome === 'DRAW' ? (
-                                      label
-                                    ) : (
-                                      <TeamName name={label} />
-                                    )}
+                                    {outcome === 'DRAW'
+                                      ? label
+                                      : abbreviate(label)}
                                   </button>
                                 ))}
                               </span>
