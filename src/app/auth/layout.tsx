@@ -14,7 +14,7 @@ export default function AuthLayout({
           href="/"
           className="mb-8 flex items-center justify-center gap-2.5"
         >
-          <Mark className="h-9 w-9" />
+          <Mark tone="ink" className="h-9 w-9" />
           <span className="flex flex-col text-left leading-none">
             <span className="font-display text-[10px] font-bold tracking-[0.2em] text-grey-500 uppercase">
               Lock Your

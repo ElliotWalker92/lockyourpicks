@@ -5,12 +5,17 @@
  * output is committed, so this is not part of the build — it exists so
  * the eight files cannot be edited one at a time and drift.
  *
- * A club crest with a keyhole cut out of it, ink on lime. The crest is
- * the shape every football badge already is, so it reads as the right
- * kind of thing before it reads as anything at all; the keyhole keeps
- * the name in it. Solid ink on a bright ground rather than strokes on a
- * dark one, because that is what survives being 26 pixels wide on a home
- * screen full of other icons.
+ * A club badge: flat top, rounded shoulders, a keyline inside the edge
+ * the way nearly every real crest has one, three bold shirt stripes
+ * running the full height behind a keyhole. Ink on lime.
+ *
+ * Solid shapes on a bright ground rather than strokes on a dark one,
+ * because that is what survives being 26 pixels wide on a home screen
+ * next to other apps — and the lime goes edge to edge, so Android's
+ * adaptive crop takes ground rather than badge.
+ *
+ * The stripes are lime at 40% over the ink, not solid lime: at full
+ * strength they are the same value as the keyhole and swallow it.
  */
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -22,43 +27,59 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const INK = '#0d0d0d';
 const LIME = '#c8f135';
 
-const CREST =
-  'M32 6 L55 13 V31 C55 45 45 55.5 32 60 C19 55.5 9 45 9 31 V13 Z';
+/** The badge outline, and the two rings cut inside it. */
+const CREST = 'M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z';
+const KEYLINE = 0.9;
+const FIELD = 0.81;
+
+const about = (k) => `translate(32 33) scale(${k}) translate(-32 -33)`;
+const crest = (fill, k = 1) =>
+  `<path d="${CREST}" fill="${fill}" transform="${about(k)}"/>`;
+
+/** Three bold stripes, full height, clipped to the field inside the keyline. */
+const stripes = (id, fill, opacity) => {
+  const pitch = 12;
+  const bars = [0, 1, 2]
+    .map((i) => {
+      const cx = 20 + pitch / 2 + i * pitch;
+      return `<rect x="${cx - 3}" y="0" width="6" height="64" fill="${fill}" opacity="${opacity}"/>`;
+    })
+    .join('');
+  return `<defs><clipPath id="${id}"><path d="${CREST}" transform="${about(FIELD)}"/></clipPath></defs>
+    <g clip-path="url(#${id})">${bars}</g>`;
+};
 
 /** Circle over a flared stem, the way a keyhole is actually shaped. */
 const keyhole = (fill) => `
-  <circle cx="32" cy="28" r="6.8" fill="${fill}"/>
-  <path d="M27.9 33.3 L36.1 33.3 L38 45 L26 45 Z" fill="${fill}"/>`;
+  <circle cx="32" cy="31" r="5.4" fill="${fill}"/>
+  <path d="M28.8 35.2 L35.2 35.2 L36.8 44 L27.2 44 Z" fill="${fill}"/>`;
 
-/** The mark on a 64-unit square, over whatever ground it is given. */
-const glyph = (crestFill, holeFill) =>
-  `<path d="${CREST}" fill="${crestFill}"/>${keyhole(holeFill)}`;
+const glyph = (id) =>
+  `${crest(INK)}${crest(LIME, KEYLINE)}${crest(INK, FIELD)}${stripes(id, LIME, 0.4)}${keyhole(LIME)}`;
 
 /**
  * `scale` shrinks the mark inside its square, for the maskable icon:
  * Android crops an adaptive icon to whatever shape the launcher uses, so
- * the crest has to sit well inside the safe circle. The lime goes edge
- * to edge either way, which is the point of a bright ground — the crop
- * takes lime, never the badge.
+ * the badge has to sit well inside the safe circle.
  */
 const icon = ({ size, radius = 0, scale = 1 }) => {
   const inset = (64 - 64 * scale) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
   <rect width="64" height="64" rx="${radius}" fill="${LIME}"/>
-  <g transform="translate(${inset} ${inset}) scale(${scale})">${glyph(INK, LIME)}</g>
+  <g transform="translate(${inset} ${inset}) scale(${scale})">${glyph('s' + size)}</g>
 </svg>`;
 };
 
 /**
- * The notification badge: Android keeps only the alpha channel, so the
- * keyhole has to be a hole rather than a lime shape, or it fills in and
- * the badge is a featureless blob.
+ * The notification badge: Android keeps only the alpha channel, so every
+ * light part has to be a hole rather than a pale shape, or it fills in
+ * and the badge is a featureless blob. Keyline and keyhole are holes;
+ * the stripes are dropped, being too fine to survive at badge size.
  */
 const badge = (size) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
   <mask id="cut">
     <rect width="64" height="64" fill="black"/>
-    <path d="${CREST}" fill="white"/>
-    ${keyhole('black')}
+    ${crest('white')}${crest('black', KEYLINE)}${crest('white', FIELD)}${keyhole('black')}
   </mask>
   <rect width="64" height="64" fill="white" mask="url(#cut)"/>
 </svg>`;

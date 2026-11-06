@@ -81,7 +81,7 @@ export default async function AppLayout({
             href="/dashboard"
             className="flex shrink-0 items-center gap-2"
           >
-            <Mark className="h-7 w-7" />
+            <Mark tone="ink" className="h-7 w-7" />
             <span className="flex flex-col leading-none">
               <span className="font-display text-[9px] font-bold tracking-[0.2em] text-grey-500 uppercase">
                 Lock Your
