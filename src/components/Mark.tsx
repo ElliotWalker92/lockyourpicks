@@ -44,6 +44,25 @@ type Tone = {
 const TONES: Record<string, Tone> = {
   lime: { ground: LIME, badge: INK, stripe: LIME, stripeOpacity: 0.4 },
   ink: { ground: INK, badge: LIME, stripe: INK, stripeOpacity: 0.22 },
+  /**
+   * For `plate={false}`: ink badge with lime detail on a light page,
+   * and the two swapped over on a dark one. Either way the badge is the
+   * solid shape and the detail is the bright one, so it never asks lime
+   * to hold a whole crest against white.
+   */
+  theme: {
+    ground: 'var(--color-mark-detail)',
+    badge: 'var(--color-mark)',
+    stripe: 'var(--color-mark-detail)',
+    stripeOpacity: 0.4,
+  },
+  /** Single colour, for anywhere the lime would be a third voice. */
+  mono: {
+    ground: 'var(--color-card)',
+    badge: 'var(--color-ink)',
+    stripe: 'var(--color-card)',
+    stripeOpacity: 0.34,
+  },
   pink: { ground: LIME, badge: HOT, stripe: HOT_DARK, stripeOpacity: 1 },
   hot: { ground: HOT, badge: INK, stripe: HOT, stripeOpacity: 0.4 },
   blue: { ground: LIME, badge: BLUE, stripe: BLUE_DARK, stripeOpacity: 1 },
@@ -56,12 +75,20 @@ const about = (k: number) => `translate(32 33) scale(${k}) translate(-32 -33)`;
 export function Mark({
   className = 'h-7 w-7',
   tone = 'lime',
+  plate = true,
 }: {
   className?: string;
   tone?: MarkTone;
+  /**
+   * The rounded tile behind the badge. Off puts the badge straight on
+   * the page — which only works where the ground colour of the tone
+   * matches what is actually behind it, since the keyline, the stripes
+   * and the keyhole are all painted in it rather than cut out.
+   */
+  plate?: boolean;
 }) {
   const { ground, badge, stripe, stripeOpacity } = TONES[tone];
-  const clip = `lyp-field-${tone}`;
+  const clip = `lyp-field-${tone}-${plate ? 'p' : 'b'}`;
 
   return (
     <svg
@@ -70,7 +97,7 @@ export function Mark({
       role="img"
       aria-label="Lock Your Picks"
     >
-      <rect width="64" height="64" rx="14" fill={ground} />
+      {plate && <rect width="64" height="64" rx="14" fill={ground} />}
       <path d={CREST} fill={badge} />
       <path d={CREST} fill={ground} transform={about(KEYLINE)} />
       <path d={CREST} fill={badge} transform={about(FIELD)} />

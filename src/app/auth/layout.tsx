@@ -14,14 +14,11 @@ export default function AuthLayout({
           href="/"
           className="mb-8 flex items-center justify-center gap-2.5"
         >
-          <Mark tone="ink" className="h-9 w-9" />
-          <span className="flex flex-col text-left leading-none">
-            <span className="font-display text-[10px] font-bold tracking-[0.2em] text-grey-500 uppercase">
-              Lock Your
-            </span>
-            <span className="font-display mt-0.5 text-2xl font-extrabold tracking-tight">
-              Picks
-            </span>
+          <Mark tone="theme" plate={false} className="h-12 w-12" />
+          <span className="font-display flex flex-col text-left text-[13px] leading-[1.15] font-bold tracking-[0.18em] uppercase">
+            <span>Lock</span>
+            <span>Your</span>
+            <span className="text-lime-dark">Picks</span>
           </span>
         </Link>
         <div className="card p-6">{children}</div>

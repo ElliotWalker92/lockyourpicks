@@ -79,16 +79,13 @@ export default async function AppLayout({
               width, which this header can always use. */}
           <Link
             href="/dashboard"
-            className="flex shrink-0 items-center gap-2"
+            className="flex shrink-0 items-center gap-2.5"
           >
-            <Mark tone="ink" className="h-7 w-7" />
-            <span className="flex flex-col leading-none">
-              <span className="font-display text-[9px] font-bold tracking-[0.2em] text-grey-500 uppercase">
-                Lock Your
-              </span>
-              <span className="font-display mt-0.5 text-xl font-extrabold tracking-tight">
-                Picks
-              </span>
+            <Mark tone="theme" plate={false} className="h-9 w-9" />
+            <span className="font-display flex flex-col text-[10px] leading-[1.15] font-bold tracking-[0.18em] uppercase">
+              <span>Lock</span>
+              <span>Your</span>
+              <span className="text-lime-dark">Picks</span>
             </span>
           </Link>
 

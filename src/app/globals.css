@@ -28,6 +28,13 @@
   --color-lime: #c8f135;
   --color-lime-dark: #b8e020;
 
+  /* The badge when it sits straight on the page rather than on its own
+     tile — the header. The two swap over, so the badge is always the
+     solid dark shape on a light page and the bright one on a dark page,
+     and the lime never has to hold a whole crest against white. */
+  --color-mark: light-dark(#0d0d0d, #c8f135);
+  --color-mark-detail: light-dark(#c8f135, #0d0d0d);
+
   --color-surface: light-dark(#f9f9f8, #101012);
   --color-card: light-dark(#ffffff, #1a1a1d);
 
