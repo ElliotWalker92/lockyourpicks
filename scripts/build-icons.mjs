@@ -7,7 +7,12 @@
  *
  * A club badge: flat top, rounded shoulders, a keyline inside the edge
  * the way nearly every real crest has one, three bold shirt stripes
- * running the full height behind a keyhole. Ink on lime.
+ * running the full height behind a keyhole.
+ *
+ * Two ways round. The home-screen icons are ink on a lime tile, which
+ * needs the tile: on a launcher there is nothing behind them. The
+ * favicons are the badge alone, lime with ink detail, which is the way
+ * round that holds up on both a light and a dark tab strip.
  *
  * Solid shapes on a bright ground rather than strokes on a dark one,
  * because that is what survives being 26 pixels wide on a home screen
@@ -54,8 +59,13 @@ const keyhole = (fill) => `
   <circle cx="32" cy="31" r="5.4" fill="${fill}"/>
   <path d="M28.8 35.2 L35.2 35.2 L36.8 44 L27.2 44 Z" fill="${fill}"/>`;
 
-const glyph = (id) =>
-  `${crest(INK)}${crest(LIME, KEYLINE)}${crest(INK, FIELD)}${stripes(id, LIME, 0.4)}${keyhole(LIME)}`;
+/**
+ * The badge itself: a solid shape, with the keyline, the stripes and the
+ * keyhole painted in `detail` rather than cut out, so it composites onto
+ * anything without needing the ground behind it to be a known colour.
+ */
+const glyph = (id, badge, detail) =>
+  `${crest(badge)}${crest(detail, KEYLINE)}${crest(badge, FIELD)}${stripes(id, detail, 0.4)}${keyhole(detail)}`;
 
 /**
  * `scale` shrinks the mark inside its square, for the maskable icon:
@@ -66,9 +76,20 @@ const icon = ({ size, radius = 0, scale = 1 }) => {
   const inset = (64 - 64 * scale) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
   <rect width="64" height="64" rx="${radius}" fill="${LIME}"/>
-  <g transform="translate(${inset} ${inset}) scale(${scale})">${glyph('s' + size)}</g>
+  <g transform="translate(${inset} ${inset}) scale(${scale})">${glyph('s' + size, INK, LIME)}</g>
 </svg>`;
 };
+
+/**
+ * The favicon: the badge on its own, no tile.
+ *
+ * Lime badge with ink detail, which is the way round that survives both
+ * a light tab strip and a dark one — an ink badge vanishes into dark
+ * browser chrome, and there is no tile left to hold it up. Tested at 16
+ * and 32 against both before choosing.
+ */
+const favicon = (size) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">${glyph('f' + size, LIME, INK)}</svg>`;
 
 /**
  * The notification badge: Android keeps only the alpha channel, so every
@@ -95,7 +116,7 @@ const badge = (size) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64
  */
 const ico = async (sizes) => {
   const images = await Promise.all(
-    sizes.map((size) => sharp(Buffer.from(icon({ size }))).png().toBuffer()),
+    sizes.map((size) => sharp(Buffer.from(favicon(size))).png().toBuffer()),
   );
 
   const header = Buffer.alloc(6);
@@ -121,12 +142,12 @@ const ico = async (sizes) => {
 const png = (name, svg) =>
   sharp(Buffer.from(svg)).png().toFile(join(OUT, name)).then(() => console.log('  ' + name));
 
-writeFileSync(join(OUT, 'favicon.svg'), icon({ size: 64, radius: 14 }) + '\n');
+writeFileSync(join(OUT, 'favicon.svg'), favicon(64) + '\n');
 console.log('  favicon.svg');
 
 await Promise.all([
-  png('favicon-16x16.png', icon({ size: 16 })),
-  png('favicon-32x32.png', icon({ size: 32 })),
+  png('favicon-16x16.png', favicon(16)),
+  png('favicon-32x32.png', favicon(32)),
   png('apple-touch-icon.png', icon({ size: 180 })),
   png('icon-192.png', icon({ size: 192 })),
   png('icon-512.png', icon({ size: 512 })),
