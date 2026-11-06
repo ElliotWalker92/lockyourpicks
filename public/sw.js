@@ -108,7 +108,10 @@ self.addEventListener('push', (event) => {
   const options = {
     body: payload.body || "It's your turn to pick.",
     icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    // Android keeps only the alpha channel of a badge, so the colour
+    // icon came out as a featureless white blob with its tick filled
+    // in. badge-96 is drawn for that: one colour, the tick a real hole.
+    badge: '/badge-96.png',
     tag: payload.tag || 'turn',
     renotify: true,
     data: { url: payload.url || '/draft' },

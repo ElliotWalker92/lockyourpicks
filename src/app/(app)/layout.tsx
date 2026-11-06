@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { MobileNav } from '@/components/MobileNav';
+import { Mark } from '@/components/Mark';
 import { NavLinks } from '@/components/NavLinks';
 import { LeagueSwitcher } from '@/components/LeagueSwitcher';
 import { ScrollMemory } from '@/components/ScrollMemory';
@@ -71,9 +72,23 @@ export default async function AppLayout({
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-3">
-          <Link href="/dashboard" className="shrink-0">
-            <span className="font-display text-lg font-extrabold tracking-tight">
-              Lock Your <span className="text-lime-dark">Picks</span>
+          {/* The mark earns its keep twice: the thing on the home screen
+              is the thing at the top of the page. "Picks" is the name and
+              "lock your" the instruction above it, which gives the lockup
+              a shape the three flat words never had — and takes less
+              width, which this header can always use. */}
+          <Link
+            href="/dashboard"
+            className="flex shrink-0 items-center gap-2"
+          >
+            <Mark className="h-7 w-7" />
+            <span className="flex flex-col leading-none">
+              <span className="font-display text-[9px] font-bold tracking-[0.2em] text-grey-500 uppercase">
+                Lock Your
+              </span>
+              <span className="font-display mt-0.5 text-xl font-extrabold tracking-tight">
+                Picks
+              </span>
             </span>
           </Link>
 
