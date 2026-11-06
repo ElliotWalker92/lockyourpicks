@@ -8,9 +8,10 @@ import type { MetadataRoute } from 'next';
  * nothing gains from landscape.
  *
  * Two 512s on purpose: Android crops an adaptive icon to whatever shape
- * the launcher uses, so the maskable one is drawn smaller inside its
- * square and keeps the padlock clear of the crop. Without it the icon
- * gets its edges shaved off.
+ * the launcher uses, so the maskable one is drawn a little smaller inside
+ * its square, filling the safe circle the spec guarantees. Without it the
+ * icon gets its edges shaved off; drawn too small, it looks shrunken next
+ * to the full-size one iOS takes.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

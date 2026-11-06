@@ -77,8 +77,17 @@ const glyph = (id, badge, detail) =>
 /**
  * `scale` shrinks the mark inside its square, for the maskable icon:
  * Android crops an adaptive icon to whatever shape the launcher uses, so
- * the badge has to sit well inside the safe circle.
+ * the badge has to sit inside the safe circle — which the maskable spec
+ * puts at 80% of the icon's width, a radius of 25.6 in this 64 box.
+ *
+ * MASKABLE is set so the badge's top corners, its furthest points from
+ * the centre, reach 24.9 of that 25.6. The first version used 0.62 and
+ * left a third of the safe circle empty, so the icon came out visibly
+ * smaller on Android than the full-size one iOS takes from
+ * apple-touch-icon.png. Nothing below 0.84 crops; this is 0.84 with a
+ * little air.
  */
+const MASKABLE = 0.82;
 const icon = ({ size, radius = 0, scale = 1 }) => {
   const inset = (64 - 64 * scale) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
@@ -178,7 +187,7 @@ await Promise.all([
   png('apple-touch-icon.png', icon({ size: 180 })),
   png('icon-192.png', icon({ size: 192 })),
   png('icon-512.png', icon({ size: 512 })),
-  png('icon-maskable-512.png', icon({ size: 512, scale: 0.62 })),
+  png('icon-maskable-512.png', icon({ size: 512, scale: MASKABLE })),
   png('badge-96.png', badge(96)),
 ]);
 
