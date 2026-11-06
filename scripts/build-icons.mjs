@@ -11,8 +11,7 @@
  *
  * Two ways round. The home-screen icons are ink on a lime tile, which
  * needs the tile: on a launcher there is nothing behind them. The
- * favicons are the badge alone, lime with ink detail, which is the way
- * round that holds up on both a light and a dark tab strip.
+ * favicons are the badge alone, ink with lime detail.
  *
  * Solid shapes on a bright ground rather than strokes on a dark one,
  * because that is what survives being 26 pixels wide on a home screen
@@ -88,18 +87,28 @@ const icon = ({ size, radius = 0, scale = 1 }) => {
  * browser chrome, and there is no tile left to hold it up. Tested at 16
  * and 32 against both before choosing.
  */
-const favicon = (size) => {
-  // The badge is drawn with the margin a tile needs around it. With no
-  // tile that margin is just empty canvas, and a favicon has 16 pixels
-  // to work with — so it is scaled to fill, keeping a hair of
-  // air top and bottom. Its box is 44 x 48 inside the 64 square.
-  const k = 1.24;
-  const tx = (64 - 44 * k) / 2 - 10 * k;
-  const ty = (64 - 48 * k) / 2 - 11 * k;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
-  <g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${k})">${glyph('f' + size, LIME, INK)}</g>
+/**
+ * The favicon: the badge on its own, no tile.
+ *
+ * Ink badge with lime detail — lime alone is too light to make out
+ * against a white tab strip, which is where a favicon spends its life.
+ * One way round rather than two: against a dark strip the lime keyline,
+ * stripes and keyhole carry it on their own, so it never needs to
+ * invert the way the header does.
+ *
+ * The badge is drawn with the margin a tile wants around it, 44 x 48
+ * inside a 64 square. With no tile that margin buys nothing and a tab
+ * has sixteen pixels to spend, so it is scaled to fill: 1.24 leaves a
+ * hair of air at 32 and goes edge to edge at 16. Not 1.28, which
+ * touched both edges even at 32 and read as cropped.
+ */
+const FAVICON_SCALE = 1.24;
+const FIT = `translate(${((64 - 44 * FAVICON_SCALE) / 2 - 10 * FAVICON_SCALE).toFixed(2)} ${((64 - 48 * FAVICON_SCALE) / 2 - 11 * FAVICON_SCALE).toFixed(2)}) scale(${FAVICON_SCALE})`;
+
+const favicon = (size) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
+  <g transform="${FIT}">${glyph('f' + size, INK, LIME)}</g>
 </svg>`;
-};
 
 /**
  * The notification badge: Android keeps only the alpha channel, so every

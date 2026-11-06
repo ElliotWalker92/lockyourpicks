@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <g transform="translate(-7.68 -11.40) scale(1.24)"><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" fill="#c8f135" transform="translate(32 33) scale(1) translate(-32 -33)"/><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" fill="#0d0d0d" transform="translate(32 33) scale(0.9) translate(-32 -33)"/><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" fill="#c8f135" transform="translate(32 33) scale(0.81) translate(-32 -33)"/><defs><clipPath id="f64"><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" transform="translate(32 33) scale(0.81) translate(-32 -33)"/></clipPath></defs>
-    <g clip-path="url(#f64)"><rect x="23" y="0" width="6" height="64" fill="#0d0d0d" opacity="0.4"/><rect x="35" y="0" width="6" height="64" fill="#0d0d0d" opacity="0.4"/><rect x="47" y="0" width="6" height="64" fill="#0d0d0d" opacity="0.4"/></g>
-  <circle cx="32" cy="31" r="5.4" fill="#0d0d0d"/>
-  <path d="M28.8 35.2 L35.2 35.2 L36.8 44 L27.2 44 Z" fill="#0d0d0d"/></g>
+  <g transform="translate(-7.68 -11.40) scale(1.24)"><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" fill="#0d0d0d" transform="translate(32 33) scale(1) translate(-32 -33)"/><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" fill="#c8f135" transform="translate(32 33) scale(0.9) translate(-32 -33)"/><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" fill="#0d0d0d" transform="translate(32 33) scale(0.81) translate(-32 -33)"/><defs><clipPath id="f64"><path d="M10 11 H54 V31 C54 44 45 53.5 32 59 C19 53.5 10 44 10 31 Z" transform="translate(32 33) scale(0.81) translate(-32 -33)"/></clipPath></defs>
+    <g clip-path="url(#f64)"><rect x="23" y="0" width="6" height="64" fill="#c8f135" opacity="0.4"/><rect x="35" y="0" width="6" height="64" fill="#c8f135" opacity="0.4"/><rect x="47" y="0" width="6" height="64" fill="#c8f135" opacity="0.4"/></g>
+  <circle cx="32" cy="31" r="5.4" fill="#c8f135"/>
+  <path d="M28.8 35.2 L35.2 35.2 L36.8 44 L27.2 44 Z" fill="#c8f135"/></g>
 </svg>
