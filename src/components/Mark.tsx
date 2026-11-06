@@ -107,10 +107,11 @@ export function Mark({
           <path d={CREST} transform={about(FIELD)} />
         </clipPath>
       </defs>
+      {/* Centred on the badge at x 32, 12 apart. */}
       <g clipPath={`url(#${clip})`} opacity={stripeOpacity}>
-        <rect x="23" y="0" width="6" height="64" fill={stripe} />
-        <rect x="35" y="0" width="6" height="64" fill={stripe} />
-        <rect x="47" y="0" width="6" height="64" fill={stripe} />
+        <rect x="17" y="0" width="6" height="64" fill={stripe} />
+        <rect x="29" y="0" width="6" height="64" fill={stripe} />
+        <rect x="41" y="0" width="6" height="64" fill={stripe} />
       </g>
 
       <circle cx="32" cy="31" r="5.4" fill={ground} />

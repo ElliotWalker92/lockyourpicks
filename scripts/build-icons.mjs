@@ -40,12 +40,20 @@ const about = (k) => `translate(32 33) scale(${k}) translate(-32 -33)`;
 const crest = (fill, k = 1) =>
   `<path d="${CREST}" fill="${fill}" transform="${about(k)}"/>`;
 
-/** Three bold stripes, full height, clipped to the field inside the keyline. */
+/**
+ * Three bold stripes, full height, clipped to the field inside the
+ * keyline.
+ *
+ * Centred on the badge, which is at x 32 — written as an offset from it
+ * rather than from the left, because the first version counted from the
+ * wrong edge and put the whole set six units right: a gap down the left
+ * side and the third stripe sliced off by the crest.
+ */
 const stripes = (id, fill, opacity) => {
   const pitch = 12;
-  const bars = [0, 1, 2]
+  const bars = [-1, 0, 1]
     .map((i) => {
-      const cx = 20 + pitch / 2 + i * pitch;
+      const cx = 32 + i * pitch;
       return `<rect x="${cx - 3}" y="0" width="6" height="64" fill="${fill}" opacity="${opacity}"/>`;
     })
     .join('');
