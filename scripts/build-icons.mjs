@@ -88,8 +88,18 @@ const icon = ({ size, radius = 0, scale = 1 }) => {
  * browser chrome, and there is no tile left to hold it up. Tested at 16
  * and 32 against both before choosing.
  */
-const favicon = (size) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">${glyph('f' + size, LIME, INK)}</svg>`;
+const favicon = (size) => {
+  // The badge is drawn with the margin a tile needs around it. With no
+  // tile that margin is just empty canvas, and a favicon has 16 pixels
+  // to work with — so it is scaled to fill, keeping a hair of
+  // air top and bottom. Its box is 44 x 48 inside the 64 square.
+  const k = 1.24;
+  const tx = (64 - 44 * k) / 2 - 10 * k;
+  const ty = (64 - 48 * k) / 2 - 11 * k;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}">
+  <g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${k})">${glyph('f' + size, LIME, INK)}</g>
+</svg>`;
+};
 
 /**
  * The notification badge: Android keeps only the alpha channel, so every
