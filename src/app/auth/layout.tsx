@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { Mark } from '@/components/Mark';
+import { COMPANY_LINE } from '@/lib/company';
 
 export default function AuthLayout({
   children,
@@ -22,6 +23,9 @@ export default function AuthLayout({
           </span>
         </Link>
         <div className="card p-6">{children}</div>
+        <p className="mt-6 text-center text-[11px] leading-relaxed text-grey-500">
+          {COMPANY_LINE}
+        </p>
       </div>
     </div>
   );

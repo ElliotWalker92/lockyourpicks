@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { COMPANY_LINE } from '@/lib/company';
 import { LockIcon } from '@/components/LockIcon';
 import { PitchBackdrop } from '@/components/PitchBackdrop';
 import { createClient } from '@/lib/supabase/server';
@@ -231,6 +232,7 @@ export default async function Home() {
         <div className="mx-auto w-full max-w-5xl px-6 py-6 text-sm text-grey-500">
           Lock Your Picks &mdash; a prediction league for people who take it too
           seriously.
+          <p className="mt-3 text-xs">{COMPANY_LINE}</p>
         </div>
       </footer>
     </main>

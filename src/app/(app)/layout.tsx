@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { COMPANY_LINE } from '@/lib/company';
 import { MobileNav } from '@/components/MobileNav';
 import { Mark } from '@/components/Mark';
 import { NavLinks } from '@/components/NavLinks';
@@ -151,7 +152,7 @@ export default async function AppLayout({
 
       <footer className="hidden border-t border-grey-300 sm:block">
         <div className="mx-auto w-full max-w-5xl px-6 py-5 text-xs text-grey-500">
-          Lock Your Picks
+          {COMPANY_LINE}
         </div>
       </footer>
 
