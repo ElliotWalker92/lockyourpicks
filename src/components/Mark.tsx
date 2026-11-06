@@ -1,14 +1,12 @@
 /**
- * The brand mark: a padlock with a tick where the keyhole was.
+ * The brand mark: a club crest with a keyhole cut out of it.
  *
  * Not `LockIcon`, which is the functional glyph on Lock in buttons and
- * takes `currentColor`. This one is fixed lime, pink and ink, because a
- * logo that changes colour with its surroundings is not a logo. Those
- * three are also why it needs no plate behind it: the tick is dark on
- * the lime body rather than on the page, so it reads the same on a white
- * header and a black one.
+ * takes `currentColor`. This one carries its own lime ground, because
+ * the crest is ink and the keyhole is the ground showing through — put
+ * it on a white header without the tile and the keyhole fills in.
  *
- * The same three paths are in `scripts/build-icons.js`, which cuts the
+ * The same paths are in `scripts/build-icons.mjs`, which cuts the
  * favicon, the home-screen icons and the notification badge. Change one
  * and run that, or the thing on the home screen stops being the thing in
  * the header.
@@ -21,22 +19,13 @@ export function Mark({ className = 'h-7 w-7' }: { className?: string }) {
       role="img"
       aria-label="Lock Your Picks"
     >
+      <rect width="64" height="64" rx="14" fill="#c8f135" />
       <path
-        d="M22 30 V22 a10 10 0 0 1 20 0 V30"
-        fill="none"
-        stroke="#ff2d87"
-        strokeWidth="5.5"
-        strokeLinecap="round"
+        d="M32 6 L55 13 V31 C55 45 45 55.5 32 60 C19 55.5 9 45 9 31 V13 Z"
+        fill="#0d0d0d"
       />
-      <rect x="11" y="28" width="42" height="27" rx="6" fill="#c8f135" />
-      <path
-        d="M23 41 l6 6 l12 -12"
-        fill="none"
-        stroke="#0d0d0d"
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <circle cx="32" cy="28" r="6.8" fill="#c8f135" />
+      <path d="M27.9 33.3 L36.1 33.3 L38 45 L26 45 Z" fill="#c8f135" />
     </svg>
   );
 }
