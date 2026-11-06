@@ -72,6 +72,7 @@ export function FixtureLine({
   awayCrest,
   outcome = null,
   crestClass = 'h-4 w-4',
+  clip = true,
   className = '',
 }: {
   home: string;
@@ -81,14 +82,26 @@ export function FixtureLine({
   /** The side called, emboldened in place. Null when nothing is called. */
   outcome?: Outcome | null;
   crestClass?: string;
+  /**
+   * Whether this may be cut short when the row runs out of room.
+   *
+   * On by default, for a slip: the names give way so the score and the
+   * tick stay in their column, and a name you can half-read beside a
+   * crest is still the fixture you picked.
+   *
+   * Off where the row can give way instead. A flex item that may shrink
+   * to nothing never makes its row wrap — the browser satisfies
+   * everything else first and clips this — so turning the clip off is
+   * also what lets a wrapping row know this has a size worth keeping.
+   */
+  clip?: boolean;
   className?: string;
 }) {
   return (
-    // overflow-hidden is the backstop: when a row runs out of room this
-    // clips, where before the names ran straight out of their box and over
-    // whatever sat to the right of them.
     <span
-      className={`flex min-w-0 items-center gap-1.5 overflow-hidden ${className}`}
+      className={`flex items-center gap-1.5 ${
+        clip ? 'min-w-0 overflow-hidden' : ''
+      } ${className}`}
     >
       <Crest url={homeCrest} className={crestClass} />
       <TeamName name={home} called={outcome === 'HOME' || outcome === 'DRAW'} />

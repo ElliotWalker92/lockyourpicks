@@ -757,7 +757,7 @@ export function DraftBoard({
 
         {/* Each in its own wrapper, rather than both dropped straight into
             one flex container.
-            
+
             They arrive as props, so the elements inside them were created by
             the page, not here — and React key-validates a children array
             whose members have a different owner, which it does not do for
@@ -843,7 +843,20 @@ export function DraftBoard({
                                 and the three buttons take the second as
                                 equal thirds, so they can't be squeezed
                                 however long the clubs are. Once there's
-                                room it all sits on one line. */}
+                                room it all sits on one line — and goes
+                                back to two the moment it doesn't fit,
+                                which is what `flex-wrap` is for.
+
+                                That wrap needs the fixture to hold a
+                                size: a `min-w-0` item shrinks to nothing
+                                rather than pushing anything onto the next
+                                line, so the row stayed on one line and cut
+                                the away club off instead. Nottingham
+                                Forest v Manchester City read as
+                                "Nottingham Forest v" with a badge after
+                                it, because the three buttons beside it
+                                repeat both names and take more width than
+                                the fixture does. */}
                             <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
                               <button
                                 type="button"
@@ -851,7 +864,7 @@ export function DraftBoard({
                                 aria-expanded={open}
                                 // The tour points at the first of these.
                                 data-tour="fixture"
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left transition hover:text-lime-dark"
+                                className="flex flex-1 items-center gap-2 text-left transition hover:text-lime-dark"
                                 title="Show the model’s read on this fixture"
                               >
                                 <span
@@ -872,7 +885,8 @@ export function DraftBoard({
                                   homeCrest={f.home.crest_url}
                                   awayCrest={f.away.crest_url}
                                   crestClass="h-5 w-5"
-                                  className="min-w-0 flex-1"
+                                  clip={false}
+                                  className="flex-1"
                                 />
 
                                 {/* Tapping the clubs opened the model long
