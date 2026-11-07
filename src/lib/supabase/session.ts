@@ -47,7 +47,13 @@ export async function updateSession(request: NextRequest) {
   // the session-backed ones: an API caller wants a 401, not a 307 to a form.
   const isApiRoute = pathname.startsWith('/api');
 
-  const isPublicRoute = pathname === '/' || isAuthRoute || isApiRoute;
+  // The terms and the privacy policy have to be readable by someone who
+  // has not signed up — that is exactly who reads them before deciding
+  // to. A policy behind a login wall discloses nothing.
+  const isLegalRoute = pathname.startsWith('/legal');
+
+  const isPublicRoute =
+    pathname === '/' || isAuthRoute || isApiRoute || isLegalRoute;
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();

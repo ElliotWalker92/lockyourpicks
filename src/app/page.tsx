@@ -232,7 +232,15 @@ export default async function Home() {
         <div className="mx-auto w-full max-w-5xl px-6 py-6 text-sm text-grey-500">
           Lock Your Picks &mdash; a prediction league for people who take it too
           seriously.
-          <p className="mt-3 text-xs">{COMPANY_LINE}</p>
+          <p className="mt-4 mb-3 flex gap-4 text-xs">
+            <Link href="/legal/terms" className="transition hover:text-ink">
+              Terms
+            </Link>
+            <Link href="/legal/privacy" className="transition hover:text-ink">
+              Privacy
+            </Link>
+          </p>
+          <p className="text-xs">{COMPANY_LINE}</p>
         </div>
       </footer>
     </main>

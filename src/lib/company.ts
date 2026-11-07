@@ -17,7 +17,29 @@ export const COMPANY = {
   jurisdiction: 'England and Wales',
   number: '17532182',
   office: 'Flat 1, 69 Camberwell Grove, London, England, SE5 8JE',
+  /**
+   * The company's own ICO registration, so it is the same number
+   * deskhops.com publishes — it belongs to Top Reds Ltd, not to either
+   * brand.
+   */
+  ico: 'ZC281295',
+  /** Where a data request or anything else legal should land. */
+  email: 'info@lockyourpicks.com',
 } as const;
+
+/**
+ * Where the personal data physically sits, named in the privacy policy.
+ *
+ * This is the Supabase project's region, which is fixed when the project
+ * is created and is not readable from the API — it is only on the
+ * project's settings page. Written down here so the claim in the policy
+ * has one source, and so it is obvious what to correct if the project
+ * ever moves.
+ */
+export const DATA_REGION = 'the European Union (Ireland)';
+
+/** Set by hand whenever either policy is edited. */
+export const LEGAL_UPDATED = '7 November 2026';
 
 /** The disclosure itself, worded the same way across the brands. */
 export const COMPANY_LINE =

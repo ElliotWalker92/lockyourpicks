@@ -314,3 +314,71 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ---- Long-form text ----
+   The terms and the privacy policy, and nothing else so far. The rest of
+   the app is tables, cards and buttons, so there was no paragraph style
+   to reuse — and these two pages want the opposite of the scoreboard
+   voice: a comfortable measure, generous leading, and headings that
+   separate rather than shout. */
+.legal {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--color-ink);
+}
+
+.legal h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.015em;
+  margin: 2.25rem 0 0.75rem;
+}
+
+.legal h2:first-child {
+  margin-top: 0;
+}
+
+.legal p {
+  margin: 0 0 0.9rem;
+}
+
+.legal ul {
+  margin: 0 0 0.9rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* A dash rather than a bullet: it sits on the baseline of the first line
+   and keeps a wrapped item aligned under its own text. */
+.legal li {
+  position: relative;
+  padding-left: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.legal li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+  color: var(--color-grey-400);
+}
+
+.legal a {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--color-lime-dark);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
+.legal a:hover {
+  color: var(--color-lime-dark);
+}
+
+/* The one-sentence summary at the top of each policy. */
+.legal-lede {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--color-grey-500);
+}

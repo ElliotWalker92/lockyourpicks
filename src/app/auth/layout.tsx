@@ -23,7 +23,15 @@ export default function AuthLayout({
           </span>
         </Link>
         <div className="card p-6">{children}</div>
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-grey-500">
+        <p className="mt-6 flex justify-center gap-4 text-[11px] text-grey-500">
+          <Link href="/legal/terms" className="transition hover:text-ink">
+            Terms
+          </Link>
+          <Link href="/legal/privacy" className="transition hover:text-ink">
+            Privacy
+          </Link>
+        </p>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-grey-500">
           {COMPANY_LINE}
         </p>
       </div>
