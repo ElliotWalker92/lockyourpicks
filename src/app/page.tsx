@@ -26,13 +26,22 @@ const RULES = [
   },
 ];
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (user) redirect('/dashboard');
+
+  // Deleting an account ends here, signed out. Saying so is the only
+  // confirmation there can be — there is no account left to show it in,
+  // and a destructive thing that happens in silence feels like a fault.
+  const { deleted } = await searchParams;
 
   // Counted rather than written down. These were hardcoded and went stale
   // the moment the season was re-cut — the page still advertised 43
@@ -71,6 +80,15 @@ export default async function Home() {
 
   return (
     <main className="flex flex-1 flex-col">
+      {deleted && (
+        <p
+          role="status"
+          className="border-b border-grey-300 bg-lime/15 px-6 py-3 text-center text-sm"
+        >
+          Your account has been deleted. Thanks for playing.
+        </p>
+      )}
+
       {/* ---- Hero ---- */}
       <section className="relative isolate overflow-hidden bg-panel text-white">
         <PitchBackdrop className="absolute inset-0 h-full w-full text-lime/25" />

@@ -138,8 +138,10 @@ export default function TermsPage() {
 
       <h2>Ending your account</h2>
       <p>
-        You can close your account at any time — email us and we will delete
-        it. We may suspend or close an account that breaks these terms, and we
+        You can delete your account at any time from your profile page. Your
+        past picks stay in your league&rsquo;s history under a blank name, so
+        the seasons other people played still add up, but nothing in them
+        identifies you. We may suspend or close an account that breaks these terms, and we
         will tell you why unless we are legally prevented from doing so.
       </p>
 

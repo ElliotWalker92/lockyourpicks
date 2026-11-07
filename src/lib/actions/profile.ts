@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 import { AVATAR_COLORS, type ProfileState } from '@/lib/profile-options';
 import { callRpc } from '@/lib/supabase/rpc';
@@ -249,4 +250,54 @@ export async function removePushSubscription(
     .eq('user_id', user.id);
 
   return { error: error?.message ?? null };
+}
+
+/**
+ * Delete your own account.
+ *
+ * The confirmation is checked here rather than only in the component,
+ * because a server action is a public endpoint: anything that only the
+ * browser enforces is not enforced at all, and this one is not
+ * reversible.
+ *
+ * Order matters. The avatar files go first, while the session that is
+ * allowed to touch them still exists — the storage policy keys on
+ * `auth.uid()`, so after the RPC there is no way to reach them and they
+ * would sit in the bucket for good. Then the RPC does everything inside
+ * the database in one transaction. Then we sign out, which is the only
+ * step that can be skipped without leaving a mess.
+ */
+export async function deleteAccount(
+  _prev: ProfileState,
+  formData: FormData,
+): Promise<ProfileState> {
+  if (String(formData.get('confirm') ?? '').trim().toUpperCase() !== 'DELETE') {
+    return { error: 'Type DELETE to confirm.', success: null };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'You’re not signed in.', success: null };
+  }
+
+  // Every upload is a new filename, so there can be several.
+  const { data: files } = await supabase.storage.from('avatars').list(user.id);
+  if (files?.length) {
+    await supabase.storage
+      .from('avatars')
+      .remove(files.map((f) => `${user.id}/${f.name}`));
+  }
+
+  const { error } = await callRpc<null>(supabase, 'delete_own_account');
+  if (error) {
+    return { error: error.message, success: null };
+  }
+
+  await supabase.auth.signOut();
+  revalidatePath('/', 'layout');
+  redirect('/?deleted=1');
 }

@@ -4,6 +4,7 @@ import {
   EmailForm,
   PasswordForm,
 } from '@/components/ProfileForms';
+import { DeleteAccount } from '@/components/DeleteAccount';
 import { signOut } from '@/lib/actions/auth';
 import { NotifyToggle } from '@/components/NotifyToggle';
 import { PushToggle } from '@/components/PushToggle';
@@ -146,6 +147,15 @@ export default async function ProfilePage() {
             </button>
           </form>
         </section>
+
+        {/* Last, and on its own, so it is never next to the thumb on the
+            way to something else. */}
+        <Section
+          title="Delete account"
+          description="Removes you and everything that identifies you. Your past picks stay in the league's history under a blank name, so nobody else's season changes."
+        >
+          <DeleteAccount ownedLeagues={ownedGroups ?? 0} />
+        </Section>
       </div>
     </div>
   );
