@@ -153,6 +153,9 @@ export default async function AppLayout({
       <footer className="hidden border-t border-grey-300 sm:block">
         <div className="mx-auto w-full max-w-5xl px-6 py-5 text-xs text-grey-500">
           <p className="mb-3 flex gap-4">
+            <Link href="/about" className="transition hover:text-ink">
+              About
+            </Link>
             <Link href="/legal/terms" className="transition hover:text-ink">
               Terms
             </Link>

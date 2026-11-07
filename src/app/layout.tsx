@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { Analytics } from '@/components/Analytics';
 import { ServiceWorker } from '@/components/ServiceWorker';
+import { siteOrigin } from '@/lib/company';
+import { serverEnv } from '@/lib/server-env';
 import { cookies } from "next/headers";
 import { Archivo, Inter } from "next/font/google";
 import "./globals.css";
@@ -64,12 +67,35 @@ export const metadata: Metadata = {
   // only knows the prefixed one, and an iPhone a couple of years old is
   // exactly the device this is for.
   other: { "apple-mobile-web-app-capable": "yes" },
+  // Without a base, every relative URL below is dropped and the card
+  // falls back to a bare grey row of text in whatever app it is pasted
+  // into — which is what a shared link looked like until now.
+  metadataBase: new URL(siteOrigin()),
   openGraph: {
     title: "Lock Your Picks",
     description:
       "Three picks. One draft. No second chances. A weekly football prediction league.",
     type: "website",
+    siteName: "Lock Your Picks",
+    locale: "en_GB",
+    url: "/",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Lock Your Picks \u2014 three picks, one draft, no second chances.",
+      },
+    ],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Lock Your Picks",
+    description:
+      "Three picks. One draft. No second chances. A weekly football prediction league.",
+    images: ["/og.png"],
+  },
+  alternates: { canonical: "/" },
 };
 
 export const viewport = {
@@ -95,6 +121,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const theme = (await cookies()).get("theme")?.value;
   const pinned = theme === "light" || theme === "dark" ? theme : undefined;
 
+  // Read per request: the Worker's env is not visible to `next build`.
+  const beacon = serverEnv("NEXT_PUBLIC_CF_BEACON_TOKEN");
+
   return (
     <html
       lang="en"
@@ -104,6 +133,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         {children}
         <ServiceWorker />
+        <Analytics token={beacon} />
       </body>
     </html>
   );

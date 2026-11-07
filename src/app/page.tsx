@@ -251,6 +251,9 @@ export default async function Home({
           Lock Your Picks &mdash; a prediction league for people who take it too
           seriously.
           <p className="mt-4 mb-3 flex gap-4 text-xs">
+            <Link href="/about" className="transition hover:text-ink">
+              About
+            </Link>
             <Link href="/legal/terms" className="transition hover:text-ink">
               Terms
             </Link>

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 
+import { siteOrigin } from '@/lib/company';
 import { createClient } from '@/lib/supabase/server';
 
 export type AuthState = { error: string | null };
@@ -13,9 +14,7 @@ export type AuthState = { error: string | null };
  * Must match a Redirect URL allowed in the auth project, or Supabase
  * silently substitutes the site URL and drops the query with it.
  */
-function siteOrigin(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? 'https://lockyourpicks.com';
-}
+
 
 function readCredentials(formData: FormData) {
   return {

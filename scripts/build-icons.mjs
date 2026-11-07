@@ -142,6 +142,54 @@ const badge = (size) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64
 </svg>`;
 
 /**
+ * The share card: 1200 x 630, the size every chat app and social site
+ * crops to when a link is pasted. Without one, a link to this site
+ * renders as a bare grey row of text, which is what it did until now.
+ *
+ * Set in Helvetica Neue rather than Archivo, the site's display face.
+ * Archivo arrives through next/font at build time as woff2, which the
+ * rasteriser here cannot load, and installing a font system-wide to cut
+ * one PNG is a worse trade than a neutral grotesk nobody will ever see
+ * beside the real thing.
+ *
+ * Dark, because the card is usually seen against a white chat bubble and
+ * the ink block is what makes it read as a card rather than as part of
+ * the page.
+ */
+const og = () => {
+  const W = 1200;
+  const H = 630;
+  // The badge, scaled out of its 64 box and set on the left.
+  const MARK = 215;
+  const k = MARK / 64;
+  const mx = 90;
+  const my = (H - MARK) / 2 - 18;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${INK}"/>
+
+  <!-- A pitch, far enough back to be texture rather than a picture. -->
+  <g fill="none" stroke="${LIME}" stroke-opacity="0.13" stroke-width="3">
+    <circle cx="${W / 2}" cy="${H / 2}" r="150"/>
+    <line x1="${W / 2}" y1="0" x2="${W / 2}" y2="${H}"/>
+    <rect x="-80" y="135" width="260" height="360"/>
+    <rect x="${W - 180}" y="135" width="260" height="360"/>
+  </g>
+
+  <g transform="translate(${mx} ${my}) scale(${k})">${glyph('og', LIME, INK)}</g>
+
+  <g font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="700">
+    <text x="${mx + MARK + 54}" y="${my + 38}" font-size="25" letter-spacing="7" fill="${LIME}">LOCK YOUR PICKS</text>
+    <text x="${mx + MARK + 50}" y="${my + 108}" font-size="62" letter-spacing="-2" fill="#ffffff">Three picks.</text>
+    <text x="${mx + MARK + 50}" y="${my + 174}" font-size="62" letter-spacing="-2" fill="#ffffff">One draft.</text>
+    <text x="${mx + MARK + 50}" y="${my + 240}" font-size="62" letter-spacing="-2" fill="${LIME}">No second chances.</text>
+  </g>
+
+  <text x="${mx + MARK + 54}" y="${my + 292}" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="23" fill="#ffffff" fill-opacity="0.55">A weekly football prediction league \u2014 draft the fixtures first.</text>
+</svg>`;
+};
+
+/**
  * An .ico, which sharp cannot write.
  *
  * It is a six-byte header, a sixteen-byte directory entry per image and
@@ -189,6 +237,7 @@ await Promise.all([
   png('icon-512.png', icon({ size: 512 })),
   png('icon-maskable-512.png', icon({ size: 512, scale: MASKABLE })),
   png('badge-96.png', badge(96)),
+  png('og.png', og()),
 ]);
 
 writeFileSync(join(OUT, 'favicon.ico'), await ico([16, 32, 48]));

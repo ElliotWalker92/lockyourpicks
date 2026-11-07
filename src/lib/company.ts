@@ -45,3 +45,15 @@ export const LEGAL_UPDATED = '7 November 2026';
 export const COMPANY_LINE =
   `${COMPANY.name} is a company registered in ${COMPANY.jurisdiction}, ` +
   `number ${COMPANY.number}. Registered office: ${COMPANY.office}.`;
+
+/**
+ * The canonical origin, for anything that needs an absolute URL: share
+ * cards, the sitemap, the links in confirmation emails.
+ *
+ * Read from the environment so a preview deploy advertises itself
+ * rather than production, with the live site as the fallback for a
+ * build that has no variable set.
+ */
+export function siteOrigin(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? 'https://lockyourpicks.com';
+}

@@ -52,8 +52,17 @@ export async function updateSession(request: NextRequest) {
   // to. A policy behind a login wall discloses nothing.
   const isLegalRoute = pathname.startsWith('/legal');
 
+  // About and the invite links are marketing surface: they exist to be
+  // read by people who do not have an account yet, and an invite that
+  // bounces to a sign-in form with no explanation is an invite nobody
+  // accepts.
   const isPublicRoute =
-    pathname === '/' || isAuthRoute || isApiRoute || isLegalRoute;
+    pathname === '/' ||
+    pathname === '/about' ||
+    pathname.startsWith('/join/') ||
+    isAuthRoute ||
+    isApiRoute ||
+    isLegalRoute;
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
