@@ -134,7 +134,8 @@ export default function PrivacyPage() {
       <h2>How long we keep it</h2>
       <ul>
         <li>
-          <strong>Your account and profile</strong> — until you delete it.
+          <strong>Your account and profile</strong> — until you ask us to
+          delete it.
         </li>
         <li>
           <strong>Your picks and scores</strong> — for as long as the league you

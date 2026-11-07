@@ -138,9 +138,9 @@ export default function TermsPage() {
 
       <h2>Ending your account</h2>
       <p>
-        You can delete your account at any time from your profile page. We may
-        suspend or close an account that breaks these terms, and we will tell
-        you why unless we are legally prevented from doing so.
+        You can close your account at any time — email us and we will delete
+        it. We may suspend or close an account that breaks these terms, and we
+        will tell you why unless we are legally prevented from doing so.
       </p>
 
       <h2>Changes to these terms</h2>
