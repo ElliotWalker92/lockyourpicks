@@ -77,11 +77,15 @@ export function DeleteAccount({ ownedLeagues }: { ownedLeagues: number }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="confirm" className="label">
+        {/* Not id="confirm": the password form higher up the profile page
+            already uses that, and a duplicate id silently binds this
+            label to that input — a screen reader announced this field as
+            "Confirm new password". The form field keeps its own name. */}
+        <label htmlFor="confirm-delete" className="label">
           Type DELETE to confirm
         </label>
         <input
-          id="confirm"
+          id="confirm-delete"
           name="confirm"
           type="text"
           autoComplete="off"
