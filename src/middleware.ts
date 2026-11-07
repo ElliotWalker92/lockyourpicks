@@ -31,6 +31,12 @@ export const config = {
      * Everything except static assets and image files — those don't need a
      * session refresh and matching them would just add latency.
      *
+     * robots.txt and sitemap.xml are excluded for the same reason as the
+     * install files below: a crawler arrives with no session, and this
+     * middleware answers an unauthenticated request with a redirect to
+     * sign-in. Both shipped as a 307 to a login form, so nothing was
+     * crawlable and the sitemap advertised nothing at all.
+     *
      * The install files are excluded for a stronger reason than latency:
      * the browser fetches the manifest and the service worker with no
      * session, and this middleware answers an unauthenticated request with
@@ -38,6 +44,6 @@ export const config = {
      * is not an error anyone sees — the app simply never becomes
      * installable, and the offline page never arrives.
      */
-    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|sw.js|offline|offline.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
   ],
 };
