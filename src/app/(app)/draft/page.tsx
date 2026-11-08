@@ -83,7 +83,14 @@ function gameweekFixtures(
        away:teams!fixtures_away_team_id_fkey(id, name, crest_url, elo_rating, elo_provisional),
        competition:competitions(code, name, tier)`,
     )
-    .eq('gameweek_id', gameweekId);
+    .eq('gameweek_id', gameweekId)
+    // A postponed or cancelled fixture is not part of this round. It was
+    // still being drawn on the board, so a player could see a game that
+    // will not be played, plan an accumulator around it, and click a
+    // button that make_pick refuses — the RPC checks the same thing, so
+    // nothing wrong was ever recorded, but the board was telling people
+    // something untrue.
+    .in('status', ['scheduled', 'live', 'finished']);
 
   return (playing.length ? query.in('competition_id', playing) : query).order(
     'kickoff_at',

@@ -44,7 +44,26 @@ export type ApiFixture = {
   };
   league: { id: number; season: number; round: string };
   teams: { home: ApiTeam; away: ApiTeam };
+  /**
+   * The final score, extra time included. For a tie settled in extra
+   * time this is NOT the result the game scores on — see `score`.
+   */
   goals: { home: number | null; away: number | null };
+  /**
+   * The same match broken into periods. `fulltime` is the score after
+   * ninety minutes, which is the number this game has always meant by
+   * "the result": you call a cup tie a draw if it is level at full
+   * time, however it is settled afterwards.
+   *
+   * Null for a match still in play, so `goals` is the live score and
+   * this only becomes authoritative once the match is finished.
+   */
+  score: {
+    halftime: { home: number | null; away: number | null };
+    fulltime: { home: number | null; away: number | null };
+    extratime: { home: number | null; away: number | null };
+    penalty: { home: number | null; away: number | null };
+  };
 };
 
 export class ApiFootballError extends Error {

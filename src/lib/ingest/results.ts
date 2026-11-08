@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  type ApiFixture,
   getFixturesByDate,
   isTransientApiError,
   mapStatus,
@@ -9,6 +10,33 @@ import { ingestStandings } from '@/lib/ingest/standings';
 import { competitionsInPlay, competitionsPlayed } from '@/lib/competitions';
 import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
+
+/**
+ * The score this game is played on: the one after ninety minutes.
+ *
+ * `goals` is the provider's final score with extra time folded in, and
+ * using it meant a cup tie level at full time and won in extra time was
+ * scored as a win. Cray Wanderers 2-2 Stockport, settled 3-2 in extra
+ * time, was stored as 2-3 and paid out two points for an away win that
+ * on the night was a draw. Four ties in the FA Cup first round alone
+ * carried the wrong result.
+ *
+ * `score.fulltime` is the ninety-minute score and is what a slip means
+ * by the result — nobody calls that tie an away win. It is only
+ * populated once the match is finished, so a match still in play falls
+ * back to `goals`, which is then the running score and correct.
+ */
+function ninetyMinutes(
+  f: ApiFixture,
+  status: string,
+): [number | null, number | null] {
+  const ft = f.score?.fulltime;
+  if (status === 'finished' && ft && ft.home !== null && ft.away !== null) {
+    return [ft.home, ft.away];
+  }
+  return [f.goals.home, f.goals.away];
+}
+
 
 export type ResultsReport = {
   datesChecked: string[];
@@ -119,10 +147,12 @@ export async function ingestResults(
 
       for (const f of fixtures) {
         if (!ours.has(f.league.id)) continue;
+        const status = mapStatus(f.fixture.status.short);
+        const [home, away] = ninetyMinutes(f, status);
         updates.set(f.fixture.id, {
-          home_score: f.goals.home,
-          away_score: f.goals.away,
-          status: mapStatus(f.fixture.status.short),
+          home_score: home,
+          away_score: away,
+          status,
         });
       }
     } catch (err) {
