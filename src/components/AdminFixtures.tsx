@@ -37,7 +37,7 @@ export function AdminFixtures({ fixtures }: { fixtures: AdminFixture[] }) {
     if (
       next === 'postponed' &&
       !confirm(
-        `Take ${f.home} v ${f.away} off the board?\n\nAnyone who has picked it gets that pick back and can choose again.`,
+        `Take ${f.home} v ${f.away} off the board?\n\nAnyone who picked it gets that pick back, can choose again, and will be told.`,
       )
     ) {
       return;
