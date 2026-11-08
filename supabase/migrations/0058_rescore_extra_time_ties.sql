@@ -32,19 +32,30 @@
 --  own with nothing else to update.
 -- ============================================================
 
-update public.fixtures set home_score = 1, away_score = 1
- where id = '12cbbccd-bf4d-486c-b1be-4555aa555185';  -- Oldham v Sheffield Wednesday
+-- Guarded so a fresh database can run the whole migration history: these
+-- ids are production rows, and a repair for data that is not there is a
+-- no-op rather than a failure. On production this does exactly what it
+-- did when it first ran.
+do $$
+declare
+  v_gw uuid := '281b79b2-f580-4b1d-a2ba-02e8673978e7';
+  r record;
+begin
+  for r in
+    select * from (values
+      ('12cbbccd-bf4d-486c-b1be-4555aa555185'::uuid, 1, 1),  -- Oldham v Sheffield Wednesday
+      ('3357cd75-2ac1-4bc9-8778-6d12bd3b6c5d'::uuid, 2, 2),  -- Stafford Rangers v Grimsby
+      ('5e18ea12-0588-422f-8560-5be8e3f38c89'::uuid, 1, 1),  -- AFC Hornchurch v Blackpool
+      ('0f2ecf04-cbfe-416f-8e7b-146c43228c4c'::uuid, 2, 2),  -- Cray Wanderers v Stockport County
+      ('9d1a4acd-9411-47e9-85d7-dc958d6f1766'::uuid, 1, 1)   -- Fleetwood Town v Rochdale
+    ) as t(id, h, a)
+  loop
+    update public.fixtures
+       set home_score = r.h, away_score = r.a
+     where id = r.id;
+  end loop;
 
-update public.fixtures set home_score = 2, away_score = 2
- where id = '3357cd75-2ac1-4bc9-8778-6d12bd3b6c5d';  -- Stafford Rangers v Grimsby
-
-update public.fixtures set home_score = 1, away_score = 1
- where id = '5e18ea12-0588-422f-8560-5be8e3f38c89';  -- AFC Hornchurch v Blackpool
-
-update public.fixtures set home_score = 2, away_score = 2
- where id = '0f2ecf04-cbfe-416f-8e7b-146c43228c4c';  -- Cray Wanderers v Stockport County
-
-update public.fixtures set home_score = 1, away_score = 1
- where id = '9d1a4acd-9411-47e9-85d7-dc958d6f1766';  -- Fleetwood Town v Rochdale
-
-select public.settle_gameweek('281b79b2-f580-4b1d-a2ba-02e8673978e7');  -- Gameweek 22
+  if exists (select 1 from public.gameweeks where id = v_gw) then
+    perform public.settle_gameweek(v_gw);
+  end if;
+end $$;

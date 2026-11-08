@@ -38,3 +38,48 @@ export async function openNextGameweek(
   revalidatePath('/draft');
   return { error: null, message: data?.message ?? 'Done.' };
 }
+
+export type AdminState = { error: string | null; success: string | null };
+
+/**
+ * Call a fixture off, or put it back on.
+ *
+ * The provider is slow on EFL postponements — five League One games in
+ * gameweek 23 were called off for international call-ups and still read
+ * as "not started" days later, so the board kept offering games that
+ * will not be played. Waiting for the data to catch up is not a plan
+ * when the draft closes on Saturday morning.
+ *
+ * Everything that matters happens in `admin_set_fixture_status`: the
+ * admin check, the status, and releasing any picks on it. This is the
+ * thin wrapper that lets a button call it, and it is deliberately thin —
+ * a check written here would be a suggestion, since a server action is a
+ * public endpoint.
+ */
+export async function setFixtureStatus(
+  fixtureId: string,
+  status: 'scheduled' | 'postponed' | 'cancelled',
+): Promise<AdminState> {
+  const supabase = await createClient();
+
+  const { data, error } = await callRpc<number>(
+    supabase,
+    'admin_set_fixture_status',
+    { p_fixture_id: fixtureId, p_status: status },
+  );
+
+  if (error) return { error: error.message, success: null };
+
+  const released = data ?? 0;
+  const note =
+    status === 'scheduled'
+      ? 'Back on the board.'
+      : released === 0
+        ? 'Taken off the board.'
+        : `Taken off the board, and ${released} pick${
+            released === 1 ? '' : 's'
+          } released — those players can pick again.`;
+
+  revalidatePath('/draft');
+  return { error: null, success: note };
+}

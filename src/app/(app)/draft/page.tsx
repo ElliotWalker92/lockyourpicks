@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { DraftBoard, type BoardFixture } from '@/components/DraftBoard';
 import { OpenDraftButton } from '@/components/OpenDraftButton';
+import { AdminFixtures } from '@/components/AdminFixtures';
 import { LiveScores } from '@/components/LiveScores';
 import { Slip, type SlipPick, type SlipPlayer } from '@/components/Slip';
 import { tallyOf } from '@/lib/scoring';
@@ -583,6 +584,33 @@ export default async function DraftPage({
   if (cardError) console.error('draft card:', cardError.message);
   const playing = card ?? [];
 
+  // Every fixture in the round, postponed ones included — the board's own
+  // query filters those out, and the admin panel is the one place that
+  // has to see them in order to put one back.
+  const adminFixtures = profile?.is_admin
+    ? ((
+        await supabase
+          .from('fixtures')
+          .select(
+            `id, kickoff_at, status,
+             home:teams!fixtures_home_team_id_fkey(name),
+             away:teams!fixtures_away_team_id_fkey(name),
+             competition:competitions(name)`,
+          )
+          .eq('gameweek_id', gameweek.id)
+          .in('competition_id', playing)
+          .order('kickoff_at')
+      ).data ?? []).map((f) => ({
+        id: f.id,
+        kickoff_at: f.kickoff_at,
+        status: f.status,
+        home: f.home?.name ?? '?',
+        away: f.away?.name ?? '?',
+        competition: f.competition?.name ?? '',
+      }))
+    : [];
+
+
   const [{ data: fixtureRows }, { data: picks }, { data: members }] =
     await Promise.all([
       // Every fixture in the gameweek, not just the pickable ones.
@@ -744,6 +772,7 @@ export default async function DraftPage({
     <div className="flex flex-col gap-8">
       {/* Scores and ticks reach the slip without a reload — see 0021. */}
       <LiveScores gameweekId={gameweek.id} />
+      {profile?.is_admin && <AdminFixtures fixtures={adminFixtures} />}
       <DraftBoard
         schedule={mySchedule}
         draft={draft}
