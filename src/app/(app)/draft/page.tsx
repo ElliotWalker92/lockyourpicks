@@ -64,6 +64,22 @@ function Empty({
   );
 }
 
+/** Competitions somebody can actually draft from, across every group. */
+async function draftableCompetitions(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string[]> {
+  const [core, played] = await Promise.all([
+    supabase.from('competitions').select('id').eq('is_core', true),
+    supabase.from('league_competitions').select('competition_id'),
+  ]);
+  return [
+    ...new Set([
+      ...(core.data ?? []).map((c) => c.id),
+      ...(played.data ?? []).map((c) => c.competition_id),
+    ]),
+  ];
+}
+
 /**
  * Every fixture in a gameweek, narrowed to what a league plays.
  *
@@ -225,12 +241,19 @@ export default async function DraftPage({
     />
   );
 
-  // Every fixture in the round for the admin panel — postponed ones
-  // included, since the panel is the only way to put one back, and with
-  // no league filter because calling a fixture off is global: the row is
-  // shared by every group. Computed here rather than beside the board
-  // because this page has three render paths, and an admin was looking
-  // at the one that had no panel on it.
+  // Every fixture in the round somebody could have taken — postponed
+  // ones included, since the panel is the only way to put one back.
+  //
+  // Not the current group's card: calling a fixture off is global, so an
+  // admin acts for every group at once. But not every fixture either —
+  // the Bundesliga and Ligue 1 games that land in this block are
+  // followed only to rate their clubs, nobody can draft them, and
+  // offering to call one off is an action with no effect. Same test
+  // settle_gameweek uses to decide whether a round is finished.
+  //
+  // Computed here rather than beside the board because this page has
+  // three render paths, and an admin was looking at the one that had no
+  // panel on it.
   const adminFixtures = profile?.is_admin && gameweek
     ? ((
         await supabase
@@ -242,6 +265,7 @@ export default async function DraftPage({
              competition:competitions(name)`,
           )
           .eq('gameweek_id', gameweek.id)
+          .in('competition_id', await draftableCompetitions(supabase))
           .order('kickoff_at')
       ).data ?? []).map((f) => ({
         id: f.id,
