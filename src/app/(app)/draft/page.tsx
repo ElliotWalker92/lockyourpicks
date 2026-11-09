@@ -225,6 +225,38 @@ export default async function DraftPage({
     />
   );
 
+  // Every fixture in the round for the admin panel — postponed ones
+  // included, since the panel is the only way to put one back, and with
+  // no league filter because calling a fixture off is global: the row is
+  // shared by every group. Computed here rather than beside the board
+  // because this page has three render paths, and an admin was looking
+  // at the one that had no panel on it.
+  const adminFixtures = profile?.is_admin && gameweek
+    ? ((
+        await supabase
+          .from('fixtures')
+          .select(
+            `id, kickoff_at, status,
+             home:teams!fixtures_home_team_id_fkey(name),
+             away:teams!fixtures_away_team_id_fkey(name),
+             competition:competitions(name)`,
+          )
+          .eq('gameweek_id', gameweek.id)
+          .order('kickoff_at')
+      ).data ?? []).map((f) => ({
+        id: f.id,
+        kickoff_at: f.kickoff_at,
+        status: f.status,
+        home: f.home?.name ?? '?',
+        away: f.away?.name ?? '?',
+        competition: f.competition?.name ?? '',
+      }))
+    : [];
+
+  const adminPanel = profile?.is_admin ? (
+    <AdminFixtures fixtures={adminFixtures} />
+  ) : null;
+
   if (!gameweek) {
     return (
       <div className="flex flex-col gap-8">
@@ -427,6 +459,7 @@ export default async function DraftPage({
     return (
       <div className="flex flex-col gap-8">
         <LiveScores gameweekId={gameweek.id} />
+        {adminPanel}
         {heading(
           roundStrip(false),
           `${gameweek.name ?? `Gameweek ${gameweek.number}`} · closes ${closingTime(
@@ -562,6 +595,7 @@ export default async function DraftPage({
             </div>
           )}
         </Empty>
+        {adminPanel}
       </div>
     );
   }
@@ -584,31 +618,6 @@ export default async function DraftPage({
   if (cardError) console.error('draft card:', cardError.message);
   const playing = card ?? [];
 
-  // Every fixture in the round, postponed ones included — the board's own
-  // query filters those out, and the admin panel is the one place that
-  // has to see them in order to put one back.
-  const adminFixtures = profile?.is_admin
-    ? ((
-        await supabase
-          .from('fixtures')
-          .select(
-            `id, kickoff_at, status,
-             home:teams!fixtures_home_team_id_fkey(name),
-             away:teams!fixtures_away_team_id_fkey(name),
-             competition:competitions(name)`,
-          )
-          .eq('gameweek_id', gameweek.id)
-          .in('competition_id', playing)
-          .order('kickoff_at')
-      ).data ?? []).map((f) => ({
-        id: f.id,
-        kickoff_at: f.kickoff_at,
-        status: f.status,
-        home: f.home?.name ?? '?',
-        away: f.away?.name ?? '?',
-        competition: f.competition?.name ?? '',
-      }))
-    : [];
 
 
   const [{ data: fixtureRows }, { data: picks }, { data: members }] =
@@ -772,7 +781,7 @@ export default async function DraftPage({
     <div className="flex flex-col gap-8">
       {/* Scores and ticks reach the slip without a reload — see 0021. */}
       <LiveScores gameweekId={gameweek.id} />
-      {profile?.is_admin && <AdminFixtures fixtures={adminFixtures} />}
+      {adminPanel}
       <DraftBoard
         schedule={mySchedule}
         draft={draft}
