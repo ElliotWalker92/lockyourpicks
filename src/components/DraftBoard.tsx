@@ -144,6 +144,7 @@ export function DraftBoard({
   divisionName,
   roundLabel,
   closesAt,
+  closesAtIso,
   scopeToggle,
   roundStrip,
   now,
@@ -165,6 +166,14 @@ export function DraftBoard({
   roundLabel: string;
   /** When picking shuts for everyone, already formatted. */
   closesAt: string;
+  /**
+   * The same deadline as an instant.
+   *
+   * One of the board's rules is about time rather than wording: a player
+   * whose turn has gone can still take a replacement pick right up until
+   * the round shuts, and a formatted string cannot be compared.
+   */
+  closesAtIso: string;
   /**
    * Rendered inside the header rather than above it.
    *
@@ -313,6 +322,28 @@ export function DraftBoard({
     mySeat >= 0 && draft.status !== 'complete'
       ? Math.max(mySeat - draft.current_turn, 0)
       : 0;
+
+  /**
+   * A replacement pick: your turn has been and gone, the round is still
+   * open, and you are short.
+   *
+   * That can only happen because a fixture you took was called off, and
+   * `make_pick` allows exactly this case — see migration 0059. The board
+   * did not, so the mail telling a player to pick again landed them on a
+   * page with every button greyed out and a heading saying everyone was in.
+   *
+   * Written as the same test the database makes rather than a flag worked
+   * out on the server, because a board that offers a pick `make_pick` would
+   * refuse is worse than a board that offers none.
+   */
+  const replacing =
+    mySeat >= 0 &&
+    mySeat < draft.current_turn &&
+    owed > 0 &&
+    new Date(closesAtIso).getTime() > new Date(now).getTime();
+
+  /** Your turn, or a pick you are owed. Either way the board is live. */
+  const canPick = isMyTurn || replacing;
 
   const fixtureOf = useMemo(() => {
     const map = new Map(fixtures.map((f) => [f.id, f]));
@@ -464,8 +495,9 @@ export function DraftBoard({
     });
 
   // ---- The header's own words ----
-  const headline =
-    draft.status === 'complete'
+  const headline = replacing
+    ? `Take ${owed} more`
+    : draft.status === 'complete'
       ? 'All picked'
       : isMyTurn
         ? owed > 0
@@ -474,6 +506,11 @@ export function DraftBoard({
         : `${onTurn ? nameOf(onTurn) : 'Someone'} is picking`;
 
   const standing = (() => {
+    if (replacing) {
+      return `A fixture you picked was called off, so you’re ${owed} short. Your turn has gone, so take ${owed} more from the board whenever you like — ${
+        owed === 1 ? 'it goes' : 'they go'
+      } straight on, up until picking closes.`;
+    }
     if (draft.status === 'complete') {
       return 'Everyone in this division is in. Points land as results come in.';
     }
@@ -550,7 +587,7 @@ export function DraftBoard({
         theirOwed > 0 ? (
           <>
             <span>
-              {mine && isMyTurn
+              {mine && canPick
                 ? `${theirOwed} more to take — choose from the board.`
                 : `${theirOwed} still to come.`}
             </span>
@@ -668,7 +705,12 @@ export function DraftBoard({
    * it. The first draft said "2 of 3 taken" over "1 more, then lock in" and
    * both ended in an ellipsis.
    */
-  const barCaption = isMyTurn
+  const barCaption = replacing
+    ? {
+        lead: `${myPicks.length} of ${draft.picks_per_player}`,
+        note: `${owed} to replace`,
+      }
+    : isMyTurn
     ? owed > 0
       ? {
           lead: `${myPicks.length} of ${draft.picks_per_player}`,
@@ -699,7 +741,7 @@ export function DraftBoard({
               questions: which round is this, and whose turn is it. They are
               one block now, and it sits above the thing you came to do
               rather than in front of it. */}
-      <section className={`card p-5 ${isMyTurn ? 'border-hot' : ''}`}>
+      <section className={`card p-5 ${canPick ? 'border-hot' : ''}`}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <p className="label">{roundLabel}</p>
           {/* `ml-auto` alone right-aligned this against nothing once it
@@ -944,7 +986,7 @@ export function DraftBoard({
                                   <button
                                     key={outcome}
                                     type="button"
-                                    disabled={!isMyTurn || pending}
+                                    disabled={!canPick || pending}
                                     onClick={() => submit(f.id, outcome)}
                                     title={
                                       outcome === 'DRAW'
@@ -1007,10 +1049,10 @@ export function DraftBoard({
             {/* The desktop home of the lock-in. There is room for it beside
                 the board here, so it needs no pinned bar — it simply never
                 leaves the screen. */}
-            {draft.status !== 'complete' && (
+            {(draft.status !== 'complete' || replacing) && (
               <div
                 className={`card hidden p-4 lg:block ${
-                  isMyTurn ? 'border-hot' : ''
+                  canPick ? 'border-hot' : ''
                 }`}
               >
                 <div className="flex items-baseline gap-2">
@@ -1092,7 +1134,7 @@ export function DraftBoard({
           the board, so a spacer inside the board only pushed the slip down
           and left the share buttons — the ones the group chat runs on — sat
           underneath the bar. */}
-      {draft.status !== 'complete' && (
+      {(draft.status !== 'complete' || replacing) && (
         <div aria-hidden className="h-16 lg:hidden" />
       )}
 
@@ -1103,7 +1145,7 @@ export function DraftBoard({
               away from, and it carries your three slots so it doubles as a
               live view of your own row of the slip rather than a second copy
               of it. */}
-      {draft.status !== 'complete' && (
+      {(draft.status !== 'complete' || replacing) && (
         <div className="fixed inset-x-0 bottom-[var(--nav-height)] z-10 border-t border-grey-300 bg-card shadow-float sm:bottom-0 lg:hidden">
           {/* Your own row, opened out. Three chips can say you hold two of
               three and roughly who; they can't say Burnley away to Leeds,

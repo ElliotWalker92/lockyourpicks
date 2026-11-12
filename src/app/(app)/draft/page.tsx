@@ -821,6 +821,7 @@ export default async function DraftPage({
           view.divisionName ?? 'Your division'
         }`}
         closesAt={closingTime(gameweek.draft_closes_at)}
+        closesAtIso={gameweek.draft_closes_at}
         scopeToggle={scopeToggle}
         roundStrip={roundStrip(true)}
         now={nowIso}
