@@ -443,4 +443,39 @@ begin
   raise notice 'D2 ok  a stale total is rewritten from the picks behind it, once';
 end $$;
 
+-- D3. Correcting a total must never create one.
+--
+--     This is the fault 0064 fixes, and it cost a player sixteen points on
+--     the live table: a row whose (player, gameweek, division) has no live
+--     picks behind it is history from before they changed division, not a
+--     number to recompute. An upsert "fixed" it by writing a second row
+--     under the division their current draft belongs to and leaving the
+--     first, doubling the season.
+do $$
+declare before_n integer; after_n integer; fixed integer; orphan integer;
+begin
+  insert into public.gameweek_scores
+    (user_id, gameweek_id, division_id, points, correct_count, settled_at)
+  values ('dddddddd-0000-0000-0000-000000000001',
+          'aaaaaaaa-0000-0000-0000-000000000003',
+          'ffffffff-0000-0000-0000-000000000002',
+          7, 7, now() - interval '30 days');
+
+  select count(*) into before_n from public.gameweek_scores;
+  select public.rescore_stale_gameweeks() into fixed;
+  select count(*) into after_n from public.gameweek_scores;
+
+  if after_n <> before_n then
+    raise exception 'D3 FAIL: the sweep created rows (% -> %)', before_n, after_n;
+  end if;
+
+  select points into orphan from public.gameweek_scores
+   where user_id     = 'dddddddd-0000-0000-0000-000000000001'
+     and division_id = 'ffffffff-0000-0000-0000-000000000002';
+  if orphan <> 7 then
+    raise exception 'D3 FAIL: history under a division they have left was rewritten to %', orphan;
+  end if;
+  raise notice 'D3 ok  a total with no picks behind it is left alone, and nothing is invented';
+end $$;
+
 select 'ALL ASSERTIONS PASSED' as result;

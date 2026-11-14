@@ -45,7 +45,7 @@ export type ResultsReport = {
   finished: number;
   gameweeksSettled: number;
   /** Totals rewritten because a pick in them scored on a rearranged date. */
-  gameweeksRescored: number;
+  totalsRescored: number;
   /** League tables refreshed because one of their fixtures just finished. */
   tablesRefreshed: string[];
   /**
@@ -119,7 +119,7 @@ export async function ingestResults(
     updated: 0,
     finished: 0,
     gameweeksSettled: 0,
-    gameweeksRescored: 0,
+    totalsRescored: 0,
     tablesRefreshed: [],
     warnings: [],
     errors: [],
@@ -212,7 +212,7 @@ export async function ingestResults(
     'rescore_stale_gameweeks',
   );
   if (rescoreError) report.errors.push(`rescore: ${rescoreError.message}`);
-  else report.gameweeksRescored = rescored ?? 0;
+  else report.totalsRescored = rescored ?? 0;
 
   // A table only moves when a match in it finishes, so refresh exactly
   // those — within one results run of full time, rather than waiting for
