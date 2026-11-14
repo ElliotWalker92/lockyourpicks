@@ -19,6 +19,15 @@ export type SharePick = {
   result?: Outcome | null;
   /** null while unscored; 0 or 1 once the gameweek settles. */
   points?: number | null;
+  /**
+   * The fixture's status, so a called-off game can say so on the card.
+   *
+   * It has to be on the card rather than left to the group to work out: a
+   * pick on a postponed game is not dead, it rides to the rearranged date
+   * and scores then, so a slip that shows it as an ordinary pick with no
+   * score invites the question every week until the replay.
+   */
+  status?: string | null;
 };
 
 /** One player's picks. A personal slip is a single group; a division slip is one per player. */
@@ -195,8 +204,13 @@ async function drawCard(opts: {
     opts.groups.map((g) => g.section).filter(Boolean),
   ).size;
 
+  // A postponed pick needs a line under the footer saying what the (P)
+  // is, so the card grows rather than crowding the domain.
+  const anyOff = opts.groups.some((g) =>
+    g.picks.some((pk) => pk.status === 'postponed'),
+  );
   const headerH = 300;
-  const footerH = 130;
+  const footerH = anyOff ? 174 : 130;
   const bodyH =
     totalPicks * ROW_H +
     (grouped ? opts.groups.length * GROUP_H : 0) +
@@ -335,6 +349,10 @@ async function drawCard(opts: {
       const room = pillX - FIXTURE_X - GAP;
       const homeImg = p.homeCrest ? crests.get(p.homeCrest) : null;
       const awayImg = p.awayCrest ? crests.get(p.awayCrest) : null;
+      // Measured with the names, not added after them: a tag that isn't in
+      // the width is a tag that runs under the pill on the long fixtures.
+      const tag =
+        p.status === 'postponed' ? ' (P)' : p.status === 'cancelled' ? ' (C)' : '';
       const badges = (homeImg ? CREST + 10 : 0) + (awayImg ? CREST + 10 : 0);
 
       let size = 32;
@@ -344,6 +362,7 @@ async function drawCard(opts: {
           ctx.measureText(p.home).width +
           ctx.measureText(' v ').width +
           ctx.measureText(p.away).width +
+          ctx.measureText(tag).width +
           badges
         );
       };
@@ -362,6 +381,7 @@ async function drawCard(opts: {
         ctx.measureText(h).width +
         ctx.measureText(' v ').width +
         ctx.measureText(a).width +
+        ctx.measureText(tag).width +
         badges;
 
       while (
@@ -397,6 +417,13 @@ async function drawCard(opts: {
       ctx.fillStyle = '#ffffff';
       ctx.fillText(awayName, x, mid + 9);
 
+      if (tag) {
+        x += ctx.measureText(awayName).width;
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `700 ${size}px ${sans}`;
+        ctx.fillText(tag, x, mid + 9);
+      }
+
       if (index < totalPicks) {
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 1;
@@ -411,7 +438,7 @@ async function drawCard(opts: {
   }
 
   // ---- Footer ----
-  const footY = height - 54;
+  const footY = height - (anyOff ? 98 : 54);
   ctx.fillStyle = accent;
   ctx.font = `700 24px ${sans}`;
   ctx.letterSpacing = '1px';
@@ -423,6 +450,14 @@ async function drawCard(opts: {
   if (!opts.scored && !opts.locked) ctx.fillStyle = 'rgba(255,255,255,0.45)';
   ctx.fillText(status, PAD, footY);
   ctx.letterSpacing = '0px';
+
+  // What the (P) means, and only when there is one. A legend for a mark
+  // that isn't on the card is clutter, and the group reads this on a phone.
+  if (anyOff) {
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = `22px ${sans}`;
+    ctx.fillText('(P) postponed — the pick stands for the rearranged date', PAD, footY + 34);
+  }
 
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
   ctx.font = `24px ${sans}`;

@@ -37,7 +37,10 @@ export function AdminFixtures({ fixtures }: { fixtures: AdminFixture[] }) {
     if (
       next === 'postponed' &&
       !confirm(
-        `Take ${f.home} v ${f.away} off the board?\n\nAnyone who picked it gets that pick back, can choose again, and will be told.`,
+        `Take ${f.home} v ${f.away} off the board?\n\nIt leaves the board, so nobody else can pick it. Anyone who already ` +
+          `picked it keeps that pick — it stands for whenever the game is replayed. ` +
+          `Only somebody who picked it after it was known to be off gets it back, ` +
+          `and they'll be told.`,
       )
     ) {
       return;

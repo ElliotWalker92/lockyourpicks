@@ -371,6 +371,7 @@ export function DraftBoard({
         homeScore: f.home_score,
         awayScore: f.away_score,
         result: f.result,
+        status: f.status,
         points: pick.points_awarded,
       },
     ];

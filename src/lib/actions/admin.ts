@@ -131,9 +131,11 @@ async function tellThem(
   const emails = new Map((rows ?? []).map((r) => [r.id, r.email ?? '']));
 
   const body =
-    `${fixture} has been called off, so your pick on it has been given ` +
-    `back. You're a pick short for this round — take another one before ` +
-    `the deadline.`;
+    `${fixture} had already been called off when you picked it, so that ` +
+    `pick has been given back. You're a pick short for this round — take ` +
+    `another one before the deadline. A game that goes off *after* you ` +
+    `pick it is a different matter: that pick stands and scores on the ` +
+    `rearranged date.`;
 
   const results = await Promise.all(
     players.map(async (p) => {
@@ -144,12 +146,12 @@ async function tellThem(
         { email, push_targets: p.push_targets },
         {
           push: {
-            title: 'Your pick has been given back',
-            body: `${fixture} is off. Pick again before the deadline.`,
+            title: 'That game was already off',
+            body: `${fixture} was already postponed. Pick again before the deadline.`,
             url: '/draft',
           },
           mail: {
-            subject: `${fixture} is off \u2014 pick again`,
+            subject: `${fixture} was already off \u2014 pick again`,
             text: body,
             html: `<p>${body}</p><p><a href="https://lockyourpicks.com/draft">Open the draft</a></p>`,
           },

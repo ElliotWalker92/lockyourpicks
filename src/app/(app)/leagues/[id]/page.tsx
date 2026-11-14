@@ -154,7 +154,7 @@ export default async function LeaguePage({
           .select(
             `draft_id, user_id, predicted_outcome, pick_number, points_awarded,
              fixtures(
-               home_score, away_score,
+               home_score, away_score, status,
                home:teams!fixtures_home_team_id_fkey(name, crest_url),
                away:teams!fixtures_away_team_id_fkey(name, crest_url)
              )`,
@@ -219,6 +219,7 @@ export default async function LeaguePage({
               const fixture = one(p.fixtures) as {
                 home_score: number | null;
                 away_score: number | null;
+                status: string;
                 home: { name: string; crest_url: string | null };
                 away: { name: string; crest_url: string | null };
               };
@@ -238,6 +239,7 @@ export default async function LeaguePage({
                       : 'Draw',
                 homeScore: fixture.home_score,
                 awayScore: fixture.away_score,
+                status: fixture.status,
                 points: p.points_awarded,
               };
             }),

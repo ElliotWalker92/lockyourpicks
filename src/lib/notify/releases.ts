@@ -6,7 +6,12 @@ import { callRpc } from '@/lib/supabase/rpc';
 import type { Database } from '@/lib/types';
 
 /**
- * "Your pick came back — take another one."
+ * "You picked a game that was already off — pick again."
+ *
+ * Only that case. A pick made while the game was genuinely on is not
+ * released at all: it rides to the rearranged date and scores then (0063).
+ * So everybody this writes to has lost a pick to stale data on our side,
+ * which is worth saying plainly rather than dressing up as bad luck.
  *
  * The release itself happens in the database the moment a fixture goes
  * off, whoever wrote it (0062), and a trigger cannot send mail. So it
@@ -68,10 +73,10 @@ export async function notifyReleases(
         { email: row.email, push_targets: row.push_targets },
         {
           push: {
-            title: 'Your pick has come back',
+            title: 'That game was already off',
             body: `${list(row.fixtures)} ${
-              row.fixtures.length === 1 ? 'is' : 'are'
-            } off. Pick again before ${closes(row.closes_at)}.`,
+              row.fixtures.length === 1 ? 'was' : 'were'
+            } already postponed. Pick again before ${closes(row.closes_at)}.`,
             url: '/draft',
             tag: `release-${row.gameweek}`,
           },
@@ -108,12 +113,15 @@ export async function notifyReleases(
 
 function mail(row: PendingRelease) {
   const many = row.short !== 1;
+  const one = row.fixtures.length === 1;
   const body =
-    `${list(row.fixtures)} ${row.fixtures.length === 1 ? 'has' : 'have'} been ` +
-    `called off, so your pick came back. You're ${row.short} short for ` +
-    `gameweek ${row.gameweek} — take ${many ? `${row.short} more` : 'another one'} ` +
-    `from the board before picking closes ${closes(row.closes_at)}. ` +
-    `Leave it and the clock picks for you.`;
+    `${list(row.fixtures)} had already been called off when ` +
+    `you picked ${one ? 'it' : 'them'} — our fixture list hadn't caught up, ` +
+    `which is our fault, not yours. You've got that pick back, so you're ` +
+    `${row.short} short for gameweek ${row.gameweek}. Take ` +
+    `${many ? `${row.short} more` : 'another one'} from the board before ` +
+    `picking closes ${closes(row.closes_at)}. Leave it and the clock picks ` +
+    `for you.`;
 
   return {
     subject: `Pick again — gameweek ${row.gameweek}`,

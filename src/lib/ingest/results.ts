@@ -44,6 +44,8 @@ export type ResultsReport = {
   updated: number;
   finished: number;
   gameweeksSettled: number;
+  /** Totals rewritten because a pick in them scored on a rearranged date. */
+  gameweeksRescored: number;
   /** League tables refreshed because one of their fixtures just finished. */
   tablesRefreshed: string[];
   /**
@@ -117,6 +119,7 @@ export async function ingestResults(
     updated: 0,
     finished: 0,
     gameweeksSettled: 0,
+    gameweeksRescored: 0,
     tablesRefreshed: [],
     warnings: [],
     errors: [],
@@ -195,6 +198,21 @@ export async function ingestResults(
 
   if (settleError) report.errors.push(`settle: ${settleError.message}`);
   else report.gameweeksSettled = settled ?? 0;
+
+  // A settled gameweek is never revisited by `settle_due_gameweeks`, but a
+  // pick in it can still be scored weeks later: a postponed match keeps its
+  // fixture row, the ingest moves that row to the gameweek its new date
+  // falls in, and the pick goes with it. The point then lands on the pick
+  // and never reaches the stored total. It has happened once already — a
+  // point from gameweek 13, played in gameweek 19, missing from the table
+  // ever since. So any total that no longer matches the picks behind it is
+  // rewritten here, which is cheap and self-healing.
+  const { data: rescored, error: rescoreError } = await callRpc<number>(
+    supabase,
+    'rescore_stale_gameweeks',
+  );
+  if (rescoreError) report.errors.push(`rescore: ${rescoreError.message}`);
+  else report.gameweeksRescored = rescored ?? 0;
 
   // A table only moves when a match in it finishes, so refresh exactly
   // those — within one results run of full time, rather than waiting for
