@@ -478,4 +478,186 @@ begin
   raise notice 'D3 ok  a total with no picks behind it is left alone, and nothing is invented';
 end $$;
 
+
+-- ============================================================
+--  E: auto-picks must not all be the same slip (0065)
+--
+--     A gameweek of its own, with twelve fixtures whose Elo gaps differ,
+--     and three players in three separate leagues — because a player
+--     belongs to one division per league per season, and the fault being
+--     tested is precisely that separate divisions do not see each other's
+--     picks.
+-- ============================================================
+insert into public.teams (id, name, short_name, provider_team_id, elo_rating)
+select ('bbbbbbbb-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
+       'Team ' || i, 'T' || i, 8000 + i, 1500 + i * 10
+  from generate_series(17, 24) as g(i);
+
+insert into public.gameweeks (id, season_id, number, name, draft_opens_at,
+                             draft_closes_at, first_kickoff_at, status)
+values ('aaaaaaaa-0000-0000-0000-000000000004',
+        (select id from public.seasons where is_active), 2, 'Gameweek 2',
+        now() - interval '3 days', now() - interval '1 hour',
+        now() + interval '1 day', 'drafting');
+
+-- Paired high against low so the Elo gaps spread out, and staggered
+-- kickoffs so the ranking has no ties to resolve arbitrarily.
+insert into public.fixtures
+  (id, gameweek_id, competition_id, home_team_id, away_team_id, kickoff_at, status, provider_fixture_id)
+select ('cccccccc-0000-0000-0000-' || lpad((100 + i)::text, 12, '0'))::uuid,
+       'aaaaaaaa-0000-0000-0000-000000000004',
+       (select id from public.competitions where code = 'EL1'),
+       ('bbbbbbbb-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
+       ('bbbbbbbb-0000-0000-0000-' || lpad((25 - i)::text, 12, '0'))::uuid,
+       now() + interval '1 day' + (i || ' hours')::interval,
+       'scheduled', 7100 + i
+  from generate_series(1, 12) as g(i);
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+                        email_confirmed_at, created_at, updated_at)
+select ('dddddddd-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
+       '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+       'p' || i || '@example.com', 'x', now(), now(), now()
+  from generate_series(7, 9) as g(i);
+
+insert into public.leagues (id, name, owner_id, join_code)
+select ('eeeeeeee-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       'Solo League ' || i,
+       ('dddddddd-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
+       'SOLO0' || i
+  from generate_series(7, 9) as g(i);
+
+insert into public.divisions (id, league_id, name, tier, season_id)
+select ('ffffffff-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       ('eeeeeeee-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       'Division 1', 1,
+       (select id from public.seasons where is_active)
+  from generate_series(7, 9) as g(i);
+
+insert into public.league_members (league_id, user_id)
+select ('eeeeeeee-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       ('dddddddd-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid
+  from generate_series(7, 9) as g(i);
+
+insert into public.division_members (division_id, user_id, league_id, season_id, seat)
+select ('ffffffff-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       ('dddddddd-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
+       ('eeeeeeee-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       (select id from public.seasons where is_active),
+       0
+  from generate_series(7, 9) as g(i);
+
+insert into public.drafts
+  (id, division_id, gameweek_id, status, pick_order, current_turn,
+   picks_per_player, turn_started_at, turn_expires_at)
+select ('99999999-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       ('ffffffff-0000-0000-0000-' || lpad((10 + i)::text, 12, '0'))::uuid,
+       'aaaaaaaa-0000-0000-0000-000000000004',
+       'complete',
+       array[('dddddddd-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid],
+       1, 3, now() - interval '2 days', null
+  from generate_series(7, 9) as g(i);
+
+do $$
+declare added integer; n integer; auto integer; bad integer;
+begin
+  select public.auto_pick_shortfalls() into added;
+  if added <> 9 then raise exception 'E1 FAIL: filled %, expected 9', added; end if;
+
+  select count(*), count(*) filter (where is_auto_pick) into n, auto
+    from public.picks
+   where draft_id in ('99999999-0000-0000-0000-000000000017',
+                      '99999999-0000-0000-0000-000000000018',
+                      '99999999-0000-0000-0000-000000000019');
+  if n <> 9 or auto <> 9 then
+    raise exception 'E1 FAIL: % picks, % auto', n, auto;
+  end if;
+
+  select count(*) into bad
+    from public.picks p join public.fixtures f on f.id = p.fixture_id
+   where p.draft_id in ('99999999-0000-0000-0000-000000000017',
+                        '99999999-0000-0000-0000-000000000018',
+                        '99999999-0000-0000-0000-000000000019')
+     and (f.status <> 'scheduled' or f.kickoff_at <= now());
+  if bad <> 0 then raise exception 'E1 FAIL: % picks on a game that is off or started', bad; end if;
+  raise notice 'E1 ok  three players filled to quota, nine auto-picks, all live fixtures';
+end $$;
+
+-- E2. The point of the change: the three slips are not the same slip.
+do $$
+declare distinct_fixtures integer; shared integer;
+begin
+  select count(distinct fixture_id) into distinct_fixtures
+    from public.picks
+   where draft_id in ('99999999-0000-0000-0000-000000000017',
+                      '99999999-0000-0000-0000-000000000018',
+                      '99999999-0000-0000-0000-000000000019');
+
+  -- Identical slips would give exactly 3. Anything approaching 9 is spread.
+  if distinct_fixtures < 6 then
+    raise exception 'E2 FAIL: only % distinct fixtures across three slips', distinct_fixtures;
+  end if;
+
+  select count(*) into shared
+    from (
+      select fixture_id from public.picks
+       where draft_id in ('99999999-0000-0000-0000-000000000017',
+                          '99999999-0000-0000-0000-000000000018',
+                          '99999999-0000-0000-0000-000000000019')
+       group by fixture_id having count(*) = 3
+    ) all_three;
+  raise notice 'E2 ok  % distinct fixtures across 9 auto-picks (3 would mean identical), % taken by all three', distinct_fixtures, shared;
+end $$;
+
+-- E3. Still deterministic: the same player filled again gets the same
+--     fixtures, so a retry cannot quietly rewrite somebody's slip.
+do $$
+declare before_ids uuid[]; after_ids uuid[];
+begin
+  select array_agg(fixture_id order by fixture_id) into before_ids
+    from public.picks where draft_id = '99999999-0000-0000-0000-000000000017';
+
+  delete from public.picks where draft_id = '99999999-0000-0000-0000-000000000017';
+  perform public.auto_fill_player('99999999-0000-0000-0000-000000000017',
+                                  'dddddddd-0000-0000-0000-000000000007');
+
+  select array_agg(fixture_id order by fixture_id) into after_ids
+    from public.picks where draft_id = '99999999-0000-0000-0000-000000000017';
+
+  if before_ids is distinct from after_ids then
+    raise exception 'E3 FAIL: refilling gave a different slip';
+  end if;
+  raise notice 'E3 ok  the same player filled again gets the same slip';
+end $$;
+
+-- E4. Spread must not cost quality: every auto-pick is one of the eight
+--     biggest mismatches available, not a coin toss over the whole card.
+do $$
+declare worst integer;
+begin
+  with board as (
+    select f.id,
+           row_number() over (
+             order by (ht.elo_rating is not null and at.elo_rating is not null) desc,
+                      abs(ht.elo_rating + 100 - at.elo_rating) desc,
+                      f.kickoff_at asc
+           ) as rank
+      from public.fixtures f
+      join public.teams ht on ht.id = f.home_team_id
+      join public.teams at on at.id = f.away_team_id
+     where f.gameweek_id = 'aaaaaaaa-0000-0000-0000-000000000004'
+  )
+  select max(b.rank) into worst
+    from public.picks p
+    join board b on b.id = p.fixture_id
+   where p.draft_id = '99999999-0000-0000-0000-000000000018';
+
+  -- Three picks taken one at a time, each from the best eight of what is
+  -- left, so the third can sit as low as tenth on the original board.
+  if worst > 10 then
+    raise exception 'E4 FAIL: an auto-pick came from rank % of the board', worst;
+  end if;
+  raise notice 'E4 ok  the lowest-ranked auto-pick was rank % of the board', worst;
+end $$;
+
 select 'ALL ASSERTIONS PASSED' as result;
