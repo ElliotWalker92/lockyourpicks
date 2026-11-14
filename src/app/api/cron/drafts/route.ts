@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { runCron } from '@/lib/cron';
 
 import { callRpc } from '@/lib/supabase/rpc';
+import { emptyReleaseReport, notifyReleases } from '@/lib/notify/releases';
 import { emptyRoundReport, notifyRounds } from '@/lib/notify/rounds';
 import { notifyTurns } from '@/lib/notify/turns';
 
@@ -25,6 +26,18 @@ export const maxDuration = 60;
  *                      point of having a turn deadline is that something
  *                      enforces it.
  *
+ *   auto_pick_shortfalls
+ *                      fills anyone still short once picking has closed.
+ *                      run_expired_turns above only ever fills the seat on
+ *                      the clock, so a player whose pick was given back by
+ *                      a postponement and who never acted on it used to go
+ *                      into the weekend a pick down — see 0062.
+ *
+ *   notifyReleases     tells whoever had a pick given back because their
+ *                      fixture went off. The release happens in the
+ *                      database the moment the status moves, whoever wrote
+ *                      it; this is the half a trigger cannot do.
+ *
  *   notifyTurns        tells whoever the clock has just moved to — a push to
  *                      their phone if they've installed the app, an email
  *                      otherwise. It rides here rather than on its own
@@ -44,6 +57,7 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   return runCron(request, 'drafts', async (supabase) => {
     const errors: string[] = [];
+    const warnings: string[] = [];
 
     const { data: opened, error: openError } = await callRpc<number>(
       supabase,
@@ -57,9 +71,28 @@ export async function GET(request: NextRequest) {
     );
     if (turnError) errors.push(`run_expired_turns: ${turnError.message}`);
 
+    // After the turns, because a turn expiring is one of the ways a round
+    // ends up short, and before the notifications, so nobody is told to
+    // pick again for a round that has just closed under them.
+    const { data: filled, error: fillError } = await callRpc<number>(
+      supabase,
+      'auto_pick_shortfalls',
+    );
+    if (fillError) errors.push(`auto_pick_shortfalls: ${fillError.message}`);
+
+    let releases = emptyReleaseReport();
+    try {
+      releases = await notifyReleases(supabase);
+    } catch (err) {
+      releases.errors.push(
+        `notifyReleases: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    errors.push(...releases.errors);
+    warnings.push(...releases.warnings);
+
     // After the turns have moved, not before.
     let notified = { due: 0, sent: 0, pushed: 0, warned: 0, skipped: 0 };
-    const warnings: string[] = [];
     try {
       const report = await notifyTurns(supabase);
       notified = {
@@ -94,6 +127,13 @@ export async function GET(request: NextRequest) {
     return {
       draftsOpened: opened ?? 0,
       turnsAutoPicked: autoPicked ?? 0,
+      shortfallsFilled: filled ?? 0,
+      releases: {
+        due: releases.due,
+        sent: releases.sent,
+        pushed: releases.pushed,
+        skipped: releases.skipped,
+      },
       notified,
       rounds: {
         due: rounds.due,

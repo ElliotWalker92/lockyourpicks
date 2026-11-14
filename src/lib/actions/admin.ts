@@ -44,6 +44,12 @@ export async function openNextGameweek(
 export type AdminState = { error: string | null; success: string | null };
 
 type ReleasedPlayer = {
+  /**
+   * The rows in `pick_releases` this player's news is about. Stamped once
+   * they have been told, so the ten-minute pass doesn't tell them again —
+   * and so it picks them up if this send fails. See migration 0062.
+   */
+  release_ids: string[];
   user_id: string;
   display_name: string | null;
   push_targets: PushTarget[] | null;
@@ -57,11 +63,18 @@ type ReleasedPlayer = {
  * still read as "not started" days later, so the board kept offering
  * games that will not be played.
  *
- * The admin check, the status and the released picks all happen in
- * `admin_set_fixture_status`, because a check written here would be a
- * suggestion: a server action is a public endpoint. What is left for
- * this side is the telling, and it has to be here rather than in the
- * database — the mail key and the VAPID key live in the Worker.
+ * The admin check and the status happen in `admin_set_fixture_status`,
+ * because a check written here would be a suggestion: a server action is
+ * a public endpoint. Releasing the picks is a trigger's job as of 0062,
+ * so it holds for the nightly ingest too — the provider found three
+ * postponements by itself in gameweek 23 and stranded a pick for a day
+ * and a half. What is left for this side is the telling, and it has to be
+ * here rather than in the database — the mail key and the VAPID key live
+ * in the Worker.
+ *
+ * The same news also goes out on the ten-minute pass. This path exists
+ * because an admin who has just taken a game off the board should see
+ * whose round it changed, rather than find out ten minutes later.
  *
  * The notify step runs on a service-role client because it needs
  * addresses, which 0057 took away from `authenticated` after every
@@ -142,6 +155,14 @@ async function tellThem(
           },
         },
       );
+      if (how !== 'skipped') {
+        // Only once it has actually gone. A failed send left unstamped is
+        // picked up by the next ten-minute pass, which is the whole point
+        // of the outbox.
+        await callRpc(admin, 'mark_pick_releases_notified', {
+          p_ids: p.release_ids,
+        });
+      }
       return how;
     }),
   );
